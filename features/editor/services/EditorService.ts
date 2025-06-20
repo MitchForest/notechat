@@ -3,12 +3,16 @@ import { Node as ProseMirrorNode } from 'prosemirror-model';
 import { EventEmitter } from 'events';
 import StarterKit from '@tiptap/starter-kit';
 import { CheckOrchestrator, CheckResult } from './CheckOrchestrator';
-import { SpellCheckExtension } from './DecorationManager';
+import { SpellCheckExtension } from './SpellCheckExtension';
 import { TextError } from '../workers/grammar.worker';
 import { ErrorRegistry } from './ErrorRegistry';
 import { ChangeDetector } from './ChangeDetector';
 import { performanceMonitor } from './PerformanceMonitor';
 import { debounce } from 'lodash-es';
+import Placeholder from '@tiptap/extension-placeholder';
+import TaskList from '@tiptap/extension-task-list';
+import TaskItem from '@tiptap/extension-task-item';
+import HorizontalRule from '@tiptap/extension-horizontal-rule';
 
 export class EditorService extends EventEmitter {
   private _editor: Editor;
@@ -24,7 +28,6 @@ export class EditorService extends EventEmitter {
     this.changeDetector = new ChangeDetector();
     
     this.debouncedCheck = debounce((text: string, paragraphId: string, range: { from: number; to: number }) => {
-      console.log(`[EditorService] Debounced check FIRING for paragraph: ${paragraphId}`);
       if (text.trim().length === 0) {
         this.errorRegistry.clearParagraph(paragraphId);
       } else {
@@ -34,7 +37,52 @@ export class EditorService extends EventEmitter {
 
     this._editor = new Editor({
       extensions: [
-        StarterKit,
+        StarterKit.configure({
+          paragraph: {
+            HTMLAttributes: {
+              class: 'notion-block',
+            },
+          },
+          heading: {
+            levels: [1, 2, 3],
+            HTMLAttributes: {
+              class: 'notion-block',
+            },
+          },
+          bulletList: {
+            HTMLAttributes: {
+              class: 'notion-block',
+            },
+          },
+          orderedList: {
+            HTMLAttributes: {
+              class: 'notion-block',
+            },
+          },
+          blockquote: {
+            HTMLAttributes: {
+              class: 'notion-block',
+            },
+          },
+          codeBlock: {
+            HTMLAttributes: {
+              class: 'notion-block',
+            },
+          },
+        }),
+        HorizontalRule,
+        TaskList,
+        TaskItem.configure({
+          nested: true,
+        }),
+        Placeholder.configure({
+          placeholder: ({ node }) => {
+            if (node.type.name === 'heading') {
+              return `Heading ${node.attrs.level}`;
+            }
+            return "Type '/' for commands, or just start writing...";
+          },
+        }),
         SpellCheckExtension.configure({
           registry: this.errorRegistry,
         }),
@@ -78,6 +126,18 @@ export class EditorService extends EventEmitter {
   }
 
   private setupEventListeners() {
+    this.editor.on('transaction', ({ editor, transaction }) => {
+      if (!transaction.docChanged) return;
+      
+      const timerId = performanceMonitor.startTimer('change_detection');
+      const changedParagraphs = this.changeDetector.getChangedParagraphs(editor.state.doc, transaction);
+      performanceMonitor.endTimer(timerId);
+
+      changedParagraphs.forEach(p => {
+        this.debouncedCheck(p.text, p.id, { from: p.pos, to: p.pos + p.node.nodeSize });
+      });
+    });
+
     this.editor.on('update', ({ editor, transaction }) => {
       this.emit('update');
       if (transaction.docChanged) {
@@ -109,10 +169,8 @@ export class EditorService extends EventEmitter {
   }
 
   private handleDocChange({ editor, transaction }: { editor: Editor; transaction: any }) {
-    console.log('[EditorService] handleDocChange triggered.');
     const changedParagraphs = this.changeDetector.getChangedParagraphs(editor.state.doc, transaction);
     changedParagraphs.forEach((p: { id: string, text: string, pos: number, node: ProseMirrorNode }) => {
-      console.log(`[EditorService] Queuing debounced check for paragraph: ${p.id}`);
       this.debouncedCheck(p.text, p.id, { from: p.pos, to: p.pos + p.node.nodeSize });
     });
   }
@@ -130,80 +188,53 @@ export class EditorService extends EventEmitter {
   }
 
   private handleBoundaryCheck({ editor, transaction }: { editor: Editor, transaction: any }) {
-    console.log('[EditorService] handleBoundaryCheck triggered.');
     if (!transaction.selection.empty) return;
   
     const { from } = transaction.selection;
     const charBefore = editor.state.doc.textBetween(from - 1, from, '\n');
-    const isWordBoundary = /\s/.test(charBefore);
-    const isSentenceBoundary = /[.!?]/.test(charBefore);
-
+    
     let checkScope: 'word' | 'sentence' | null = null;
-    let textToCheck = '';
-    let range: { from: number, to: number } | null = null;
-
-    if (isSentenceBoundary) {
+    let textToCheck: { text: string; from: number; to: number } | null = null;
+    
+    if (/[.!?]/.test(charBefore)) {
       checkScope = 'sentence';
-      const sentence = this.extractSentenceBefore(editor.state.doc, from - 1);
-      if (sentence) {
-        textToCheck = sentence.text;
-        range = { from: sentence.from, to: sentence.to };
-      }
-    } else if (isWordBoundary) {
+      // For sentences, the boundary is the punctuation itself, plus any preceding punctuation.
+      textToCheck = this.extractTextBefore(editor.state.doc, from -1, /[.!?]/);
+    } else if (/\s/.test(charBefore)) {
       checkScope = 'word';
-      const word = this.extractWordBefore(editor.state.doc, from - 1);
-      if (word) {
-        textToCheck = word.text;
-        range = { from: word.from, to: word.to };
-      }
+      textToCheck = this.extractTextBefore(editor.state.doc, from - 1, /\s/);
     }
 
-    if (checkScope && textToCheck && range) {
-      const paragraphInfo = this.findParagraph(range.from);
+    if (checkScope && textToCheck) {
+      const paragraphInfo = this.findParagraph(textToCheck.from);
       if (paragraphInfo) {
-        console.log(`[EditorService] Firing boundary check for scope "${checkScope}" on paragraph ${paragraphInfo.paragraphId}`);
-        this.checkOrchestrator.check(textToCheck, paragraphInfo.paragraphId, { scope: checkScope, range });
+        this.checkOrchestrator.check(textToCheck.text, paragraphInfo.paragraphId, { scope: checkScope, range: textToCheck });
       }
     }
   }
 
-  private extractWordBefore(doc: ProseMirrorNode, position: number): { text: string; from: number; to: number } | null {
+  private extractTextBefore(doc: ProseMirrorNode, position: number, boundary: RegExp): { text: string; from: number; to: number } | null {
     let to = position;
     let from = position;
     let char = doc.textBetween(from - 1, from);
-
-    // Scan backwards to find the start of the word
-    while (char && !/\s/.test(char)) {
-      from--;
-      char = doc.textBetween(from - 1, from);
-    }
-
-    const wordText = doc.textBetween(from, to).trim();
-    if (wordText.length === 0) return null;
-    
-    return { text: wordText, from, to };
-  }
   
-  private extractSentenceBefore(doc: ProseMirrorNode, position: number): { text: string; from: number; to: number } | null {
-    let to = position;
-    let from = position;
-    let char = doc.textBetween(from - 1, from);
-    
-    // Scan backwards to find the start of the sentence (a punctuation mark or the start of the doc)
-    while (char && !/[.!?]/.test(char) && from > 1) {
+    // Scan backwards to find the start of the text segment
+    while (char && !boundary.test(char)) {
       from--;
       char = doc.textBetween(from - 1, from);
     }
-    
-    // Adjust 'from' to be after the punctuation if found
-    if (/[.!?]/.test(char)) {
-      from++;
+  
+    // Adjust 'from' to be after the boundary if found, for sentence extraction
+    if (boundary.source.includes('[.!?]')) {
+      if (boundary.test(char)) {
+        from++;
+      }
     }
 
-    const sentenceText = doc.textBetween(from, to).trim();
-    if (sentenceText.length === 0) return null;
+    const extractedText = doc.textBetween(from, to).trim();
+    if (extractedText.length === 0) return null;
     
-    return { text: sentenceText, from, to };
+    return { text: extractedText, from, to };
   }
 
   private handleBulkInsert(content: string, position: number, type: 'paste' | 'drop'): void {
@@ -253,7 +284,7 @@ export class EditorService extends EventEmitter {
   private splitIntoParagraphs(text: string): string[] {
     return text.split(/\n+/).filter(p => p.trim().length > 0);
   }
-  
+
   public get editor(): Editor {
     if (!this._editor) {
       throw new Error("Editor not initialized");
@@ -261,7 +292,7 @@ export class EditorService extends EventEmitter {
     return this._editor;
   }
 
-  public destroy() {
+  public destroy(): void {
     this.checkOrchestrator.destroy();
     this.editor.destroy();
     this.removeAllListeners();
@@ -294,10 +325,8 @@ export class EditorService extends EventEmitter {
   }
 
   private onResults(result: CheckResult): void {
-    console.log('[EditorService] onResults triggered with:', result);
     const { id, errors, paragraphId, range } = result;
     if (!this.editor || !paragraphId || !range) {
-      console.warn('[EditorService] Received incomplete result from worker:', result);
       return;
     }
     const timerId = performanceMonitor.startTimer('onResults');

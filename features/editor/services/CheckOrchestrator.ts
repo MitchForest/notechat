@@ -16,7 +16,10 @@ export interface CheckResult {
 export class CheckOrchestrator extends EventEmitter {
   private worker: Worker;
   private checkQueue: PQueue;
-  private pendingChecks = new Map<string, { resolver: (result: CheckResult) => void; timerId: string }>();
+  private pendingChecks: Map<string, { resolver: (result: CheckResult) => void; timerId: string; text: string }> = new Map();
+  private isWorkerReady: boolean = false;
+  // Simple cache to avoid re-checking the same text within a session.
+  private cache: Map<string, TextError[]> = new Map();
 
   private checkedWords = new Set<string>();
 
@@ -71,27 +74,25 @@ export class CheckOrchestrator extends EventEmitter {
   }
 
   private handleWorkerMessage(event: MessageEvent) {
-    console.log('[CheckOrchestrator] Received message from worker:', event.data);
     const { type, id, errors, paragraphId, range } = event.data;
-
     if (type === 'result') {
       const pending = this.pendingChecks.get(id);
       if (pending) {
-        console.log(`[DEBUG] CheckOrchestrator: Resolving pending check`);
         performanceMonitor.endTimer(pending.timerId);
-        pending.resolver({ id, errors, paragraphId, range });
-        this.pendingChecks.delete(id);
         
-        // THIS IS CRITICAL - Make sure this happens!
-        console.log(`[DEBUG] CheckOrchestrator: Emitting results event`);
+        // Cache the result for the next time.
+        const cacheKey = this.quickHash(pending.text);
+        this.cache.set(cacheKey, errors);
+        
         this.emit('results', { id, errors, paragraphId, range });
-      } else {
-        console.warn(`[DEBUG] CheckOrchestrator: No pending check found for ${id}`);
+        this.pendingChecks.delete(id);
       }
     } else if (type === 'error') {
-      console.error(`[DEBUG] CheckOrchestrator: Worker error:`, event.data);
+      // Don't log worker errors in production, but helpful for debugging.
+      // console.error(`[CheckOrchestrator] Worker error:`, event.data);
+      this.pendingChecks.delete(event.data.id);
     } else if (type === 'ready') {
-      console.log('[DEBUG] CheckOrchestrator: Worker is ready');
+      this.isWorkerReady = true;
       this.emit('ready');
     }
   }
@@ -99,10 +100,11 @@ export class CheckOrchestrator extends EventEmitter {
   private quickHash(text: string): string {
     let hash = 0;
     for (let i = 0; i < text.length; i++) {
-        hash = (hash << 5) - hash + text.charCodeAt(i);
-        hash |= 0; // Ensure 32-bit integer
+      const char = text.charCodeAt(i);
+      hash = (hash << 5) - hash + char;
+      hash |= 0; // Convert to 32bit integer
     }
-    return hash.toString(36);
+    return hash.toString();
   }
 
   private getCacheHitRate(): string {
@@ -121,46 +123,51 @@ export class CheckOrchestrator extends EventEmitter {
    * Sends text to the worker for checking. It will not check if the text is in the cache.
    */
   public check(text: string, paragraphId: string, options?: { scope?: 'word' | 'sentence' | 'paragraph', range?: { from: number, to: number } }): void {
-    console.log(`[CheckOrchestrator] Received check request. Paragraph: ${paragraphId}, Scope: ${options?.scope}`);
-    const cacheKey = this.quickHash(text);
-    const cachedErrors = this.paragraphCache.get(cacheKey);
+    const scope = options?.scope || 'paragraph';
+    const range = options?.range;
 
-    if (cachedErrors) {
-      performanceMonitor.recordCacheHit();
-      this.emit('results', { id: 'cached', paragraphId, errors: cachedErrors });
+    // For paragraph-level checks, split into sentences and send a check for each.
+    // This ensures that our custom capitalization rule works reliably for every sentence.
+    if (scope === 'paragraph' && text.includes('.')) {
+      const sentences = text.match(/[^.!?]+[.!?]+\s*|[^.!?]+$/g) || [];
+      let sentenceOffset = 0;
+      sentences.forEach(sentence => {
+        const sentenceRange = { 
+          from: (range?.from || 0) + sentenceOffset,
+          to: (range?.from || 0) + sentenceOffset + sentence.length
+        };
+        this.check(sentence, paragraphId, { scope: 'sentence', range: sentenceRange });
+        sentenceOffset += sentence.length;
+      });
       return;
     }
 
-    performanceMonitor.recordCacheMiss();
-    
-    const checkId = uuidv4();
+    const cacheKey = this.quickHash(text);
+    const cachedErrors = this.cache.get(cacheKey);
+    if (cachedErrors) {
+      performanceMonitor.recordCacheHit();
+      this.emit('results', { id: 'cached', paragraphId, errors: cachedErrors, range: options?.range });
+      return;
+    }
+
+    const checkId = this.generateId();
     const timerId = performanceMonitor.startTimer('check_request');
+    
+    // Store the resolver and the original text for caching upon result.
+    this.pendingChecks.set(checkId, { resolver: () => {}, timerId, text });
 
-    console.log(`[CheckOrchestrator] Posting message to worker. Check ID: ${checkId}`);
-    this.checkQueue.add(async () => {
-      const result = await new Promise<CheckResult>((resolve) => {
-        this.pendingChecks.set(checkId, { resolver: resolve, timerId });
-        this.worker.postMessage({
-          type: 'check',
-          id: checkId,
-          text: text,
-          paragraphId: paragraphId,
-          scope: options?.scope || 'paragraph',
-          range: options?.range,
-        });
-      });
-
-      // Add the newly checked words to our set for future deduplication.
-      const wordsInParagraph = this.extractWords(text);
-      wordsInParagraph.forEach(word => this.checkedWords.add(word.toLowerCase()));
-
-      // Cache the result for next time
-      this.paragraphCache.set(cacheKey, result.errors);
-      
-      this.emit('results', result);
-    }).catch((error) => {
-      console.error(`[CheckOrchestrator] Queue task failed for ${checkId}:`, error);
+    this.worker.postMessage({
+      type: 'check',
+      id: checkId,
+      text: text,
+      paragraphId: paragraphId,
+      scope: scope,
+      range: range,
     });
+  }
+
+  private generateId() {
+    return Math.random().toString(36).substr(2, 9);
   }
 
   public async checkBulk(text: string, paragraphId: string): Promise<void> {
@@ -181,7 +188,7 @@ export class CheckOrchestrator extends EventEmitter {
     this.checkQueue.add(async () => {
       const result = await new Promise<CheckResult>((resolve) => {
         const timerId = performanceMonitor.startTimer('workerBulkCheck');
-        this.pendingChecks.set(checkId, { resolver: resolve, timerId });
+        this.pendingChecks.set(checkId, { resolver: resolve, timerId, text: textToCheck });
         // We send a special 'checkBulk' type to the worker.
         this.worker.postMessage({ type: 'check', id: checkId, text: textToCheck, paragraphId });
       });

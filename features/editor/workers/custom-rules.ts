@@ -16,13 +16,10 @@ export const customCapitalizationRule = (options: CustomCapitalizationOptions = 
   return (tree: Node, file: VFile) => {
     // Check for sentence capitalization
     visit(tree, 'SentenceNode', (sentence: any) => {
-      let firstWord = null;
-      for (const child of sentence.children) {
-        if (child.type === 'WordNode') {
-          firstWord = child;
-          break; // Found the first word, stop searching
-        }
-      }
+      // Find the first word, skipping any leading whitespace or punctuation
+      const firstWord = sentence.children.find(
+        (child: any) => child.type === 'WordNode'
+      );
       
       if (firstWord) {
         const text = toString(firstWord);

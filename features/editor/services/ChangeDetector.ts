@@ -54,26 +54,21 @@ export class ChangeDetector {
   }
 
   public getChangedParagraphs(doc: ProseMirrorNode, transaction: Transaction): Map<string, ParagraphInfo> {
-    console.log('[ChangeDetector] getChangedParagraphs CALLED.');
     const changedParagraphs = new Map<string, ParagraphInfo>();
     if (!transaction.docChanged) {
-      console.log('[ChangeDetector] No document changes, returning empty map.');
       return changedParagraphs;
     }
 
     if (!transaction.steps || transaction.steps.length === 0) {
-      console.warn('[ChangeDetector] Transaction has no steps, returning empty map.');
       return changedParagraphs;
     }
 
     transaction.steps.forEach((step: any, index: number) => {
-      console.log(`[ChangeDetector] Processing step ${index}`);
       step.getMap().forEach((oldStart: number, oldEnd: number, newStart: number, newEnd: number) => {
         doc.nodesBetween(newStart, newEnd, (node: ProseMirrorNode, pos: number) => {
           if (node.type.name === 'paragraph') {
             const id = `p-${pos}`;
             if (!changedParagraphs.has(id)) {
-              console.log(`[ChangeDetector] Found changed paragraph: ${id}`);
               changedParagraphs.set(id, {
                 id,
                 node,
@@ -85,7 +80,6 @@ export class ChangeDetector {
         });
       });
     });
-    console.log(`[ChangeDetector] FINISHED. Returning ${changedParagraphs.size} changed paragraphs.`);
     return changedParagraphs;
   }
 } 
