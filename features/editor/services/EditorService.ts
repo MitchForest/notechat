@@ -8,12 +8,14 @@ import { TextError } from '../workers/grammar.worker';
 import { ErrorRegistry } from './ErrorRegistry';
 import { ChangeDetector } from './ChangeDetector';
 import { performanceMonitor } from './PerformanceMonitor';
+import { debounce } from 'lodash-es';
 
 export class EditorService extends EventEmitter {
   private _editor: Editor;
   private checkOrchestrator: CheckOrchestrator;
   private errorRegistry: ErrorRegistry;
   private changeDetector: ChangeDetector;
+  private debouncedCheck: (text: string, paragraphId: string, range: { from: number; to: number }) => void;
 
   constructor() {
     super();
@@ -21,6 +23,15 @@ export class EditorService extends EventEmitter {
     this.errorRegistry = new ErrorRegistry();
     this.changeDetector = new ChangeDetector();
     
+    this.debouncedCheck = debounce((text: string, paragraphId: string, range: { from: number; to: number }) => {
+      console.log(`[EditorService] Debounced check FIRING for paragraph: ${paragraphId}`);
+      if (text.trim().length === 0) {
+        this.errorRegistry.clearParagraph(paragraphId);
+      } else {
+        this.checkOrchestrator.check(text, paragraphId, { scope: 'paragraph', range });
+      }
+    }, 300);
+
     this._editor = new Editor({
       extensions: [
         StarterKit,
@@ -71,77 +82,176 @@ export class EditorService extends EventEmitter {
       this.emit('update');
       if (transaction.docChanged) {
         this.handleDocChange({ editor, transaction });
+      } else {
+        this.handleBoundaryCheck({ editor, transaction });
       }
     });
 
-    this.checkOrchestrator.on('results', (result: CheckResult) => {
-      if (this.editor && result.paragraphId) {
-        this.errorRegistry.addConfirmed(result.paragraphId, result.errors as TextError[]);
-        const timerId = performanceMonitor.startTimer('decorationUpdate');
-        this.editor.view.dispatch(this.editor.state.tr.setMeta('updated_errors', true));
-        performanceMonitor.endTimer(timerId);
+    this.checkOrchestrator.on('results', (result: CheckResult) => this.onResults(result));
+
+    // Initialize with existing content
+    setTimeout(() => this.initialCheck(), 100);
+  }
+
+  private initialCheck() {
+    this.editor.state.doc.descendants((node, pos) => {
+      if (node.type.name === 'paragraph') {
+        const paragraphId = `p-${pos}`;
+        const text = node.textContent;
+        if (text.trim().length > 0) {
+          this.checkOrchestrator.check(text, paragraphId, {
+            scope: 'paragraph',
+            range: { from: pos, to: pos + node.nodeSize },
+          });
+        }
       }
     });
   }
 
-  private handleDocChange({ editor, transaction }: { editor: Editor, transaction: any }) {
-    const changeType = this.changeDetector.detectChangeType(transaction);
-    if (changeType === 'paste') {
-      return;
+  private handleDocChange({ editor, transaction }: { editor: Editor; transaction: any }) {
+    console.log('[EditorService] handleDocChange triggered.');
+    const changedParagraphs = this.changeDetector.getChangedParagraphs(editor.state.doc, transaction);
+    changedParagraphs.forEach((p: { id: string, text: string, pos: number, node: ProseMirrorNode }) => {
+      console.log(`[EditorService] Queuing debounced check for paragraph: ${p.id}`);
+      this.debouncedCheck(p.text, p.id, { from: p.pos, to: p.pos + p.node.nodeSize });
+    });
+  }
+
+  private requestCheck(text: string, paragraphId: string, range: { from: number; to: number }) {
+    this.errorRegistry.clearParagraph(paragraphId);
+    if (text.trim().length > 0) {
+      this.checkOrchestrator.check(text, paragraphId, { scope: 'paragraph', range });
     }
-
-    const changedParagraphs = new Map<number, { text: string; pos: number }>();
     
-    transaction.steps.forEach((step: any) => {
-      step.getMap().forEach((oldStart: any, oldEnd: any, newStart: any, newEnd: any) => {
-        editor.state.doc.nodesBetween(newStart, newEnd, (node, pos) => {
-          if (node.isTextblock) {
-            changedParagraphs.set(pos, { text: node.textContent, pos });
-          }
-        });
-      });
-    });
-
-    changedParagraphs.forEach(({ text, pos }) => {
-      const paragraphId = `p-${pos}`;
-      this.errorRegistry.clearParagraph(paragraphId);
-      if (text.trim().length > 0) {
-        this.checkOrchestrator.check(text, paragraphId);
-      }
-    });
-    
+    // We still want to clear decorations instantly so they don't linger.
     const timerId = performanceMonitor.startTimer('decorationUpdate');
     this.editor.view.dispatch(this.editor.state.tr.setMeta('updated_errors', true));
     performanceMonitor.endTimer(timerId);
   }
 
-  private handleBulkInsert(content: string, position: number, type: 'paste' | 'drop'): void {
-    if (content.length > 500) {
-      this.performProgressiveCheck(content, position);
-    } else {
-      this.checkOrchestrator.checkBulk(content, `p-${position}`);
+  private handleBoundaryCheck({ editor, transaction }: { editor: Editor, transaction: any }) {
+    console.log('[EditorService] handleBoundaryCheck triggered.');
+    if (!transaction.selection.empty) return;
+  
+    const { from } = transaction.selection;
+    const charBefore = editor.state.doc.textBetween(from - 1, from, '\n');
+    const isWordBoundary = /\s/.test(charBefore);
+    const isSentenceBoundary = /[.!?]/.test(charBefore);
+
+    let checkScope: 'word' | 'sentence' | null = null;
+    let textToCheck = '';
+    let range: { from: number, to: number } | null = null;
+
+    if (isSentenceBoundary) {
+      checkScope = 'sentence';
+      const sentence = this.extractSentenceBefore(editor.state.doc, from - 1);
+      if (sentence) {
+        textToCheck = sentence.text;
+        range = { from: sentence.from, to: sentence.to };
+      }
+    } else if (isWordBoundary) {
+      checkScope = 'word';
+      const word = this.extractWordBefore(editor.state.doc, from - 1);
+      if (word) {
+        textToCheck = word.text;
+        range = { from: word.from, to: word.to };
+      }
+    }
+
+    if (checkScope && textToCheck && range) {
+      const paragraphInfo = this.findParagraph(range.from);
+      if (paragraphInfo) {
+        console.log(`[EditorService] Firing boundary check for scope "${checkScope}" on paragraph ${paragraphInfo.paragraphId}`);
+        this.checkOrchestrator.check(textToCheck, paragraphInfo.paragraphId, { scope: checkScope, range });
+      }
     }
   }
 
-  private async performProgressiveCheck(content: string, initialPosition: number): Promise<void> {
-    const CHUNK_SIZE = 500;
-    const chunks: string[] = [];
+  private extractWordBefore(doc: ProseMirrorNode, position: number): { text: string; from: number; to: number } | null {
+    let to = position;
+    let from = position;
+    let char = doc.textBetween(from - 1, from);
 
-    for (let i = 0; i < content.length; i += CHUNK_SIZE) {
-      chunks.push(content.substring(i, i + CHUNK_SIZE));
+    // Scan backwards to find the start of the word
+    while (char && !/\s/.test(char)) {
+      from--;
+      char = doc.textBetween(from - 1, from);
     }
 
-    if (chunks.length > 0) {
-      this.checkOrchestrator.checkBulk(chunks[0], `p-${initialPosition}`);
+    const wordText = doc.textBetween(from, to).trim();
+    if (wordText.length === 0) return null;
+    
+    return { text: wordText, from, to };
+  }
+  
+  private extractSentenceBefore(doc: ProseMirrorNode, position: number): { text: string; from: number; to: number } | null {
+    let to = position;
+    let from = position;
+    let char = doc.textBetween(from - 1, from);
+    
+    // Scan backwards to find the start of the sentence (a punctuation mark or the start of the doc)
+    while (char && !/[.!?]/.test(char) && from > 1) {
+      from--;
+      char = doc.textBetween(from - 1, from);
+    }
+    
+    // Adjust 'from' to be after the punctuation if found
+    if (/[.!?]/.test(char)) {
+      from++;
     }
 
-    for (let i = 1; i < chunks.length; i++) {
-      setTimeout(() => {
-        const chunk = chunks[i];
-        const chunkPosition = initialPosition + (i * CHUNK_SIZE);
-        this.checkOrchestrator.checkBulk(chunk, `p-${chunkPosition}`);
-      }, i * 150);
+    const sentenceText = doc.textBetween(from, to).trim();
+    if (sentenceText.length === 0) return null;
+    
+    return { text: sentenceText, from, to };
+  }
+
+  private handleBulkInsert(content: string, position: number, type: 'paste' | 'drop'): void {
+    if (content.length > 500) {
+      this.checkBulk(content, position);
     }
+  }
+
+  private checkBulk(text: string, startPosition: number): void {
+    console.log(`[EditorService] Starting bulk check for content of length ${text.length} at position ${startPosition}`);
+    const timerId = performanceMonitor.startTimer('bulk_check');
+
+    const chunks = this.splitIntoParagraphs(text);
+
+    this.performProgressiveCheck(chunks, startPosition, () => {
+      console.log(`[EditorService] Completed progressive bulk check.`);
+      performanceMonitor.endTimer(timerId);
+      this.editor.view.dispatch(this.editor.state.tr.setMeta('updated_errors', true));
+    });
+  }
+
+  private performProgressiveCheck(chunks: string[], positionOffset: number, onComplete: () => void): void {
+    if (chunks.length === 0) {
+      onComplete();
+      return;
+    }
+
+    const chunk = chunks.shift() as string;
+    
+    // Find the paragraph node at the current position
+    const paragraphInfo = this.findParagraph(positionOffset);
+    if (paragraphInfo) {
+      console.log(`[EditorService] Progressively checking chunk for paragraph ${paragraphInfo.paragraphId}`);
+      this.checkOrchestrator.check(chunk, paragraphInfo.paragraphId, { scope: 'paragraph' });
+    }
+
+    // Schedule the next check
+    setTimeout(() => {
+      const nextPosition = positionOffset + chunk.length + 1; // +1 for the newline character.
+      this.performProgressiveCheck(chunks, nextPosition, onComplete);
+    }, 50); // Small delay to keep UI responsive.
+  }
+
+  /**
+   * Splits a large block of text into an array of its constituent paragraphs.
+   */
+  private splitIntoParagraphs(text: string): string[] {
+    return text.split(/\n+/).filter(p => p.trim().length > 0);
   }
   
   public get editor(): Editor {
@@ -160,5 +270,49 @@ export class EditorService extends EventEmitter {
   public clearErrors(): void {
     this.errorRegistry.clearAll();
     this.editor.view.dispatch(this.editor.state.tr.setMeta('updated_errors', true));
+  }
+
+  private findParagraph(position: number): { node: ProseMirrorNode, paragraphId: string, text: string, startPos: number } | null {
+    let result: { node: ProseMirrorNode, paragraphId: string, text: string, startPos: number } | null = null;
+    this.editor.state.doc.descendants((node, pos) => {
+        if (node.type.name === 'paragraph') {
+            const start = pos;
+            const end = pos + node.nodeSize;
+            if (position >= start && position <= end) {
+                result = {
+                    node,
+                    paragraphId: `p-${pos}`,
+                    text: node.textContent,
+                    startPos: pos,
+                };
+                return false; // stop iterating
+            }
+        }
+        return !result;
+    });
+    return result;
+  }
+
+  private onResults(result: CheckResult): void {
+    console.log('[EditorService] onResults triggered with:', result);
+    const { id, errors, paragraphId, range } = result;
+    if (!this.editor || !paragraphId || !range) {
+      console.warn('[EditorService] Received incomplete result from worker:', result);
+      return;
+    }
+    const timerId = performanceMonitor.startTimer('onResults');
+
+    // The worker returns errors with positions relative to the checked text.
+    // We must convert them to absolute document positions before storing them.
+    const absoluteErrors = errors.map(error => ({
+      ...error,
+      start: error.start + range.from,
+      end: error.end + range.from,
+    }));
+
+    this.errorRegistry.updateErrorsForRange(paragraphId, absoluteErrors as TextError[], range);
+
+    this.editor.view.dispatch(this.editor.state.tr.setMeta('updated_errors', true));
+    performanceMonitor.endTimer(timerId);
   }
 }

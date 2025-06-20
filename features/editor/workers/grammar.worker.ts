@@ -6,6 +6,7 @@ import retextEnglish from 'retext-english'
 // import retextContractions from 'retext-contractions' // We'll use a custom rule instead
 import retextRepeatedWords from 'retext-repeated-words'
 import retextIndefiniteArticle from 'retext-indefinite-article'
+import retextSentenceSpacing from 'retext-sentence-spacing'
 import retextSpell from 'retext-spell'
 import retextStringify from 'retext-stringify'
 import { VFile } from 'vfile'
@@ -30,37 +31,51 @@ interface CustomCapitalizationOptions {
 // Global state
 let processor: any = null;
 let isInitialized = false;
-let baseUrl: string = '';
+let baseUrl = '';
 
 // Store active check data
-const activeChecks = new Map<string, { paragraphId: string; skipWords?: string[] }>();
+const activeChecks = new Map<string, {
+  paragraphId: string;
+  skipWords?: string[];
+  scope: 'word' | 'sentence' | 'paragraph';
+  range?: { from: number, to: number };
+}>();
 
-async function createProcessor(options: { ignore?: string[] } = {}) {
-  const [dicResponse, affResponse] = await Promise.all([
-    fetch(`${baseUrl}/dictionaries/en_US.dic`),
-    fetch(`${baseUrl}/dictionaries/en_US.aff`)
-  ]);
+async function getProcessor(options: { ignore?: string[], scope?: 'word' | 'sentence' | 'paragraph' } = {}) {
+  const scope = options.scope || 'paragraph';
 
-  if (!dicResponse.ok || !affResponse.ok) {
-    throw new Error(`Failed to load dictionaries: dic=${dicResponse.status}, aff=${affResponse.status}`);
+  // Return cached full processor if possible.
+  if (scope !== 'word' && processor && (!options.ignore || options.ignore.length === 0)) {
+    return processor;
   }
 
   const [dicBuffer, affBuffer] = await Promise.all([
-    dicResponse.arrayBuffer(),
-    affResponse.arrayBuffer()
+    fetch(`${baseUrl}/dictionaries/en_US.dic`).then(res => res.arrayBuffer()),
+    fetch(`${baseUrl}/dictionaries/en_US.aff`).then(res => res.arrayBuffer()),
   ]);
 
   const dic = Buffer.from(dicBuffer);
   const aff = Buffer.from(affBuffer);
 
-  // Re-enabling all plugins except the broken retext-spell
+  // Word-level checks are faster as they only invoke the spellchecker.
+  if (scope === 'word') {
+    return unified()
+      .use(retextEnglish)
+      .use(retextSpell, { 
+        dictionary: { dic, aff },
+        ignore: options.ignore || [],
+      })
+      .use(retextStringify);
+  }
+
+  // For sentence and paragraph, we use the full processor.
   return unified()
     .use(retextEnglish)
     .use(customContractionsRule)
     .use(retextRepeatedWords)
     .use(retextIndefiniteArticle)
-    // .use(retextSentenceSpacing) // This was missing from the import list anyway
-    .use(retextSpell, {
+    .use(retextSentenceSpacing)
+    .use(retextSpell, { 
       dictionary: { dic, aff },
       ignore: options.ignore || [],
     })
@@ -74,7 +89,7 @@ async function initialize(newBaseUrl: string) {
     baseUrl = newBaseUrl;
 
     // Pre-warm the main processor
-    processor = await createProcessor();
+    processor = await getProcessor();
     
     isInitialized = true;
     self.postMessage({ type: "ready" });
@@ -118,28 +133,27 @@ function convertMessageToError(message: any, text: string): TextError | null {
   };
 }
 
-async function checkText(id: string, text: string, paragraphId: string, skipWords: string[] = []) {
+async function checkText(id: string, text: string, paragraphId: string, options: {
+  skipWords?: string[],
+  scope: 'word' | 'sentence' | 'paragraph',
+  range?: { from: number, to: number }
+}) {
   try {
+    const { skipWords = [], scope = 'paragraph', range } = options;
     console.log(`[Grammar Worker] Starting check:`, {
       id,
       paragraphId,
       textLength: text.length,
       textPreview: text.substring(0, 50) + '...',
-      skipWordsCount: skipWords.length
+      skipWordsCount: skipWords.length,
+      scope,
     });
     
     // Store the check info
-    activeChecks.set(id, { paragraphId, skipWords });
+    activeChecks.set(id, { paragraphId, skipWords, scope, range });
     
-    // Get processor with skip words. If there are words to skip, create a new
-    // temporary processor. Otherwise, use the cached main one.
-    const localProcessor = (skipWords && skipWords.length > 0)
-      ? await createProcessor({ ignore: skipWords })
-      : processor;
-
-    if (!localProcessor) {
-      throw new Error("Processor not available");
-    }
+    // Get processor with skip words and scope
+    const localProcessor = await getProcessor({ ignore: skipWords, scope });
     
     // Process the text
     const file = await localProcessor.process(text);
@@ -172,7 +186,8 @@ async function checkText(id: string, text: string, paragraphId: string, skipWord
       type: 'result',
       id: id,
       paragraphId: checkInfo.paragraphId,
-      errors: errors
+      errors: errors,
+      range: checkInfo.range,
     };
     
     console.log(`[Grammar Worker] Sending result:`, {
@@ -204,14 +219,15 @@ async function checkText(id: string, text: string, paragraphId: string, skipWord
 
 // Message handler
 self.onmessage = async (event) => {
-  const { type, id, text, baseUrl: newBaseUrl, paragraphId, skipWords } = event.data;
+  const { type, id, text, baseUrl: newBaseUrl, paragraphId, skipWords, scope, range } = event.data;
   
   console.log(`[Grammar Worker] Received message:`, {
     type,
     id,
     paragraphId,
     hasText: !!text,
-    textLength: text?.length
+    textLength: text?.length,
+    scope,
   });
   
   switch(type) {
@@ -240,7 +256,7 @@ self.onmessage = async (event) => {
         return;
       }
       
-      await checkText(id, text, paragraphId, skipWords || []);
+      await checkText(id, text, paragraphId, { skipWords: skipWords || [], scope: scope || 'paragraph', range });
       break;
       
     default:

@@ -16,9 +16,13 @@ export const customCapitalizationRule = (options: CustomCapitalizationOptions = 
   return (tree: Node, file: VFile) => {
     // Check for sentence capitalization
     visit(tree, 'SentenceNode', (sentence: any) => {
-      const firstWord = sentence.children.find(
-        (child: any) => child.type === 'WordNode'
-      );
+      let firstWord = null;
+      for (const child of sentence.children) {
+        if (child.type === 'WordNode') {
+          firstWord = child;
+          break; // Found the first word, stop searching
+        }
+      }
       
       if (firstWord) {
         const text = toString(firstWord);
@@ -71,33 +75,33 @@ export const customCapitalizationRule = (options: CustomCapitalizationOptions = 
 };
 
 export const customContractionsRule = () => {
-  const contractions: Record<string, string> = {
+  const incorrectContractions: Record<string, string> = {
     "cant": "can't", "wont": "won't", "dont": "don't", "isnt": "isn't",
-    "arent": "aren't", "wasnt": "wasn't", "werent": "weren't", "its": "it's"
+    "arent": "aren't", "wasnt": "wasn't", "werent": "weren't", "im": "i'm",
+    "youre": "you're", "hes": "he's", "shes": "she's", "theyre": "they're",
+    "its": "it's" // Special case, handled below
   };
   
   return (tree: any, file: VFile) => {
-    visit(tree, 'WordNode', (word: any) => {
-      const text = toString(word).toLowerCase();
-      if (contractions[text]) {
-        if (text === 'its') {
-            const nextNode = word.parent?.children[word.parent.children.indexOf(word) + 2];
-            if (nextNode && nextNode.type === 'WordNode') {
-                const nextWord = toString(nextNode).toLowerCase();
-                if (['a', 'an', 'the', 'is', 'was', 'has', 'been'].indexOf(nextWord) === -1) {
-                    return;
-                }
-            }
-        }
+    visit(tree, 'WordNode', (word: any, index?: number, parent?: any) => {
+      if (index === undefined || !parent) return;
 
+      const originalText = toString(word);
+      // Strip trailing punctuation for the check to handle cases like "cant."
+      const lowerText = originalText.toLowerCase().replace(/[.,!?]$/, '');
+
+      if (incorrectContractions[lowerText]) {
+        // The "its" vs "it's" logic is complex. For now, we will flag all instances
+        // of "its" and suggest "it's", as it's a very common error.
+        
         const message = file.message(
-          `Missing apostrophe in contraction`,
+          `Incorrect or missing apostrophe in contraction`,
           word
         );
         message.source = 'custom-contractions';
         message.ruleId = 'missing-apostrophe';
-        message.actual = text;
-        message.expected = [contractions[text]];
+        message.actual = originalText;
+        message.expected = [incorrectContractions[lowerText]];
       }
     });
   };

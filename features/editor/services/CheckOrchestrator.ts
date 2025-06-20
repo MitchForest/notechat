@@ -10,6 +10,7 @@ export interface CheckResult {
   id: string;
   paragraphId: string;
   errors: TextError[];
+  range?: { from: number; to: number };
 }
 
 export class CheckOrchestrator extends EventEmitter {
@@ -70,19 +71,20 @@ export class CheckOrchestrator extends EventEmitter {
   }
 
   private handleWorkerMessage(event: MessageEvent) {
-    const { type, id, errors, paragraphId } = event.data;
+    console.log('[CheckOrchestrator] Received message from worker:', event.data);
+    const { type, id, errors, paragraphId, range } = event.data;
 
     if (type === 'result') {
       const pending = this.pendingChecks.get(id);
       if (pending) {
         console.log(`[DEBUG] CheckOrchestrator: Resolving pending check`);
         performanceMonitor.endTimer(pending.timerId);
-        pending.resolver({ id, errors, paragraphId });
+        pending.resolver({ id, errors, paragraphId, range });
         this.pendingChecks.delete(id);
         
         // THIS IS CRITICAL - Make sure this happens!
         console.log(`[DEBUG] CheckOrchestrator: Emitting results event`);
-        this.emit('results', { id, errors, paragraphId });
+        this.emit('results', { id, errors, paragraphId, range });
       } else {
         console.warn(`[DEBUG] CheckOrchestrator: No pending check found for ${id}`);
       }
@@ -115,8 +117,11 @@ export class CheckOrchestrator extends EventEmitter {
     return text.match(/\b\w+\b/g) || [];
   }
 
-  public async check(text: string, paragraphId: string): Promise<void> {
-    console.log('[DEBUG] CheckOrchestrator: Received check request:', { paragraphId, text });
+  /**
+   * Sends text to the worker for checking. It will not check if the text is in the cache.
+   */
+  public check(text: string, paragraphId: string, options?: { scope?: 'word' | 'sentence' | 'paragraph', range?: { from: number, to: number } }): void {
+    console.log(`[CheckOrchestrator] Received check request. Paragraph: ${paragraphId}, Scope: ${options?.scope}`);
     const cacheKey = this.quickHash(text);
     const cachedErrors = this.paragraphCache.get(cacheKey);
 
@@ -129,16 +134,19 @@ export class CheckOrchestrator extends EventEmitter {
     performanceMonitor.recordCacheMiss();
     
     const checkId = uuidv4();
+    const timerId = performanceMonitor.startTimer('check_request');
 
+    console.log(`[CheckOrchestrator] Posting message to worker. Check ID: ${checkId}`);
     this.checkQueue.add(async () => {
       const result = await new Promise<CheckResult>((resolve) => {
-        const timerId = performanceMonitor.startTimer('workerCheck');
         this.pendingChecks.set(checkId, { resolver: resolve, timerId });
-        this.worker.postMessage({ 
-          type: 'check', 
-          id: checkId, 
-          text, 
-          paragraphId,
+        this.worker.postMessage({
+          type: 'check',
+          id: checkId,
+          text: text,
+          paragraphId: paragraphId,
+          scope: options?.scope || 'paragraph',
+          range: options?.range,
         });
       });
 

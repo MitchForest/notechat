@@ -256,12 +256,12 @@ export const SpellCheckExtension = Extension.create<SpellCheckExtensionOptions>(
                         newState.doc.descendants((node, pos) => {
                             if (node.isTextblock && node.textContent.length > 0) {
                                 const paragraphId = `p-${pos}`;
-                                const errors = registry.getParagraphErrors(paragraphId);
+                                const errors = registry.getErrorsForParagraph(paragraphId);
 
                                 if (errors.length > 0) {
                                     errors.forEach((error: any) => {
-                                        const from = error.start + pos + 1;
-                                        const to = error.end + pos + 1;
+                                        const from = error.start + 1;
+                                        const to = error.end + 1;
                                         if (from < 1 || to > newState.doc.content.size || from >= to) return;
 
                                         const isTentative = error.status === 'tentative';

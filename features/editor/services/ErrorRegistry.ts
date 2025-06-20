@@ -43,39 +43,21 @@ export class ErrorRegistry {
     return overlapping;
   }
 
-  /**
-   * Adds a new, confirmed error list for a paragraph, replacing any existing errors.
-   */
-  public addConfirmed(paragraphId: string, errors: TextError[]): void {
+  public updateErrorsForRange(paragraphId: string, errors: TextError[], range: { from: number, to: number }): void {
     const paragraphErrors = this.errorsByParagraph.get(paragraphId) || new Map<string, RegisteredError>();
 
-    // Clear any previous 'tentative' errors for this paragraph, as confirmed results are now available.
+    // Remove any existing errors that are fully contained within the new check's range.
     for (const [id, error] of paragraphErrors.entries()) {
-      if (error.status === 'tentative') {
+      if (error.start >= range.from && error.end <= range.to) {
         paragraphErrors.delete(id);
       }
     }
 
+    // Add the new errors.
     errors.forEach(newError => {
-      const newErrorPriority = this.calculatePriority(newError, 'confirmed');
-      const overlapping = this.getOverlappingErrors(newError, paragraphId);
-
-      // If there are overlapping errors, decide whether to replace them.
-      if (overlapping.length > 0) {
-        let shouldAddNew = true;
-        overlapping.forEach(existingError => {
-          if (newErrorPriority <= existingError.priority) {
-            shouldAddNew = false; // An existing error has higher or equal priority.
-          } else {
-            paragraphErrors.delete(existingError.id); // New error has higher priority, remove the old one.
-          }
-        });
-
-        if (!shouldAddNew) return; // Skip adding the new error.
-      }
-      
       const id = this.generateErrorId(newError);
-      paragraphErrors.set(id, { ...newError, id, status: 'confirmed', priority: newErrorPriority });
+      const priority = this.calculatePriority(newError, 'confirmed');
+      paragraphErrors.set(id, { ...newError, id, status: 'confirmed', priority });
     });
 
     this.errorsByParagraph.set(paragraphId, paragraphErrors);
@@ -83,7 +65,7 @@ export class ErrorRegistry {
 
   /**
    * Adds a list of tentative errors to the registry.
-   * Returns the IDs of the newly created errors.
+   * Tentative errors are typically from a faster, less accurate checker
    */
   public addTentative(paragraphId: string, errors: TextError[]): string[] {
     const newErrorIds: string[] = [];
@@ -165,5 +147,13 @@ export class ErrorRegistry {
         return [];
     }
     return Array.from(paragraphErrors.values());
+  }
+
+  public getErrorsForParagraph(paragraphId: string): RegisteredError[] {
+    const errorsMap = this.errorsByParagraph.get(paragraphId);
+    if (!errorsMap) {
+        return [];
+    }
+    return Array.from(errorsMap.values());
   }
 } 
