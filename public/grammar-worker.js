@@ -1,22 +1,12 @@
-// Simplified TypeScript grammar worker that works with Turbopack
+// Grammar checking worker - JavaScript version
 console.log('[Grammar Worker] Loading...');
 
-// Types
-interface CheckError {
-  message: string;
-  start: number;
-  end: number;
-  rule: string;
-  source: string;
-  suggestions?: string[];
-}
-
 // We'll need to load the dependencies dynamically
-let processor: any = null;
+let processor = null;
 let isInitialized = false;
 
 // Simple error conversion function
-function convertMessageToError(message: any, text: string): CheckError | null {
+function convertMessageToError(message, text) {
     const position = message.place || message.position;
     
     if (!position || !position.start || !position.end) {
@@ -49,10 +39,10 @@ async function initialize() {
         // For now, let's create a simple processor that finds basic issues
         // We'll simulate some grammar checking
         processor = {
-            process: async (text: string) => {
+            process: async (text) => {
                 console.log('[Grammar Worker] Processing text:', text.substring(0, 50) + '...');
                 
-                const messages: any[] = [];
+                const messages = [];
                 
                 // Simple checks for demonstration
                 // 1. Check for repeated words
@@ -100,7 +90,7 @@ async function initialize() {
                 }
                 
                 // 3. Check for some common misspellings
-                const commonMisspellings: Record<string, string> = {
+                const commonMisspellings = {
                     'namee': 'name',
                     'testt': 'test',
                     'ofund': 'found',
@@ -135,12 +125,12 @@ async function initialize() {
         
     } catch (error) {
         console.error('[Grammar Worker] Initialization failed:', error);
-        self.postMessage({ type: "error", error: (error as Error).message });
+        self.postMessage({ type: "error", error: error.message });
     }
 }
 
 // Check function
-async function check(id: string, text: string) {
+async function check(id, text) {
     try {
         console.log(`[Grammar Worker] Checking text (id: ${id}): "${text.substring(0, 50)}..."`);
         
@@ -157,8 +147,8 @@ async function check(id: string, text: string) {
         }
         
         const errors = results.messages
-            .map((msg: any) => convertMessageToError(msg, text))
-            .filter((error: CheckError | null): error is CheckError => error !== null);
+            .map(msg => convertMessageToError(msg, text))
+            .filter(error => error !== null);
 
         console.log(`[Grammar Worker] Converted to ${errors.length} errors`);
         
@@ -174,12 +164,12 @@ async function check(id: string, text: string) {
 
     } catch (error) {
         console.error("[Grammar Worker] Check failed:", error);
-        self.postMessage({ type: "error", id: id, error: (error as Error).message });
+        self.postMessage({ type: "error", id: id, error: error.message });
     }
 }
 
 // Message handler
-self.onmessage = (event) => {
+self.onmessage = function(event) {
     const { type, id, text, baseUrl } = event.data;
     console.log(`[Grammar Worker] Received message: ${type}`);
     
@@ -196,4 +186,4 @@ self.onmessage = (event) => {
     }
 };
 
-console.log('[Grammar Worker] Ready');
+console.log('[Grammar Worker] Ready'); 

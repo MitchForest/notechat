@@ -1,31 +1,40 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Check, X, Plus } from "lucide-react";
+import { Check, X, Plus, ThumbsDown, BookCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { Card, CardContent, CardFooter } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
 
-interface SuggestionTooltipProps {
-  word: string;
+export interface SuggestionTooltipProps {
+  error: any;
   suggestions: string[];
   position: { top: number; left: number };
   onApply: (suggestion: string) => void;
   onIgnore: () => void;
   onAddToDictionary: () => void;
   onClose: () => void;
+  onMouseEnter: () => void;
+  onMouseLeave: () => void;
 }
 
 export function SuggestionTooltip({
-  word,
+  error,
   suggestions,
   position,
   onApply,
   onIgnore,
   onAddToDictionary,
   onClose,
+  onMouseEnter,
+  onMouseLeave,
 }: SuggestionTooltipProps) {
   const tooltipRef = useRef<HTMLDivElement>(null);
   const [selectedIndex, setSelectedIndex] = useState(0);
+
+  const isGrammarError = error?.type === 'grammar';
+  const hasSuggestions = suggestions && suggestions.length > 0;
 
   // Keyboard navigation
   useEffect(() => {
@@ -99,64 +108,71 @@ export function SuggestionTooltip({
   }, [position]);
 
   return (
-    <div
+    <Card
       ref={tooltipRef}
-      className="spell-check-tooltip"
-      style={{
-        position: 'absolute',
-        top: `${position.top}px`,
-        left: `${position.left}px`,
-      }}
-      role="tooltip"
+      className="absolute z-10 w-64 shadow-lg spell-check-tooltip"
+      style={{ top: position.top, left: position.left }}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
     >
-      <div className="mb-2 text-sm font-medium text-muted-foreground">
-        Suggestions for "{word}"
-      </div>
-
-      {suggestions.length > 0 ? (
-        <div className="space-y-1">
-          {suggestions.map((suggestion, index) => (
-            <button
-              key={suggestion}
-              className={cn(
-                "flex w-full items-center rounded px-2 py-1 text-left text-sm transition-colors",
-                index === selectedIndex
-                  ? "bg-accent text-accent-foreground"
-                  : "hover:bg-accent/50"
-              )}
-              onClick={() => onApply(suggestion)}
-              onMouseEnter={() => setSelectedIndex(index)}
-            >
-              {suggestion}
-            </button>
-          ))}
+      <CardContent className="p-2">
+        <div className="text-sm font-semibold mb-1 px-2">
+          {isGrammarError ? "Grammar" : "Spelling"}
         </div>
-      ) : (
-        <div className="py-2 text-sm text-muted-foreground">
-          No suggestions available
-        </div>
-      )}
+        
+        {isGrammarError && (
+          <div className="px-2 py-1 text-sm text-muted-foreground italic">
+            {error.message}
+          </div>
+        )}
 
-      <div className="mt-3 flex gap-1 border-t pt-2">
+        {(hasSuggestions || !isGrammarError) && <Separator />}
+
+        {hasSuggestions ? (
+          <div className="mt-1 max-h-32 overflow-y-auto">
+            {suggestions.map((suggestion) => (
+              <Button
+                key={suggestion}
+                variant="ghost"
+                size="sm"
+                className="w-full justify-start h-8"
+                onClick={() => onApply(suggestion)}
+              >
+                {suggestion}
+              </Button>
+            ))}
+          </div>
+        ) : (
+          !isGrammarError && (
+            <div className="px-2 py-3 text-sm text-center text-muted-foreground">
+              No suggestions available.
+            </div>
+          )
+        )}
+      </CardContent>
+      <Separator />
+      <CardFooter className="p-1 flex justify-end gap-1">
         <Button
-          size="sm"
+          title="Ignore"
           variant="ghost"
+          size="icon"
+          className="h-7 w-7"
           onClick={onIgnore}
-          className="h-7 text-xs"
         >
-          <X className="mr-1 h-3 w-3" />
-          Ignore
+          <ThumbsDown className="h-4 w-4" />
         </Button>
-        <Button
-          size="sm"
-          variant="ghost"
-          onClick={onAddToDictionary}
-          className="h-7 text-xs"
-        >
-          <Plus className="mr-1 h-3 w-3" />
-          Add to dictionary
-        </Button>
-      </div>
-    </div>
+        {!isGrammarError && (
+          <Button
+            title="Add to dictionary"
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            onClick={onAddToDictionary}
+          >
+            <BookCheck className="h-4 w-4" />
+          </Button>
+        )}
+      </CardFooter>
+    </Card>
   );
 } 

@@ -13,7 +13,7 @@
 "use client"
 
 import React, { useState } from 'react'
-import { ChevronDown, ChevronRight, Search, MessageSquare, FileText, Settings, User, LogOut, Moon, Sun, Hash, Menu, PanelLeft } from 'lucide-react'
+import { ChevronDown, ChevronRight, Search, MessageSquare, FileText, Settings, User, LogOut, Moon, Sun, Hash, Menu, PanelLeft, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useTheme } from 'next-themes'
@@ -48,6 +48,12 @@ export function SidebarNav({ className }: SidebarNavProps) {
     { id: '1', title: 'Project Planning Discussion' },
     { id: '2', title: 'Code Review Chat' },
     { id: '3', title: 'Feature Implementation' },
+  ]
+
+  const allNotes = [
+    { id: 'n1', title: 'Meeting Notes 2024-07-29' },
+    { id: 'n2', title: 'Brainstorming new features' },
+    { id: 'n3', title: 'Personal Goals for Q3' },
   ]
 
   const spaces = [
@@ -118,6 +124,14 @@ export function SidebarNav({ className }: SidebarNavProps) {
       id: chat.id, 
       type: 'chat', 
       title: chat.title 
+    })
+  }
+
+  const handleNoteClick = (note: { id: string; title: string }) => {
+    openNote({ 
+      id: note.id, 
+      type: 'note', 
+      title: note.title 
     })
   }
 
@@ -302,18 +316,16 @@ export function SidebarNav({ className }: SidebarNavProps) {
       <div className="p-3 space-y-2">
         <Button
           onClick={handleNewChat}
-          className="w-full justify-start"
-          variant="secondary"
+          className="w-full justify-start bg-secondary text-secondary-foreground hover:bg-secondary/80 group"
         >
-          <MessageSquare className="mr-2 h-4 w-4" />
+          <MessageSquare className="mr-2 h-4 w-4 text-secondary-foreground group-hover:text-white" />
           New Chat
         </Button>
         <Button
           onClick={handleNewNote}
-          className="w-full justify-start"
-          variant="secondary"
+          className="w-full justify-start bg-secondary text-secondary-foreground hover:bg-secondary/80 group"
         >
-          <FileText className="mr-2 h-4 w-4" />
+          <FileText className="mr-2 h-4 w-4 text-secondary-foreground group-hover:text-white" />
           New Note
         </Button>
       </div>
@@ -364,7 +376,7 @@ export function SidebarNav({ className }: SidebarNavProps) {
         </div>
 
         {/* All Notes */}
-        <div>
+        <div className="mb-4">
           <Button
             onClick={() => setAllNotesExpanded(!allNotesExpanded)}
             variant="ghost"
@@ -379,41 +391,73 @@ export function SidebarNav({ className }: SidebarNavProps) {
           </Button>
           {allNotesExpanded && (
             <div className="pl-2 space-y-1 mt-1">
-              {spacesState.map((space) => (
-                <div key={space.id}>
-                  <Button
-                    onClick={() => toggleSpace(space.id)}
-                    variant="ghost"
-                    size="sm"
-                    className="w-full justify-start"
-                  >
-                    {space.expanded ? (
-                      <ChevronDown className="mr-1 h-4 w-4" />
-                    ) : (
-                      <ChevronRight className="mr-1 h-4 w-4" />
-                    )}
-                    <span className="mr-2">{space.emoji}</span>
-                    {space.name}
-                  </Button>
-                  {space.expanded && (
-                    <div className="pl-6 space-y-1 mt-1">
-                      {space.collections.map((collection) => (
-                        <Button
-                          key={collection.id}
-                          variant="ghost"
-                          size="sm"
-                          className="w-full justify-start text-muted-foreground"
-                        >
-                          <Hash className="mr-2 h-4 w-4" />
-                          {collection.name}
-                        </Button>
-                      ))}
-                    </div>
-                  )}
-                </div>
+              {allNotes.map((note) => (
+                <Button
+                  key={note.id}
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleNoteClick(note)}
+                  className="w-full justify-start truncate"
+                >
+                  <FileText className="mr-2 h-4 w-4" />
+                  {note.title}
+                </Button>
               ))}
             </div>
           )}
+        </div>
+
+        {/* Spaces */}
+        <div className="space-y-1">
+          {spacesState.map((space) => (
+            <div key={space.id}>
+              <Button
+                onClick={() => toggleSpace(space.id)}
+                variant="ghost"
+                size="sm"
+                className="w-full justify-start"
+              >
+                {space.expanded ? (
+                  <ChevronDown className="mr-1 h-4 w-4" />
+                ) : (
+                  <ChevronRight className="mr-1 h-4 w-4" />
+                )}
+                <span className="mr-2">{space.emoji}</span>
+                {space.name}
+              </Button>
+              {space.expanded && (
+                <div className="pl-6 space-y-1 mt-1">
+                  {space.collections.map((collection) => (
+                    <Button
+                      key={collection.id}
+                      variant="ghost"
+                      size="sm"
+                      className="w-full justify-start text-muted-foreground"
+                    >
+                      <Hash className="mr-2 h-4 w-4" />
+                      {collection.name}
+                    </Button>
+                  ))}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="w-full justify-start text-muted-foreground"
+                  >
+                    <Plus className="mr-2 h-4 w-4" />
+                    New Collection
+                  </Button>
+                </div>
+              )}
+            </div>
+          ))}
+          <Button
+            variant="ghost"
+            size="sm"
+            className="w-full justify-start text-muted-foreground"
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            New Space
+          </Button>
         </div>
       </div>
 

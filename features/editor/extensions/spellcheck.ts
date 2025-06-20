@@ -2,14 +2,15 @@ import { Extension } from "@tiptap/core";
 import { Plugin, PluginKey } from "prosemirror-state";
 import { Decoration, DecorationSet } from "prosemirror-view";
 import { Node as ProseMirrorNode } from "prosemirror-model";
-import debounce from "lodash.debounce";
+import debounce from "lodash/debounce";
 import { CheckManager } from "../services/check-manager";
 
 interface SpellCheckOptions {
   enabled: boolean;
   debounceMs: number;
   language: string;
-  checkManager: CheckManager;
+  checkManager?: CheckManager;
+  onTooltipEvent?: (data: any) => void;
 }
 
 export interface SpellError {
@@ -28,7 +29,7 @@ export interface GrammarError {
   rule: string;
 }
 
-const spellCheckPluginKey = new PluginKey("spellAndGrammarCheck");
+const spellCheckPluginKey = new PluginKey("spellCheck");
 
 // Simple hash function for paragraph caching
 function simpleHash(str: string): string {
@@ -49,7 +50,8 @@ export const SpellCheckExtension = Extension.create<SpellCheckOptions>({
       enabled: true,
       debounceMs: 300,
       language: "en_US",
-      checkManager: null as any,
+      onTooltipEvent: undefined,
+      checkManager: undefined,
     };
   },
 
@@ -63,179 +65,168 @@ export const SpellCheckExtension = Extension.create<SpellCheckOptions>({
           init() {
             return {
               decorations: DecorationSet.empty,
-              paragraphHashes: new Map<string, string>(),
-              tooltip: null,
+              errors: new Map(),
             };
           },
-          apply(tr, oldState: any) {
+          apply(tr, state) {
+            // Apply decoration updates
             const meta = tr.getMeta(spellCheckPluginKey);
-            if (meta) {
-              return { ...oldState, ...meta };
+            if (meta?.decorations) {
+              return { ...state, decorations: meta.decorations };
             }
-            if (tr.docChanged) {
-              return {
-                ...oldState,
-                decorations: oldState.decorations.map(tr.mapping, tr.doc),
-                tooltip: null,
-              };
-            }
-            return oldState;
+            
+            // Map decorations through the transaction
+            return {
+              ...state,
+              decorations: state.decorations.map(tr.mapping, tr.doc),
+            };
           },
         },
 
         props: {
           decorations(state) {
-            return spellCheckPluginKey.getState(state).decorations;
+            const pluginState = this.getState(state);
+            return pluginState ? pluginState.decorations : null;
           },
-
+          
+          // CRITICAL: Use handleDOMEvents instead of decorations for events
           handleDOMEvents: {
-            mouseover(view, event) {
+            mouseover: (view, event) => {
               const target = event.target as HTMLElement;
-              if (
-                target &&
-                (target.classList.contains("spell-error") ||
-                  target.classList.contains("grammar-error"))
-              ) {
+              
+              // Check if we're hovering over a spell error or grammar error
+              if (target.classList.contains('spell-error') || target.classList.contains('grammar-error')) {
                 const pos = view.posAtDOM(target, 0);
-                const { decorations } = spellCheckPluginKey.getState(view.state);
-                const found = decorations.find(pos, pos);
-                if (found.length) {
-                  const deco = found[0];
+                if (pos === null || pos === undefined) return false;
+
+                const decorations = spellCheckPluginKey.getState(view.state).decorations;
+                const found = decorations.find(pos, pos + 1);
+                if (!found.length) return false;
+                
+                let errorData: any = null;
+                found.forEach((deco: any) => {
+                  if (deco.spec?.error) {
+                    errorData = deco.spec.error;
+                  }
+                });
+                
+                if (errorData && extension.options.onTooltipEvent) {
                   const rect = target.getBoundingClientRect();
-                  view.dispatch(
-                    view.state.tr.setMeta(spellCheckPluginKey, {
-                      tooltip: {
-                        from: deco.from,
-                        to: deco.to,
-                        rect,
-                        type: target.classList.contains("spell-error")
-                          ? "spell"
-                          : "grammar",
-                      },
-                    })
-                  );
+                  const editorRect = view.dom.getBoundingClientRect();
+                  const word = target.textContent;
+                  
+                  console.log("[SpellCheck] Showing tooltip for:", { word, error: errorData })
+                  extension.options.onTooltipEvent({
+                    type: 'show',
+                    x: rect.left - editorRect.left,
+                    y: rect.bottom - editorRect.top + 5,
+                    word: word,
+                    error: errorData,
+                  });
                 }
+                return true;
               }
+              
               return false;
             },
-            mouseout(view, event) {
+            
+            mouseout: (view, event) => {
               const target = event.target as HTMLElement;
-               if (
-                target &&
-                (target.classList.contains("spell-error") ||
-                  target.classList.contains("grammar-error"))
-              ) {
-                view.dispatch(
-                  view.state.tr.setMeta(spellCheckPluginKey, { tooltip: null })
-                );
+              const relatedTarget = event.relatedTarget as HTMLElement;
+              
+              // Check if we're leaving a spell error or grammar error and not entering the tooltip
+              if ((target.classList.contains('spell-error') || target.classList.contains('grammar-error')) && 
+                  !relatedTarget?.closest('.spell-check-tooltip')) {
+                
+                setTimeout(() => {
+                  const tooltip = document.querySelector('.spell-check-tooltip:hover');
+                  if (!tooltip) {
+                    console.log("[SpellCheck] Hiding tooltip.")
+                    extension.options.onTooltipEvent?.({ type: 'hide' });
+                  }
+                }, 100);
+                
+                return true;
               }
+              
               return false;
-            },
-          },
+            }
+          }
         },
 
         view(view) {
-          const checkManager = extension.options.checkManager;
-          if (!checkManager) return {};
-          
           const checkDocument = debounce(async () => {
-            const { paragraphHashes } = spellCheckPluginKey.getState(view.state);
-            const updatedHashes = new Map(paragraphHashes);
-            const decorationsToAdd: Decoration[] = [];
-            const rangesToRemove: { from: number; to: number }[] = [];
+            const checkManager = extension.options.checkManager;
+            if (!checkManager || view.isDestroyed) return
 
-            const paragraphs: { node: ProseMirrorNode; pos: number }[] = [];
-            view.state.doc.descendants((node, pos) => {
-              if (node.isTextblock) {
-                paragraphs.push({ node, pos });
+            const { doc } = view.state
+            const paragraphs: { text: string, pos: number, id: string }[] = []
+
+            doc.descendants((node, pos) => {
+              if (node.isTextblock && node.textContent.trim().length > 0) {
+                paragraphs.push({ text: node.textContent, pos, id: `p-${pos}` });
               }
-            });
-
-            const promises = paragraphs.map(async ({ node, pos }) => {
-              const text = node.textContent;
-              const paragraphId = `p-${pos}`;
-              const from = pos + 1;
-              const to = from + node.nodeSize;
-
-              rangesToRemove.push({ from, to });
-
-              if (text.trim().length === 0) {
-                updatedHashes.delete(paragraphId);
-                return;
-              }
-
-              const hash = simpleHash(text);
-              const oldHash = paragraphHashes.get(paragraphId);
-              if (hash === oldHash) {
-                return; // Skip check if content is unchanged, but keep old decorations for now
-              }
-
-              updatedHashes.set(paragraphId, hash);
-              const result = await checkManager.checkParagraph(
-                paragraphId,
-                text
-              );
-
-              const spellDecorations = result.spell.map((error: SpellError) =>
-                Decoration.inline(
-                  pos + error.start + 1,
-                  pos + error.end + 1,
-                  { class: "spell-error" },
-                  { error }
-                )
-              );
-              const grammarDecorations = result.grammar.map(
-                (error: GrammarError) =>
-                  Decoration.inline(
-                    pos + error.start + 1,
-                    pos + error.end + 1,
-                    { class: "grammar-error" },
-                    { error }
-                  )
-              );
-
-              decorationsToAdd.push(...spellDecorations, ...grammarDecorations);
-            });
-
-            await Promise.all(promises);
-
-            if (decorationsToAdd.length === 0 && rangesToRemove.length === 0)
-              return;
-
-            let { decorations } = spellCheckPluginKey.getState(view.state);
-
-            rangesToRemove.forEach((range) => {
-              const found = decorations.find(range.from, range.to);
-              if (found.length) {
-                decorations = decorations.remove(found);
-              }
-            });
+            })
             
-            decorations = decorations.add(view.state.doc, decorationsToAdd);
-
-            const tr = view.state.tr.setMeta(spellCheckPluginKey, {
-              decorations: decorations,
-              paragraphHashes: updatedHashes,
-            });
-            if (!tr.docChanged) {
-              view.dispatch(tr);
+            if (paragraphs.length === 0) {
+              if (view.isDestroyed) return
+              const tr = view.state.tr.setMeta(spellCheckPluginKey, { decorations: DecorationSet.empty })
+              view.dispatch(tr.setMeta('addToHistory', false))
+              return
             }
-          }, extension.options.debounceMs);
 
-          checkDocument();
+            try {
+              const results = await Promise.all(
+                paragraphs.map(p => checkManager.checkParagraph(p.id, p.text))
+              )
+              console.log('[SpellCheck Extension] All checks complete. Results:', results);
+
+              const decorations: Decoration[] = []
+              results.forEach((result, i) => {
+                const p = paragraphs[i]
+                
+                result.forEach((error: any) => {
+                  const errorClass = error.source === 'retext-spell' ? 'spell-error' : 'grammar-error';
+                  decorations.push(
+                    Decoration.inline(p.pos + error.start, p.pos + error.end, {
+                      class: errorClass,
+                      nodeName: 'span',
+                    }, {
+                      error: JSON.stringify(error)
+                    })
+                  )
+                })
+              })
+
+              if (view.isDestroyed) return;
+              const tr = view.state.tr.setMeta(spellCheckPluginKey, { decorations: DecorationSet.create(doc, decorations) })
+              tr.setMeta('addToHistory', false)
+              tr.setMeta('preventScroll', true)
+              view.dispatch(tr)
+
+            } catch (error) {
+              console.error(`[SpellCheck Extension] Error checking paragraph:`, error);
+              if (view.isDestroyed) return;
+              const tr = view.state.tr.setMeta(spellCheckPluginKey, { decorations: DecorationSet.empty })
+              view.dispatch(tr.setMeta('addToHistory', false))
+            }
+
+          }, extension.options.debounceMs)
+          
+          checkDocument()
 
           return {
             update(view, prevState) {
-              if (!prevState.doc.eq(view.state.doc)) {
-                checkDocument();
+              if (!prevState || !prevState.doc.eq(view.state.doc)) {
+                checkDocument()
               }
             },
             destroy() {
-              checkDocument.cancel();
-            },
-          };
+              checkDocument.cancel()
+            }
+          }
         },
       }),
-    ];
+    ]
   },
-}); 
+}) 

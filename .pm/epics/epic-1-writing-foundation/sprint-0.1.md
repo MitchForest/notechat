@@ -788,3 +788,17 @@ export function SuggestionTooltip({
 - [ ] Memory usage stays under 100MB
 - [ ] Dictionary loads successfully
 - [ ] Works offline after initial load 
+
+### Testing for Sprint 0.1
+- [x] Novel editor loads without errors
+- [x] Typing feels smooth with no lag
+- [x] Spell errors appear within 300ms of typing
+- [x] Red wavy underlines render correctly
+- [x] Hover shows suggestion tooltip
+- [x] Click on error shows suggestions
+- [x] Apply suggestion works correctly
+- [x] Add to dictionary works
+- [x] Paste large text doesn't freeze UI
+- [x] Memory usage stays under 100MB
+- [x] Dictionary loads successfully
+- [x] Works offline after initial load 

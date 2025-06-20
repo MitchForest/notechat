@@ -227,6 +227,16 @@
   }
   
   /* Spell and grammar check underlines */
+  .spell-error {
+    text-decoration: underline wavy red !important;
+    text-decoration-thickness: 1px !important;
+    cursor: pointer;
+  }
+  
+  .spell-error:hover {
+    background-color: rgba(255, 0, 0, 0.1);
+  }
+  
   .spelling-error {
     text-decoration: underline wavy oklch(var(--error));
     text-underline-offset: 4px;

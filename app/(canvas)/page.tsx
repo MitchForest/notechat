@@ -11,7 +11,7 @@
  */
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useCallback } from 'react'
 import { useAppShell, OpenItem } from '@/lib/app-shell-context'
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable'
 import { X, Send, Bot } from 'lucide-react'
@@ -207,10 +207,10 @@ export default function CanvasPage() {
   const { viewConfig, activeChat, activeNote, closeChat, closeNote } = useAppShell()
   const [content, setContent] = useState<string>("")
 
-  const handleUpdate = (newContent: string) => {
+  const handleUpdate = useCallback((newContent: string) => {
     setContent(newContent)
     // console.log(newContent) // For debugging
-  }
+  }, [])
 
   // Empty state
   if (viewConfig.primary === 'empty') {
@@ -250,9 +250,21 @@ export default function CanvasPage() {
     
     const renderPanel = (item: OpenItem | null, onClose: () => void) => {
         if (!item) return null;
-        if (item.type === 'chat') return <ChatComponent chat={item} onClose={onClose} />;
-        if (item.type === 'note') return <NoteComponent note={item} onClose={onClose} content={content} onContentChange={handleUpdate} />;
-        return null;
+        switch (item.type) {
+          case 'chat':
+            return <ChatComponent chat={item} onClose={onClose} />
+          case 'note':
+            return (
+              <NoteComponent
+                note={item}
+                onClose={onClose}
+                content={content}
+                onContentChange={handleUpdate}
+              />
+            )
+          default:
+            return null
+        }
     }
 
     const primaryItem = viewConfig.primary === 'chat' ? activeChat : activeNote;
