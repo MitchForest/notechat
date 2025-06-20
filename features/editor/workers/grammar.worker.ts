@@ -1,6 +1,19 @@
 // Simplified TypeScript grammar worker that works with Turbopack
 console.log('[Grammar Worker] Loading...');
 
+import { unified } from 'unified'
+import retextEnglish from 'retext-english'
+// import retextContractions from 'retext-contractions' // We'll use a custom rule instead
+import retextRepeatedWords from 'retext-repeated-words'
+import retextIndefiniteArticle from 'retext-indefinite-article'
+import retextSentenceSpacing from 'retext-sentence-spacing'
+import retextSpell from 'retext-spell'
+import retextStringify from 'retext-stringify'
+import { VFile } from 'vfile'
+import { visit } from 'unist-util-visit'
+import { Node } from 'unist'
+import { customCapitalizationRule, customContractionsRule } from './custom-rules'
+
 // Types
 export interface TextError {
   message: string;
@@ -11,9 +24,16 @@ export interface TextError {
   suggestions?: string[];
 }
 
-// We'll need to load the dependencies dynamically
+// Define a type for our options
+interface CustomCapitalizationOptions {
+  properNouns?: string[];
+}
+
+// We'll build a retext processor
 let processor: any = null;
 let isInitialized = false;
+let baseUrl = '';
+let dictionary: any;
 
 // Simple error conversion function
 function convertMessageToError(message: any, text: string): TextError | null {
@@ -44,102 +64,32 @@ function convertMessageToError(message: any, text: string): TextError | null {
 // Initialize function
 async function initialize() {
     try {
-        console.log('[Grammar Worker] Starting initialization...');
+        console.log('[Grammar Worker] Initializing retext processor...');
+
+        // Fetch the dictionary files as buffers
+        const [dicBuffer, affBuffer] = await Promise.all([
+            fetch(`${baseUrl}/dictionaries/en_US.dic`).then(res => res.arrayBuffer()),
+            fetch(`${baseUrl}/dictionaries/en_US.aff`).then(res => res.arrayBuffer()),
+        ]);
+
+        const dic = Buffer.from(dicBuffer);
+        const aff = Buffer.from(affBuffer);
         
-        // For now, let's create a simple processor that finds basic issues
-        // We'll simulate some grammar checking
-        processor = {
-            process: async (text: string) => {
-                console.log('[Grammar Worker] Processing text:', text.substring(0, 50) + '...');
-                
-                const messages: any[] = [];
-                
-                // 1. More robust check for repeated words
-                const wordRegex = /\b(\w+)\b/g;
-                let match;
-                const wordPositions = [];
-                while ((match = wordRegex.exec(text)) !== null) {
-                    wordPositions.push({
-                        word: match[1],
-                        start: match.index,
-                        end: match.index + match[0].length
-                    });
-                }
-
-                for (let i = 0; i < wordPositions.length - 1; i++) {
-                    const currentWord = wordPositions[i];
-                    const nextWord = wordPositions[i + 1];
-
-                    if (currentWord.word.toLowerCase() === nextWord.word.toLowerCase()) {
-                        const textBetween = text.substring(currentWord.end, nextWord.start);
-                        if (textBetween.length > 0 && /^\s+$/.test(textBetween)) {
-                            messages.push({
-                                reason: `Unexpected repeated \`${currentWord.word}\`, remove one occurrence`,
-                                place: {
-                                    start: { offset: currentWord.end },
-                                    end: { offset: nextWord.end }
-                                },
-                                source: 'simple-repeated-words',
-                                ruleId: currentWord.word.toLowerCase(),
-                                expected: [""]
-                            });
-                            i++; // Skip the next word as it's part of the pair
-                        }
-                    }
-                }
-                
-                // 2. More robust check for lowercase sentence starts
-                const sentenceRegex = /(^|[\.!?]\s+)([a-z])/g;
-                while ((match = sentenceRegex.exec(text)) !== null) {
-                    const lowercaseLetter = match[2];
-                    const startPos = match.index === 0 ? 0 : match.index + match[1].length;
-                    
-                    // Find the end of the first word
-                    const wordEndMatch = text.substring(startPos).match(/\w+/);
-                    if (wordEndMatch) {
-                        const firstWord = wordEndMatch[0];
-                        messages.push({
-                            reason: 'Sentence should start with a capital letter',
-                            place: {
-                                start: { offset: startPos },
-                                end: { offset: startPos + firstWord.length }
-                            },
-                            source: 'simple-capitalization',
-                            ruleId: 'sentence-start',
-                            expected: [firstWord.charAt(0).toUpperCase() + firstWord.slice(1)]
-                        });
-                    }
-                }
-                
-                // 3. Check for some common misspellings
-                const commonMisspellings: Record<string, string> = {
-                    'namee': 'name',
-                    'testt': 'test',
-                    'ofund': 'found',
-                    'gud': 'good'
-                };
-                
-                for (const [wrong, correct] of Object.entries(commonMisspellings)) {
-                    const regex = new RegExp('\\b' + wrong + '\\b', 'gi');
-                    let match;
-                    while ((match = regex.exec(text)) !== null) {
-                        messages.push({
-                            reason: `Possible misspelling of "${wrong}"`,
-                            place: {
-                                start: { offset: match.index },
-                                end: { offset: match.index + wrong.length }
-                            },
-                            source: 'simple-spell',
-                            ruleId: wrong,
-                            expected: [correct]
-                        });
-                    }
-                }
-                
-                console.log('[Grammar Worker] Found', messages.length, 'issues');
-                return { messages };
-            }
-        };
+        // Build the text processing pipeline using unified
+        processor = unified()
+            .use(retextEnglish)
+            .use(customContractionsRule)
+            .use(retextRepeatedWords)
+            .use(retextIndefiniteArticle)
+            .use(retextSentenceSpacing)
+            // Spell check should come after other grammatical checks
+            .use(retextSpell, { dictionary: { dic, aff } })
+            .use(customCapitalizationRule, {
+                properNouns: ['Mitchell', 'Tiptap', 'ProseMirror', 'JavaScript', 'TypeScript']
+            })
+            .use(retextStringify);
+            
+        console.log('[Grammar Worker] Retext processor created with spell check');
         
         isInitialized = true;
         console.log('[Grammar Worker] Initialization complete');
@@ -160,15 +110,15 @@ async function check(id: string, text: string) {
             throw new Error("Processor not available.");
         }
 
-        const results = await processor.process(text);
+        const file = await processor.process(text);
         
-        console.log(`[Grammar Worker] Processing complete. Messages found: ${results.messages.length}`);
+        console.log(`[Grammar Worker] Processing complete. Messages found: ${file.messages.length}`);
         
-        if (results.messages.length > 0) {
-            console.log("[Grammar Worker] First message:", results.messages[0]);
+        if (file.messages.length > 0) {
+            console.log("[Grammar Worker] First message:", file.messages[0]);
         }
         
-        const errors = results.messages
+        const errors = file.messages
             .map((msg: any) => convertMessageToError(msg, text))
             .filter((error: TextError | null): error is TextError => error !== null);
 
@@ -192,11 +142,12 @@ async function check(id: string, text: string) {
 
 // Message handler
 self.onmessage = (event) => {
-    const { type, id, text, baseUrl } = event.data;
+    const { type, id, text, baseUrl: newBaseUrl } = event.data;
     console.log(`[Grammar Worker] Received message: ${type}`);
     
     switch(type) {
         case "init":
+            baseUrl = newBaseUrl; // Store baseUrl for fetching
             initialize();
             break;
         case "check":

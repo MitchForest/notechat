@@ -1,9 +1,17 @@
 import { visit } from "unist-util-visit"
 import { toString } from "nlcst-to-string"
 import type { VFile } from "vfile"
+import type { Node } from "unist"
 
-export const customCapitalizationRule = () => {
-  return (tree: any, file: VFile) => {
+interface CustomCapitalizationOptions {
+  properNouns?: string[];
+}
+
+export const customCapitalizationRule = (options: CustomCapitalizationOptions = {}) => {
+  const properNouns = options.properNouns || [];
+  const properNounsLower = properNouns.map(name => name.toLowerCase());
+
+  return (tree: Node, file: VFile) => {
     // Check for sentence capitalization
     visit(tree, 'SentenceNode', (sentence: any) => {
       const firstWord = sentence.children.find(
@@ -25,9 +33,11 @@ export const customCapitalizationRule = () => {
       }
     });
     
-    // Check for uncapitalized "i"
+    // Check for "i" and proper nouns
     visit(tree, 'WordNode', (word: any) => {
       const text = toString(word);
+
+      // Check for uncapitalized "i"
       if (text === 'i') {
         const message = file.message(
           `"i" should be capitalized`,
@@ -37,6 +47,22 @@ export const customCapitalizationRule = () => {
         message.ruleId = 'personal-pronoun';
         message.actual = 'i';
         message.expected = ['I'];
+      }
+
+      // Check for proper nouns
+      const lowerWordValue = text.toLowerCase();
+      const properNounIndex = properNounsLower.indexOf(lowerWordValue);
+
+      if (properNounIndex !== -1 && text !== properNouns[properNounIndex]) {
+        const suggestion = properNouns[properNounIndex];
+        const message = file.message(
+          `The proper noun "${suggestion}" should be capitalized.`,
+          word,
+        );
+        message.source = 'custom-capitalization';
+        message.ruleId = 'proper-noun';
+        message.expected = [suggestion];
+        message.actual = text;
       }
     });
   };

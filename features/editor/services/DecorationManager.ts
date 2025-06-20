@@ -44,8 +44,8 @@ const extensionState = {
         const menu = document.createElement('div');
         menu.className = 'suggestion-menu';
         document.body.appendChild(menu);
-
-        if (error.suggestions && error.suggestions.length > 0) {
+    
+    if (error.suggestions && error.suggestions.length > 0) {
             error.suggestions.forEach(suggestion => {
                 const item = document.createElement('div');
                 item.className = 'suggestion-item';
@@ -109,7 +109,7 @@ const extensionState = {
         this.errors = this.errors.filter(e => e.start !== error.start || e.end !== error.end);
         // Dispatch a transaction to force the decorations to re-render
         const tr = view.state.tr.setMeta('updated_errors', true);
-        view.dispatch(tr);
+      view.dispatch(tr);
     }
 };
 
