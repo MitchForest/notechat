@@ -2,7 +2,7 @@
 console.log('[Grammar Worker] Loading...');
 
 // Types
-interface CheckError {
+export interface TextError {
   message: string;
   start: number;
   end: number;
@@ -16,7 +16,7 @@ let processor: any = null;
 let isInitialized = false;
 
 // Simple error conversion function
-function convertMessageToError(message: any, text: string): CheckError | null {
+function convertMessageToError(message: any, text: string): TextError | null {
     const position = message.place || message.position;
     
     if (!position || !position.start || !position.end) {
@@ -54,49 +54,61 @@ async function initialize() {
                 
                 const messages: any[] = [];
                 
-                // Simple checks for demonstration
-                // 1. Check for repeated words
-                const words = text.split(/\s+/);
-                for (let i = 0; i < words.length - 1; i++) {
-                    if (words[i].toLowerCase() === words[i + 1].toLowerCase() && words[i].length > 0) {
-                        const start = text.indexOf(words[i] + ' ' + words[i + 1]);
-                        if (start >= 0) {
+                // 1. More robust check for repeated words
+                const wordRegex = /\b(\w+)\b/g;
+                let match;
+                const wordPositions = [];
+                while ((match = wordRegex.exec(text)) !== null) {
+                    wordPositions.push({
+                        word: match[1],
+                        start: match.index,
+                        end: match.index + match[0].length
+                    });
+                }
+
+                for (let i = 0; i < wordPositions.length - 1; i++) {
+                    const currentWord = wordPositions[i];
+                    const nextWord = wordPositions[i + 1];
+
+                    if (currentWord.word.toLowerCase() === nextWord.word.toLowerCase()) {
+                        const textBetween = text.substring(currentWord.end, nextWord.start);
+                        if (textBetween.length > 0 && /^\s+$/.test(textBetween)) {
                             messages.push({
-                                reason: `Unexpected repeated \`${words[i]}\`, remove one occurrence`,
+                                reason: `Unexpected repeated \`${currentWord.word}\`, remove one occurrence`,
                                 place: {
-                                    start: { offset: start },
-                                    end: { offset: start + words[i].length + 1 + words[i + 1].length }
+                                    start: { offset: currentWord.end },
+                                    end: { offset: nextWord.end }
                                 },
                                 source: 'simple-repeated-words',
-                                ruleId: words[i].toLowerCase(),
-                                expected: [words[i]]
+                                ruleId: currentWord.word.toLowerCase(),
+                                expected: [""]
                             });
+                            i++; // Skip the next word as it's part of the pair
                         }
                     }
                 }
                 
-                // 2. Check for lowercase sentence starts
-                const sentences = text.split(/[.!?]+/);
-                let currentOffset = 0;
-                for (const sentence of sentences) {
-                    const trimmed = sentence.trim();
-                    if (trimmed.length > 0 && /^[a-z]/.test(trimmed)) {
-                        const start = text.indexOf(trimmed, currentOffset);
-                        if (start >= 0) {
-                            const firstWord = trimmed.split(/\s+/)[0];
-                            messages.push({
-                                reason: 'Sentence should start with a capital letter',
-                                place: {
-                                    start: { offset: start },
-                                    end: { offset: start + firstWord.length }
-                                },
-                                source: 'simple-capitalization',
-                                ruleId: 'sentence-start',
-                                expected: [firstWord.charAt(0).toUpperCase() + firstWord.slice(1)]
-                            });
-                        }
+                // 2. More robust check for lowercase sentence starts
+                const sentenceRegex = /(^|[\.!?]\s+)([a-z])/g;
+                while ((match = sentenceRegex.exec(text)) !== null) {
+                    const lowercaseLetter = match[2];
+                    const startPos = match.index === 0 ? 0 : match.index + match[1].length;
+                    
+                    // Find the end of the first word
+                    const wordEndMatch = text.substring(startPos).match(/\w+/);
+                    if (wordEndMatch) {
+                        const firstWord = wordEndMatch[0];
+                        messages.push({
+                            reason: 'Sentence should start with a capital letter',
+                            place: {
+                                start: { offset: startPos },
+                                end: { offset: startPos + firstWord.length }
+                            },
+                            source: 'simple-capitalization',
+                            ruleId: 'sentence-start',
+                            expected: [firstWord.charAt(0).toUpperCase() + firstWord.slice(1)]
+                        });
                     }
-                    currentOffset += sentence.length + 1;
                 }
                 
                 // 3. Check for some common misspellings
@@ -158,7 +170,7 @@ async function check(id: string, text: string) {
         
         const errors = results.messages
             .map((msg: any) => convertMessageToError(msg, text))
-            .filter((error: CheckError | null): error is CheckError => error !== null);
+            .filter((error: TextError | null): error is TextError => error !== null);
 
         console.log(`[Grammar Worker] Converted to ${errors.length} errors`);
         

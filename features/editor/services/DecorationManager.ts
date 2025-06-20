@@ -1,76 +1,184 @@
-import { Editor } from '@tiptap/core'
+import { Extension } from '@tiptap/core'
 import { Plugin, PluginKey } from 'prosemirror-state'
-import { Decoration, DecorationSet } from 'prosemirror-view'
+import { Decoration, DecorationSet, EditorView } from 'prosemirror-view'
+import { TextError } from '../workers/grammar.worker'
 
-const decorationManagerKey = new PluginKey('decorationManager');
+const decorationManagerKey = new PluginKey('spellCheckExtension');
 
-export class DecorationManager {
-  private editor: Editor;
-
-  constructor(editor: Editor) {
-    this.editor = editor;
-    this.installPlugin();
-  }
-
-  private installPlugin() {
-    const plugin = new Plugin({
-      key: decorationManagerKey,
-      state: {
-        init: () => DecorationSet.empty,
-        apply: (tr, oldSet) => {
-          // Get decorations from the meta field
-          const newDecorations = tr.getMeta(decorationManagerKey);
-          if (newDecorations) {
-            return newDecorations;
-          }
-          // Otherwise, map the existing decorations through the transaction
-          return oldSet.map(tr.mapping, tr.doc);
-        }
-      },
-      props: {
-        // This function provides the decorations to the editor view
-        decorations(state) {
-          return this.getState(state);
-        }
-      }
-    });
-
-    // We need to manually add this plugin to the editor's state
-    // This is a bit advanced, but necessary when a plugin is managed by a service.
-    const newState = this.editor.state.reconfigure({
-      plugins: [...this.editor.state.plugins, plugin]
-    });
-    this.editor.view.updateState(newState);
-  }
-
-  public updateDecorations(errors: any[]) {
-    console.log(`[DecorationManager] Updating decorations with ${errors.length} errors:`, errors);
+// This object will hold the state and methods that need to be accessed
+// from both the extension and the plugin.
+const extensionState = {
+    errors: [] as TextError[],
+    tooltipElement: null as HTMLDivElement | null,
     
-    const decorations = errors.map(error => {
-      console.log(`[DecorationManager] Creating decoration for:`, { 
-        start: error.start, 
-        end: error.end, 
-        message: error.message 
-      });
-      
-      // Create an inline decoration for each error
-      return Decoration.inline(error.start, error.end, {
-        class: 'grammar-error', // We'll use this class to style the underline
-        'data-suggestion': error.suggestions?.join(','),
-        'data-message': error.message,
-        'data-error': JSON.stringify(error),
-        'data-rule': error.rule,
-        'data-source': error.source,
-        title: `${error.message}${error.suggestions?.length ? ` → Suggestions: ${error.suggestions.join(', ')}` : ''}`, // Browser tooltip as fallback
-      });
-    });
+    // Method to show a tooltip
+    showTooltip(error: TextError, element: HTMLElement) {
+        if (!this.tooltipElement) {
+            this.tooltipElement = document.createElement('div');
+            this.tooltipElement.className = 'error-tooltip';
+            document.body.appendChild(this.tooltipElement);
+        }
+        this.tooltipElement.innerHTML = `
+            <div class="error-message">${error.message}</div>
+            <div class="error-type">${error.source}</div>
+        `;
+        const rect = element.getBoundingClientRect();
+        this.tooltipElement.style.position = 'absolute';
+        this.tooltipElement.style.left = `${rect.left}px`;
+        this.tooltipElement.style.top = `${rect.bottom + 5}px`;
+        this.tooltipElement.style.display = 'block';
+    },
 
-    const decorationSet = DecorationSet.create(this.editor.state.doc, decorations);
-    console.log(`[DecorationManager] Created decoration set with ${decorations.length} decorations`);
+    // Method to hide the tooltip
+    hideTooltip() {
+        if (this.tooltipElement) {
+            this.tooltipElement.style.display = 'none';
+        }
+    },
+    
+    // Method to show the suggestion menu
+    showSuggestionMenu(error: TextError, element: HTMLElement, view: EditorView) {
+        const existingMenu = document.querySelector('.suggestion-menu');
+        if (existingMenu) existingMenu.remove();
 
-    // Dispatch a transaction to update the plugin's state with the new decorations
-    const tr = this.editor.state.tr.setMeta(decorationManagerKey, decorationSet);
-    this.editor.view.dispatch(tr);
-    console.log(`[DecorationManager] Dispatched transaction with decorations`);
-  }
-} 
+        const menu = document.createElement('div');
+        menu.className = 'suggestion-menu';
+        document.body.appendChild(menu);
+
+        if (error.suggestions && error.suggestions.length > 0) {
+            error.suggestions.forEach(suggestion => {
+                const item = document.createElement('div');
+                item.className = 'suggestion-item';
+                item.textContent = suggestion === "" ? 'Remove' : suggestion;
+                item.onclick = (e) => {
+                    e.stopPropagation();
+                    this.applySuggestion(error, suggestion, view);
+                    this.hideSuggestionMenu(menu);
+                };
+                menu.appendChild(item);
+            });
+        }
+
+        const ignoreItem = document.createElement('div');
+        ignoreItem.className = 'suggestion-item ignore';
+        ignoreItem.textContent = 'Ignore';
+        ignoreItem.onclick = (e) => {
+            e.stopPropagation();
+            this.ignoreError(error, view);
+            this.hideSuggestionMenu(menu);
+        };
+        menu.appendChild(ignoreItem);
+
+        const rect = element.getBoundingClientRect();
+        menu.style.position = 'absolute';
+        menu.style.left = `${rect.left}px`;
+        menu.style.top = `${rect.bottom + 5}px`;
+
+        setTimeout(() => {
+            document.addEventListener('click', (e) => {
+                if (!menu.contains(e.target as Node)) {
+                    this.hideSuggestionMenu(menu);
+                }
+            }, { once: true });
+        }, 0);
+    },
+
+    // Method to hide the suggestion menu
+    hideSuggestionMenu(menu: HTMLElement) {
+        if (menu && menu.parentNode) {
+            menu.parentNode.removeChild(menu);
+        }
+    },
+
+    // Method to apply a suggestion
+    applySuggestion(error: TextError, suggestion: string, view: EditorView) {
+        const from = error.start + 1;
+        const to = error.end + 1;
+
+        let tr = view.state.tr;
+        if (suggestion === "") {
+            tr = tr.delete(from, to);
+        } else {
+            tr = tr.replaceWith(from, to, view.state.schema.text(suggestion));
+        }
+        view.dispatch(tr);
+    },
+
+    // Method to ignore an error
+    ignoreError(error: TextError, view: EditorView) {
+        this.errors = this.errors.filter(e => e.start !== error.start || e.end !== error.end);
+        // Dispatch a transaction to force the decorations to re-render
+        const tr = view.state.tr.setMeta('updated_errors', true);
+        view.dispatch(tr);
+    }
+};
+
+export const SpellCheckExtension = Extension.create({
+    name: 'spellCheckExtension',
+
+    // The `storage` property is the correct way to hold state in a Tiptap extension
+    addStorage() {
+        return extensionState;
+    },
+
+    // `addProseMirrorPlugins` is the correct hook for adding ProseMirror plugins
+    addProseMirrorPlugins() {
+        return [
+            new Plugin({
+                key: decorationManagerKey,
+                state: {
+                    init: () => DecorationSet.empty,
+                    apply: (tr, oldSet, oldState, newState) => {
+                        const errors = this.storage.errors;
+                        if (!errors || errors.length === 0) {
+                            return DecorationSet.empty;
+                        }
+
+                        const decorations = errors.map((error: TextError) => {
+                            const from = error.start + 1;
+                            const to = error.end + 1;
+                            if (from < 1 || to > newState.doc.content.size || from >= to) return null;
+
+                            const errorType = error.source === 'simple-spell' ? 'spell' : 'grammar';
+                            return Decoration.inline(from, to, {
+                                class: `${errorType}-error-wrapper`,
+                                'contentEditable': 'false',
+                                'data-error': JSON.stringify(error)
+                            });
+                        }).filter((d: Decoration | null) => d !== null);
+
+                        return DecorationSet.create(newState.doc, decorations as Decoration[]);
+                    }
+                },
+                props: {
+                    decorations(state) {
+                        return this.getState(state);
+                    },
+                    handleDOMEvents: {
+                        click: (view, event) => {
+                            const target = event.target as HTMLElement;
+                            const errorWrapper = target.closest('[data-error]');
+                            if (errorWrapper instanceof HTMLElement && errorWrapper.dataset.error) {
+                                const error = JSON.parse(errorWrapper.dataset.error) as TextError;
+                                this.storage.showSuggestionMenu(error, errorWrapper, view);
+                                return true;
+                            }
+                            return false;
+                        },
+                        mouseover: (view, event) => {
+                            const target = event.target as HTMLElement;
+                            const errorWrapper = target.closest('[data-error]');
+                            if (errorWrapper instanceof HTMLElement && errorWrapper.dataset.error) {
+                                const error = JSON.parse(errorWrapper.dataset.error) as TextError;
+                                this.storage.showTooltip(error, errorWrapper);
+                            }
+                        },
+                        mouseout: () => {
+                            this.storage.hideTooltip();
+                        }
+                    }
+                }
+            })
+        ];
+    }
+}); 

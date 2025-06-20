@@ -17,7 +17,10 @@ export class CheckOrchestrator extends EventEmitter {
     console.log('[CheckOrchestrator] Creating worker...');
     
     try {
-      this.worker = new Worker('/grammar-worker.js');
+      this.worker = new Worker(
+        new URL('../workers/grammar.worker.ts', import.meta.url),
+        { type: 'module' }
+      );
       console.log('[CheckOrchestrator] Worker created successfully');
     } catch (error) {
       console.error('[CheckOrchestrator] Failed to create worker:', error);
