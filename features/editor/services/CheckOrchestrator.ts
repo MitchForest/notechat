@@ -1,16 +1,34 @@
 import { EventEmitter } from 'events'
 import PQueue from 'p-queue'
 import { v4 as uuidv4 } from 'uuid';
+import { LRUCache } from 'lru-cache';
+import { TextError } from '../workers/grammar.worker';
+import { performanceMonitor } from './PerformanceMonitor';
 
 // We'll define a more structured error type later
 export interface CheckResult {
   id: string;
-  errors: any[];
+  paragraphId: string;
+  errors: TextError[];
 }
 
 export class CheckOrchestrator extends EventEmitter {
   private worker: Worker;
   private checkQueue: PQueue;
+  private pendingChecks = new Map<string, { resolver: (result: CheckResult) => void; timerId: string }>();
+
+  private checkedWords = new Set<string>();
+
+  private stats = {
+    cacheHits: 0,
+    cacheMisses: 0,
+    totalChecks: 0,
+  };
+
+  private paragraphCache = new LRUCache<string, TextError[]>({
+    max: 500, // Cache up to 500 paragraphs
+    ttl: 1000 * 60 * 10, // 10-minute time-to-live
+  });
 
   constructor() {
     super();
@@ -36,52 +54,171 @@ export class CheckOrchestrator extends EventEmitter {
       baseUrl: window.location.origin,
     });
 
-    this.worker.addEventListener('message', this.handleWorkerMessage.bind(this));
+    if (!this.worker) return;
+
+    this.worker.onmessage = this.handleWorkerMessage.bind(this);
     this.worker.addEventListener('error', (error) => {
       console.error('[CheckOrchestrator] Worker error:', error);
     });
     
+    // Periodically log performance stats to the console.
+    setInterval(() => {
+      performanceMonitor.logReport();
+    }, 30000); // every 30 seconds
+
     console.log('[CheckOrchestrator] Initialization complete');
   }
 
   private handleWorkerMessage(event: MessageEvent) {
-    const { type, id, errors } = event.data;
-    console.log(`[CheckOrchestrator] Received worker message:`, { type, id, errorsCount: errors?.length });
-    
+    const { type, id, errors, paragraphId } = event.data;
+
     if (type === 'result') {
-      console.log(`[CheckOrchestrator] Emitting results for ${id}:`, errors);
-      this.emit('results', { id, errors });
+      const pending = this.pendingChecks.get(id);
+      if (pending) {
+        console.log(`[DEBUG] CheckOrchestrator: Resolving pending check`);
+        performanceMonitor.endTimer(pending.timerId);
+        pending.resolver({ id, errors, paragraphId });
+        this.pendingChecks.delete(id);
+        
+        // THIS IS CRITICAL - Make sure this happens!
+        console.log(`[DEBUG] CheckOrchestrator: Emitting results event`);
+        this.emit('results', { id, errors, paragraphId });
+      } else {
+        console.warn(`[DEBUG] CheckOrchestrator: No pending check found for ${id}`);
+      }
     } else if (type === 'error') {
-      console.error(`[CheckOrchestrator] Worker error for check ${id}:`, event.data.error);
+      console.error(`[DEBUG] CheckOrchestrator: Worker error:`, event.data);
     } else if (type === 'ready') {
-      console.log('[CheckOrchestrator] Worker is ready');
-    } else {
-      console.log(`[CheckOrchestrator] Unknown message type:`, type, event.data);
+      console.log('[DEBUG] CheckOrchestrator: Worker is ready');
+      this.emit('ready');
     }
   }
 
-  public check(text: string): string {
-    const checkId = uuidv4();
-    console.log(`[CheckOrchestrator] Queuing check ${checkId} for text:`, text.substring(0, 50) + '...');
-    console.log(`[CheckOrchestrator] Queue size before add:`, this.checkQueue.size, 'pending:', this.checkQueue.pending);
+  private quickHash(text: string): string {
+    let hash = 0;
+    for (let i = 0; i < text.length; i++) {
+        hash = (hash << 5) - hash + text.charCodeAt(i);
+        hash |= 0; // Ensure 32-bit integer
+    }
+    return hash.toString(36);
+  }
+
+  private getCacheHitRate(): string {
+    if (this.stats.totalChecks === 0) {
+      return "0.0%";
+    }
+    const rate = (this.stats.cacheHits / this.stats.totalChecks) * 100;
+    return `${rate.toFixed(1)}%`;
+  }
+
+  private extractWords(text: string): string[] {
+    return text.match(/\b\w+\b/g) || [];
+  }
+
+  public async check(text: string, paragraphId: string): Promise<void> {
+    console.log('[DEBUG] CheckOrchestrator: Received check request:', { paragraphId, text });
+    const cacheKey = this.quickHash(text);
+    const cachedErrors = this.paragraphCache.get(cacheKey);
+
+    if (cachedErrors) {
+      performanceMonitor.recordCacheHit();
+      this.emit('results', { id: 'cached', paragraphId, errors: cachedErrors });
+      return;
+    }
+
+    performanceMonitor.recordCacheMiss();
     
+    const checkId = uuidv4();
+
     this.checkQueue.add(async () => {
-      console.log(`[CheckOrchestrator] Executing check ${checkId} - sending to worker`);
-      this.worker.postMessage({ type: 'check', id: checkId, text });
-      console.log(`[CheckOrchestrator] Message sent to worker for ${checkId}`);
-    }).then(() => {
-      console.log(`[CheckOrchestrator] Queue task completed for ${checkId}`);
+      const result = await new Promise<CheckResult>((resolve) => {
+        const timerId = performanceMonitor.startTimer('workerCheck');
+        this.pendingChecks.set(checkId, { resolver: resolve, timerId });
+        this.worker.postMessage({ 
+          type: 'check', 
+          id: checkId, 
+          text, 
+          paragraphId,
+        });
+      });
+
+      // Add the newly checked words to our set for future deduplication.
+      const wordsInParagraph = this.extractWords(text);
+      wordsInParagraph.forEach(word => this.checkedWords.add(word.toLowerCase()));
+
+      // Cache the result for next time
+      this.paragraphCache.set(cacheKey, result.errors);
+      
+      this.emit('results', result);
     }).catch((error) => {
       console.error(`[CheckOrchestrator] Queue task failed for ${checkId}:`, error);
     });
+  }
+
+  public async checkBulk(text: string, paragraphId: string): Promise<void> {
+    const words = this.extractWords(text);
+    const uniqueWords = [...new Set(words.map(w => w.toLowerCase()))];
+    const wordsToCheck = uniqueWords.filter(word => !this.checkedWords.has(word));
+
+    if (wordsToCheck.length === 0) {
+      console.log('[CheckOrchestrator] Bulk check skipped, all words already checked.');
+      return;
+    }
     
-    console.log(`[CheckOrchestrator] Queue size after add:`, this.checkQueue.size, 'pending:', this.checkQueue.pending);
-    return checkId;
+    // For simplicity, we'll send unique words as a single block.
+    // A more advanced implementation could batch them.
+    const textToCheck = wordsToCheck.join(' ');
+    const checkId = uuidv4();
+
+    this.checkQueue.add(async () => {
+      const result = await new Promise<CheckResult>((resolve) => {
+        const timerId = performanceMonitor.startTimer('workerBulkCheck');
+        this.pendingChecks.set(checkId, { resolver: resolve, timerId });
+        // We send a special 'checkBulk' type to the worker.
+        this.worker.postMessage({ type: 'check', id: checkId, text: textToCheck, paragraphId });
+      });
+
+      // Since the worker returns errors for the concatenated string of unique words,
+      // we need to map these errors back to their original positions in the full text.
+      const mappedErrors = this.mapBulkErrors(result.errors, text);
+
+      // Add newly checked words to our global set
+      wordsToCheck.forEach(word => this.checkedWords.add(word));
+
+      this.emit('results', { ...result, errors: mappedErrors });
+
+    }).catch((error) => {
+      console.error(`[CheckOrchestrator] Queue task failed for bulk check ${checkId}:`, error);
+    });
+  }
+
+  private mapBulkErrors(errors: TextError[], originalText: string): TextError[] {
+    const mapped: TextError[] = [];
+    const lowerCaseText = originalText.toLowerCase();
+
+    errors.forEach(error => {
+      // The worker now tells us exactly which word was flagged.
+      const errorWord = error.word.toLowerCase();
+      let matchIndex = lowerCaseText.indexOf(errorWord);
+
+      while (matchIndex !== -1) {
+        mapped.push({
+          ...error,
+          start: matchIndex,
+          end: matchIndex + errorWord.length,
+        });
+        matchIndex = lowerCaseText.indexOf(errorWord, matchIndex + 1);
+      }
+    });
+
+    return mapped;
   }
 
   public destroy() {
     this.worker.terminate();
     this.checkQueue.clear();
+    this.pendingChecks.clear();
+    this.paragraphCache.clear();
     this.removeAllListeners();
   }
 } 

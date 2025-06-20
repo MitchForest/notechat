@@ -30,6 +30,7 @@
         "@tiptap/react": "^2.22.0",
         "@tiptap/starter-kit": "^2.22.0",
         "@types/lodash-es": "^4.17.12",
+        "@types/lru-cache": "^7.10.10",
         "@types/uuid": "^10.0.0",
         "ai": "^4.3.16",
         "arctic": "^3.7.0",
@@ -42,6 +43,7 @@
         "lodash": "^4.17.21",
         "lodash-es": "^4.17.21",
         "lodash.debounce": "^4.0.8",
+        "lru-cache": "^11.1.0",
         "lucide-react": "^0.518.0",
         "next": "15.3.4",
         "next-themes": "^0.4.6",
@@ -609,6 +611,8 @@
 
     "@types/lodash.debounce": ["@types/lodash.debounce@4.0.9", "", { "dependencies": { "@types/lodash": "*" } }, "sha512-Ma5JcgTREwpLRwMM+XwBR7DaWe96nC38uCBDFKZWbNKD+osjVzdpnUSwBcqCptrp16sSOLBAUb50Car5I0TCsQ=="],
 
+    "@types/lru-cache": ["@types/lru-cache@7.10.10", "", { "dependencies": { "lru-cache": "*" } }, "sha512-nEpVRPWW9EBmx2SCfNn3ClYxPL7IktPX12HhIoSc/H5mMjdeW3+YsXIpseLQ2xF35+OcpwKQbEUw5VtqE4PDNA=="],
+
     "@types/markdown-it": ["@types/markdown-it@14.1.2", "", { "dependencies": { "@types/linkify-it": "^5", "@types/mdurl": "^2" } }, "sha512-promo4eFwuiW+TfGxhi+0x3czqTYJkG8qB17ZUJiVF10Xm7NLVRSLUsfRTU/6h1e24VvRnXCx+hG7li58lkzog=="],
 
     "@types/mdast": ["@types/mdast@4.0.4", "", { "dependencies": { "@types/unist": "*" } }, "sha512-kGaNbPh1k7AFzgpud/gMdvIm5xuECykRR+JnWKQno9TAXVa6WIVCGTPvYGekIDL4uwCZQSYbUxNBSb1aUo79oA=="],
@@ -1170,6 +1174,8 @@
     "loose-envify": ["loose-envify@1.4.0", "", { "dependencies": { "js-tokens": "^3.0.0 || ^4.0.0" }, "bin": { "loose-envify": "cli.js" } }, "sha512-lyuxPGr/Wfhrlem2CL/UcnUc1zcqKAImBDzukY7Y5F/yQiNdko6+fRLevlw1HgMySw7f611UIY408EtxRSoK3Q=="],
 
     "lowlight": ["lowlight@3.3.0", "", { "dependencies": { "@types/hast": "^3.0.0", "devlop": "^1.0.0", "highlight.js": "~11.11.0" } }, "sha512-0JNhgFoPvP6U6lE/UdVsSq99tn6DhjjpAj5MxG49ewd2mOBVtwWYIT8ClyABhq198aXXODMU6Ox8DrGy/CpTZQ=="],
+
+    "lru-cache": ["lru-cache@11.1.0", "", {}, "sha512-QIXZUBJUx+2zHUdQujWejBkcD9+cs94tLn0+YL8UrCh+D5sCXZ4c7LaEH48pNwRY3MLDgqUFyhlCyjJPf1WP0A=="],
 
     "lucide-react": ["lucide-react@0.518.0", "", { "peerDependencies": { "react": "^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0" } }, "sha512-kFg34uQqnVl/7HwAiigxPSpj//43VIVHQbMygQPtS1yT4btMXHCWUipHcgcXHD2pm1Z2nUBA/M+Vnh/YmWXQUw=="],
 

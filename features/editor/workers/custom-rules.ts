@@ -7,8 +7,10 @@ interface CustomCapitalizationOptions {
   properNouns?: string[];
 }
 
+const DEFAULT_PROPER_NOUNS = ['Mitchell', 'Tiptap', 'ProseMirror', 'JavaScript', 'TypeScript'];
+
 export const customCapitalizationRule = (options: CustomCapitalizationOptions = {}) => {
-  const properNouns = options.properNouns || [];
+  const properNouns = options.properNouns || DEFAULT_PROPER_NOUNS;
   const properNounsLower = properNouns.map(name => name.toLowerCase());
 
   return (tree: Node, file: VFile) => {

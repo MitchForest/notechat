@@ -298,3 +298,21 @@
     @apply bg-muted rounded-lg px-4 py-3;
   }
 }
+
+.error-wrapper {
+  text-decoration-line: underline;
+  text-decoration-style: wavy;
+  text-decoration-color: oklch(var(--error));
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.error-wrapper--tentative {
+  text-decoration-color: oklch(var(--warning) / 0.8);
+}
+
+/* Smooth transitions */
+.transition-all {
+  transition: all 0.2s ease-in-out;
+}
