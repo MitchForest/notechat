@@ -15,6 +15,8 @@ import css from 'highlight.js/lib/languages/css'
 import html from 'highlight.js/lib/languages/xml' // for HTML
 import { TrailingNode } from '../extensions/trailing-node'
 import ListItem from '@tiptap/extension-list-item'
+import { BlockDragDrop } from '../extensions/block-drag-drop'
+import { mergeAttributes } from '@tiptap/core'
 
 const lowlight = createLowlight()
 lowlight.register('javascript', javascript)
@@ -22,27 +24,60 @@ lowlight.register('typescript', typescript)
 lowlight.register('css', css)
 lowlight.register('html', html)
 
+const CustomCodeBlock = CodeBlockLowlight.extend({
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+    }
+  },
+
+  renderHTML({ node, HTMLAttributes }) {
+    // Remove any style attribute
+    const { style, ...attrs } = HTMLAttributes
+
+    return ['pre', mergeAttributes(this.options.HTMLAttributes, attrs, { class: 'hljs code-block' }), ['code', {}, 0]]
+  },
+})
+
 export const getEditorExtensions = (registry: ErrorRegistry) => [
   StarterKit.configure({
     codeBlock: false,
+    listItem: false,
+    heading: {
+      HTMLAttributes: {
+        class: 'font-bold',
+      },
+    },
+  }),
+  Placeholder.configure({
+    placeholder: ({ node }) => {
+      if (node.type.name === 'heading') {
+        return `Heading ${node.attrs.level}`
+      }
+      if (node.type.name === 'paragraph') {
+        return "Write, press 'space' for AI, '/' for commands..."
+      }
+      if (node.type.name === 'listItem') {
+        return 'List item'
+      }
+      return ''
+    },
   }),
   ListItem.extend({
     priority: 1001,
     addKeyboardShortcuts() {
       return {
         Enter: () => this.editor.commands.splitListItem('listItem'),
-        'Tab': () => this.editor.commands.sinkListItem('listItem'),
+        Tab: () => this.editor.commands.sinkListItem('listItem'),
         'Shift-Tab': () => this.editor.commands.liftListItem('listItem'),
       }
     },
   }),
-  CodeBlockLowlight.configure({
+  CustomCodeBlock.configure({
     lowlight,
     HTMLAttributes: {
-      class: 'bg-muted',
+      class: 'hljs code-block',
     },
-    exitOnArrowDown: true,
-    exitOnTripleEnter: true,
   }),
   Underline,
   TaskList.configure({
@@ -56,16 +91,6 @@ export const getEditorExtensions = (registry: ErrorRegistry) => [
       class: 'flex items-start',
     },
   }),
-  Placeholder.configure({
-    placeholder: ({ node }) => {
-      if (node.type.name === 'heading') {
-        return `Heading ${node.attrs.level}`
-      }
-      return "Type '/' for commands..."
-    },
-    showOnlyWhenEditable: true,
-    showOnlyCurrent: true,
-  }),
   SlashCommand,
   BubbleMenu.configure({
     pluginKey: 'bubbleMenu',
@@ -74,4 +99,5 @@ export const getEditorExtensions = (registry: ErrorRegistry) => [
     registry: registry,
   }),
   TrailingNode,
+  BlockDragDrop,
 ] 

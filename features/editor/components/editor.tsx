@@ -5,8 +5,9 @@ import { EditorContent } from "@tiptap/react";
 import { useEffect, useState, useRef } from "react";
 import { EditorService } from "../services/EditorService";
 import { type Editor as TiptapEditor } from "@tiptap/core";
-import { EditorBubbleMenu } from "./bubble-menu";
+import { EditorBubbleMenu } from "./editor-bubble-menu";
 import dynamic from "next/dynamic";
+import { BlockHandleContainer } from "./block-handle-container";
 
 // No longer need a separate dynamic wrapper for the whole component
 const NovelEditorContentDynamic = dynamic(() => Promise.resolve(EditorContent), {
@@ -25,12 +26,17 @@ export function Editor({ content = "", onChange }: EditorProps) {
   
   // The editor instance itself is state, so React can render it.
   const [editor, setEditor] = useState<TiptapEditor | null>(null);
+  const [isReady, setIsReady] = useState(false);
 
   // Effect for creating and destroying the service. Runs ONLY ONCE.
   useEffect(() => {
     const service = new EditorService();
     editorService.current = service;
     setEditor(service.editor);
+
+    service.editor.on('create', () => {
+      setIsReady(true);
+    });
 
     // Cleanup on component unmount
     return () => {
@@ -65,13 +71,16 @@ export function Editor({ content = "", onChange }: EditorProps) {
   }
 
   return (
-    <div className="relative w-full">
+    <div className="editor-wrapper relative w-full">
+      <div id="block-handle-portal-root" />
+      {editor && isReady && <BlockHandleContainer editor={editor} />}
       <EditorBubbleMenu editor={editor} />
-      <NovelEditorContentDynamic 
-        editor={editor} 
-        className="relative"
-      />
-      {/* Tooltip logic will be re-added in the next phase */}
+      <div className="editor-content-wrapper relative">
+        <NovelEditorContentDynamic 
+          editor={editor} 
+          className="editor-content pl-12"
+        />
+      </div>
     </div>
   );
 }

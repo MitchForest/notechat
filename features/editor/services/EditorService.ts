@@ -49,11 +49,18 @@ export class EditorService extends EventEmitter {
       editable: true,
       editorProps: {
         attributes: {
-          class: "focus:outline-none min-h-[500px] px-8 py-4",
+          class: "focus:outline-none min-h-[500px] px-8 py-4 selection:bg-primary/20",
           spellcheck: "false",
           autocorrect: 'off',
           autocapitalize: 'off',
           'data-gramm': 'false'
+        },
+        clipboardTextSerializer: slice => {
+          return slice.content.textBetween(0, slice.content.size, '\n\n');
+        },
+        transformPastedHTML: html => {
+          // Basic sanitization
+          return html.replace(/<script\b[^>]*>([\s\S]*?)<\/script>/gi, '');
         },
         handlePaste: (view, event, slice) => {
           let textContent = '';

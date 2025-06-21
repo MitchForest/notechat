@@ -1,4 +1,146 @@
-/* Slash command menu animations and styles */
+/* features/editor/styles/editor.css - Fixed version */
+
+/* 1. PLACEHOLDER STYLES - All block types including lists */
+.ProseMirror h1.is-empty,
+.ProseMirror h2.is-empty,
+.ProseMirror h3.is-empty,
+.ProseMirror h4.is-empty,
+.ProseMirror h5.is-empty,
+.ProseMirror h6.is-empty,
+.ProseMirror p.is-empty,
+.ProseMirror blockquote.is-empty,
+.ProseMirror ul li.is-empty,
+.ProseMirror ol li.is-empty,
+.ProseMirror ul li p.is-empty,
+.ProseMirror ol li p.is-empty {
+  color: hsl(var(--muted-foreground));
+}
+
+.ProseMirror .is-empty::before {
+  content: attr(data-placeholder);
+  color: hsl(var(--muted-foreground));
+  opacity: 0.5;
+  float: left;
+  pointer-events: none;
+  height: 0;
+}
+
+/* 2. CODE BLOCK STYLES - Override any inline styles */
+.ProseMirror pre,
+.ProseMirror pre.hljs,
+.ProseMirror pre.code-block,
+.ProseMirror pre[class*="language-"] {
+  background: hsl(var(--muted)) !important;
+  color: hsl(var(--muted-foreground)) !important;
+  padding: 1rem !important;
+  border-radius: 0.375rem !important;
+  overflow-x: auto;
+  margin: 0.5rem 0;
+  font-family: 'Fira Code', 'Consolas', 'Monaco', monospace;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  border: 1px solid hsl(var(--border));
+}
+.ProseMirror pre[style] {
+  background: hsl(var(--muted)) !important;
+}
+
+.ProseMirror pre code {
+  background: transparent !important;
+  color: inherit;
+  padding: 0;
+  font-size: inherit;
+}
+
+/* 3. TASK LIST STYLES - Proper alignment and spacing */
+.ProseMirror ul[data-type="taskList"] {
+  padding-left: 1.5rem;
+  list-style: none;
+  margin: 0.5rem 0;
+}
+
+.ProseMirror ul[data-type="taskList"] li {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.125rem 0;
+  position: relative;
+  min-height: 1.5rem;
+}
+
+.ProseMirror ul[data-type="taskList"] li input[type="checkbox"] {
+  margin: 0;
+  cursor: pointer;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.ProseMirror ul[data-type="taskList"] li > div,
+.ProseMirror ul[data-type="taskList"] li > p {
+  margin: 0 !important;
+  padding: 0 !important;
+  line-height: 1.5 !important;
+  flex: 1;
+}
+
+.ProseMirror ul[data-type="taskList"] ul[data-type="taskList"] {
+  margin-left: 1.5rem;
+  margin-top: 0.25rem;
+}
+
+/* Base Editor Styles */
+.ProseMirror {
+  padding: 1rem;
+}
+
+.ProseMirror:focus {
+  outline: none;
+}
+
+.ProseMirror h1, .ProseMirror h2, .ProseMirror h3, .ProseMirror h4, .ProseMirror h5, .ProseMirror h6 {
+  font-weight: bold;
+  margin-bottom: 0.5em;
+  line-height: 1.2;
+}
+
+.ProseMirror h1 { font-size: 2em; margin-top: 1.2em; }
+.ProseMirror h2 { font-size: 1.5em; margin-top: 1.0em; }
+.ProseMirror h3 { font-size: 1.25em; margin-top: 0.8em; }
+
+.ProseMirror ul, .ProseMirror ol {
+  padding-left: 1.5rem;
+  margin: 1rem 0;
+}
+.ProseMirror ul { list-style: disc; }
+.ProseMirror ol { list-style: decimal; }
+.ProseMirror li { margin-top: 0.5rem; }
+
+.ProseMirror blockquote {
+  border-left: 3px solid hsl(var(--foreground) / 0.8);
+  margin: 1.5rem 0;
+  padding-left: 1rem;
+  font-style: italic;
+}
+
+.ProseMirror ::selection {
+  background-color: hsl(var(--primary) / 0.3) !important;
+  color: inherit !important;
+}
+
+.ProseMirror-selectednode {
+  background-color: hsl(var(--primary) / 0.2);
+  outline: 2px solid hsl(var(--primary));
+}
+.drop-indicator {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background-color: hsl(var(--primary));
+  pointer-events: none;
+  z-index: 100;
+}
 .tippy-box {
   background-color: hsl(var(--background));
   border: 1px solid hsl(var(--border));
@@ -6,188 +148,3 @@
   box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1);
   color: hsl(var(--foreground));
 }
-
-/* Placeholder styles */
-.ProseMirror p.is-editor-empty:first-child::before {
-  color: hsl(var(--muted-foreground));
-  content: attr(data-placeholder);
-  float: left;
-  height: 0;
-  pointer-events: none;
-  opacity: 0.5;
-}
-
-/* Fix list positioning */
-.ProseMirror ul,
-.ProseMirror ol {
-  padding-left: 1.5rem;
-  margin-top: 1rem;
-  margin-bottom: 1rem;
-}
-
-.ProseMirror ul {
-  list-style: disc;
-}
-
-.ProseMirror ol {
-  list-style: decimal;
-}
-
-.ProseMirror li {
-  position: relative;
-  margin-top: 0.5rem;
-}
-
-/* Headings */
-.ProseMirror h1,
-.ProseMirror h2,
-.ProseMirror h3,
-.ProseMirror h4,
-.ProseMirror h5,
-.ProseMirror h6 {
-  font-weight: bold;
-  margin-top: 1.5em;
-  margin-bottom: 0.5em;
-  line-height: 1.2;
-}
-
-.ProseMirror h1 {
-  font-size: 2em;
-}
-
-.ProseMirror h2 {
-  font-size: 1.5em;
-}
-
-.ProseMirror h3 {
-  font-size: 1.25em;
-}
-
-/* Blockquote */
-.ProseMirror blockquote {
-  border-left: 3px solid hsl(var(--foreground));
-  margin: 1.5rem 0;
-  padding-left: 1rem;
-  font-style: italic;
-  color: hsl(var(--foreground));
-  opacity: 0.8;
-}
-
-/* Task list specific styles */
-.ProseMirror ul[data-type="taskList"] {
-  list-style: none;
-  padding: 0;
-}
-
-.ProseMirror ul[data-type="taskList"] li {
-  display: flex;
-  align-items: center;
-  margin-top: 0.5rem;
-}
-
-.ProseMirror ul[data-type="taskList"] li > label {
-  flex: 0 0 auto;
-  margin-right: 0.5rem;
-  user-select: none;
-}
-
-.ProseMirror ul[data-type="taskList"] li > div {
-  flex: 1 1 auto;
-}
-
-/* Fix code block spacing */
-.ProseMirror pre {
-  margin: 1.5rem 0;
-}
-
-/* Code block syntax highlighting styles */
-.ProseMirror pre.hljs {
-  background-color: rgb(243 244 246); /* gray-100 */
-}
-
-.dark .ProseMirror pre.hljs {
-  background-color: rgb(31 41 55); /* gray-800 */
-}
-
-.ProseMirror pre {
-  color: hsl(var(--secondary-foreground));
-  font-family: 'JetBrains Mono', monospace;
-  padding: 1rem;
-  border-radius: 0.5rem;
-  margin: 1.5rem 0;
-}
-
-.ProseMirror pre code {
-  color: inherit;
-  padding: 0;
-  background: none;
-  font-size: 0.8rem;
-}
-
-.hljs-comment,
-.hljs-quote {
-  color: #616161;
-}
-
-.hljs-variable,
-.hljs-template-variable,
-.hljs-attribute,
-.hljs-tag,
-.hljs-name,
-.hljs-regexp,
-.hljs-link,
-.hljs-name,
-.hljs-selector-id,
-.hljs-selector-class {
-  color: #f98181;
-}
-
-.hljs-number,
-.hljs-meta,
-.hljs-built_in,
-.hljs-builtin-name,
-.hljs-literal,
-.hljs-type,
-.hljs-params {
-  color: #fbbc88;
-}
-
-.hljs-string,
-.hljs-symbol,
-.hljs-bullet {
-  color: #b9f18d;
-}
-
-.hljs-title,
-.hljs-section {
-  color: #faf594;
-}
-
-.hljs-keyword,
-.hljs-selector-tag {
-  color: #70cff8;
-}
-
-.hljs-emphasis {
-  font-style: italic;
-}
-
-.hljs-strong {
-  font-weight: 700;
-}
-
-/* Selection styles */
-.ProseMirror ::selection {
-  background-color: hsl(var(--accent));
-}
-
-/* Focus styles */
-.ProseMirror:focus {
-  outline: none;
-}
-
-/* Make horizontal rules deletable */
-.ProseMirror hr {
-  cursor: pointer;
-  user-select: all;
-} 
