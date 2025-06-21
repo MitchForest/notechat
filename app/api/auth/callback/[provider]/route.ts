@@ -3,39 +3,47 @@ import { findOrCreateUser } from '@/lib/auth/utils'
 import { createSession } from '@/lib/auth/session'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
-import type { NextRequest } from 'next/server'
-import { decodeIdToken } from 'arctic'
+import * as arctic from 'arctic'
 
 interface GitHubUser {
-    id: number;
-    login: string;
-    name: string;
-    avatar_url: string;
+  id: number;
+  login: string;
+  name: string;
+  avatar_url: string;
 }
 
 interface GitHubEmail {
-    email: string;
-    primary: boolean;
-    verified: boolean;
-    visibility: 'public' | 'private' | null;
+  email: string;
+  primary: boolean;
+  verified: boolean;
+  visibility: 'public' | 'private' | null;
+}
+
+interface IdTokenClaims {
+  sub: string;
+  name: string;
+  email: string;
+  picture: string;
 }
 
 export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ provider: string }> }
+  request: Request,
+  { params }: { params: Promise<{ provider: string }> }  // ← Promise type
 ) {
-  const { provider } = await params;
-  const url = request.nextUrl;
+  // Await the params
+  const { provider } = await params  // ← Added await
+  const url = new URL(request.url)
   const code = url.searchParams.get('code')
   const state = url.searchParams.get('state')
-  const cookieStore = await cookies()
-  
+
   if (!code || !state) {
     return new Response('Invalid request', { status: 400 })
   }
 
+  // Await cookies
+  const cookieStore = await cookies()  // ← Added await
   const storedState = cookieStore.get(`${provider}_oauth_state`)?.value
-  
+
   if (!storedState || state !== storedState) {
     return new Response('Invalid state', { status: 400 })
   }
@@ -55,25 +63,25 @@ export async function GET(
 
     if (provider === 'github') {
       const tokens = await github.validateAuthorizationCode(code)
-      
+      const accessToken = tokens.accessToken()
+
+      // Get user info from GitHub
       const userResponse = await fetch('https://api.github.com/user', {
         headers: {
-          Authorization: `Bearer ${tokens.accessToken()}`,
+          Authorization: `Bearer ${accessToken}`,
         },
       })
       const githubUser: GitHubUser = await userResponse.json()
-      
+
+      // Get primary email
       const emailsResponse = await fetch('https://api.github.com/user/emails', {
         headers: {
-          Authorization: `Bearer ${tokens.accessToken()}`,
+          Authorization: `Bearer ${accessToken}`,
         },
       })
       const emails: GitHubEmail[] = await emailsResponse.json()
-      const primaryEmail = emails.find((e) => e.primary)?.email
-      
-      if (!primaryEmail) {
-        return new Response('No primary email found for GitHub user', { status: 400 })
-      }
+      const primaryEmail =
+        emails.find((e) => e.primary)?.email || githubUser.name
 
       userInfo = {
         id: githubUser.id.toString(),
@@ -81,63 +89,72 @@ export async function GET(
         name: githubUser.name,
         avatarUrl: githubUser.avatar_url,
       }
-      
+
       tokenData = {
-        accessToken: tokens.accessToken(),
+        accessToken,
+        refreshToken: tokens.hasRefreshToken() ? tokens.refreshToken() : null,
+        accessTokenExpiresAt: tokens.hasRefreshToken()
+          ? tokens.accessTokenExpiresAt()
+          : null,
       }
     } else if (provider === 'google') {
-      const codeVerifier = cookieStore.get('google_code_verifier')?.value
-      
+      const codeVerifier = cookieStore.get('google_code_verifier')?.value  // ← Using cookieStore
+
       if (!codeVerifier) {
         return new Response('Missing code verifier', { status: 400 })
       }
-      
+
       const tokens = await google.validateAuthorizationCode(code, codeVerifier)
       const idToken = tokens.idToken()
 
       if (!idToken) {
-        return new Response('Missing ID token', { status: 400 })
+        return new Response('Missing id token', { status: 400 })
       }
-      
-      const claims = decodeIdToken(idToken) as {
-        sub: string;
-        name: string;
-        email: string;
-        picture: string;
-      }
-      
+
+      // Decode ID token to get user info
+      const claims = arctic.decodeIdToken(idToken) as IdTokenClaims
+
       userInfo = {
         id: claims.sub,
         email: claims.email,
         name: claims.name,
         avatarUrl: claims.picture,
       }
-      
+
       tokenData = {
         accessToken: tokens.accessToken(),
-        refreshToken: tokens.refreshToken(),
+        refreshToken: tokens.hasRefreshToken() ? tokens.refreshToken() : null,
         accessTokenExpiresAt: tokens.accessTokenExpiresAt(),
       }
-      
-      cookieStore.delete('google_code_verifier')
+
+      // Clean up code verifier
+      cookieStore.delete('google_code_verifier')  // ← Using cookieStore
     } else {
       return new Response('Invalid provider', { status: 400 })
     }
 
-    const user = await findOrCreateUser(provider as 'github' | 'google', userInfo, tokenData)
-    
+    // Find or create user
+    const user = await findOrCreateUser(
+      provider as 'github' | 'google',
+      userInfo,
+      tokenData
+    )
+
+    // Create session
     const userAgent = request.headers.get('user-agent') || undefined
-    const ipAddress = request.headers.get('x-forwarded-for') || 
-                     request.headers.get('x-real-ip') || 
-                     undefined
-    
+    const ipAddress =
+      request.headers.get('x-forwarded-for') ||
+      request.headers.get('x-real-ip') ||
+      undefined
+
     await createSession(user.id, userAgent, ipAddress)
-    
-    cookieStore.delete(`${provider}_oauth_state`)
-    
-    return redirect('/canvas')
+
+    // Clean up oauth state
+    cookieStore.delete(`${provider}_oauth_state`)  // ← Using cookieStore
+
+    redirect('/')
   } catch (error) {
     console.error('OAuth callback error:', error)
-    return redirect('/auth/error')
+    redirect('/error')
   }
-} 
+}

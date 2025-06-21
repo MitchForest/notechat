@@ -10,17 +10,19 @@ interface OAuthUserInfo {
   avatarUrl?: string
 }
 
+interface TokenData {
+  accessToken: string
+  refreshToken?: string | null
+  accessTokenExpiresAt?: Date | null
+}
+
 export async function findOrCreateUser(
   provider: 'github' | 'google',
   userInfo: OAuthUserInfo,
-  tokenData: {
-    accessToken: string
-    refreshToken?: string | null
-    accessTokenExpiresAt?: Date | null
-  }
+  tokenData: TokenData  // ← Use the interface
 ): Promise<User> {
   // Check if account exists
-  const existingAccount = await db.query.accounts.findFirst({
+  const [existingAccount] = await db.query.accounts.findMany({
     where: and(
       eq(accounts.provider, provider),
       eq(accounts.providerAccountId, userInfo.id)
@@ -29,7 +31,6 @@ export async function findOrCreateUser(
       user: true,
     },
   })
-
 
   if (existingAccount) {
     // Update tokens
@@ -50,7 +51,6 @@ export async function findOrCreateUser(
   const existingUser = await db.query.users.findFirst({
     where: eq(users.email, userInfo.email),
   })
-
 
   if (existingUser) {
     // Link new provider to existing user
@@ -82,4 +82,4 @@ export async function findOrCreateUser(
   })
 
   return newUser
-} 
+}

@@ -1,4 +1,5 @@
 import { pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core'
+import { relations } from 'drizzle-orm'
 
 export const users = pgTable('users', {
   id: uuid('id').defaultRandom().primaryKey(),
@@ -8,6 +9,11 @@ export const users = pgTable('users', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 })
+
+export const usersRelations = relations(users, ({ many }) => ({
+	accounts: many(accounts),
+	sessions: many(sessions),
+}))
 
 export const accounts = pgTable('accounts', {
   id: uuid('id').defaultRandom().primaryKey(),
@@ -21,6 +27,13 @@ export const accounts = pgTable('accounts', {
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 })
 
+export const accountsRelations = relations(accounts, ({ one }) => ({
+	user: one(users, {
+		fields: [accounts.userId],
+		references: [users.id],
+	}),
+}))
+
 export const sessions = pgTable('sessions', {
   id: uuid('id').defaultRandom().primaryKey(),
   userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
@@ -30,6 +43,13 @@ export const sessions = pgTable('sessions', {
   userAgent: text('user_agent'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 })
+
+export const sessionsRelations = relations(sessions, ({ one }) => ({
+	user: one(users, {
+		fields: [sessions.userId],
+		references: [users.id],
+	}),
+}))
 
 // Type exports
 export type User = typeof users.$inferSelect

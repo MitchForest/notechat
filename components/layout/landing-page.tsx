@@ -13,7 +13,7 @@ export default function LandingPage() {
         </p>
         <div className="mt-10 flex items-center justify-center gap-x-6">
           <Button asChild size="lg">
-            <Link href="/auth/signin">Get Started</Link>
+            <Link href="/signin">Get Started</Link>
           </Button>
         </div>
       </div>
