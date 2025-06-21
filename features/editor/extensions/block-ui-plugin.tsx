@@ -4,6 +4,7 @@ import { createRoot, Root } from 'react-dom/client';
 import React from 'react';
 import { Editor, Extension } from '@tiptap/core';
 import { BlockHandle } from '../components/block-handle';
+import { Slice } from 'prosemirror-model';
 
 const blockUiPluginKey = new PluginKey('block-ui');
 
@@ -14,18 +15,45 @@ export interface BlockUiOptions {
 // --- Plugin State ---
 interface BlockUIPluginState {
   isDragging: boolean;
-  draggedNodePos: number | null;
-  dropTargetPos: number | null;
   hoveredBlockPos: number | null;
+  dropTargetPos: number | null;
+  draggedNodePos: number | null; // Keep track of the source node
 }
 
 function getInitialState(): BlockUIPluginState {
   return {
     isDragging: false,
-    draggedNodePos: null,
-    dropTargetPos: null,
     hoveredBlockPos: null,
+    dropTargetPos: null,
+    draggedNodePos: null,
   };
+}
+
+// --- Custom Drag Preview ---
+let dragPreview: HTMLElement | null = null;
+
+function showDragPreview(event: DragEvent, text: string) {
+  if (!dragPreview) {
+    dragPreview = document.createElement('div');
+    dragPreview.className = 'drag-preview';
+    document.body.appendChild(dragPreview);
+  }
+  dragPreview.textContent = text;
+  moveDragPreview(event);
+}
+
+function moveDragPreview(event: DragEvent) {
+  if (dragPreview) {
+    dragPreview.style.left = `${event.clientX + 15}px`;
+    dragPreview.style.top = `${event.clientY + 15}px`;
+  }
+}
+
+function hideDragPreview() {
+  if (dragPreview) {
+    dragPreview.remove();
+    dragPreview = null;
+  }
 }
 
 // --- Plugin View ---
@@ -57,7 +85,10 @@ class BlockUIView {
     });
     this.portal.addEventListener('mouseleave', () => {
       this.isHandleHovered = false;
-      handleMouseMove(this.view, new MouseEvent('mousemove', { bubbles: true, cancelable: true }));
+      // Use requestAnimationFrame to avoid race conditions with React state
+      requestAnimationFrame(() => {
+        handleMouseMove(this.view, new MouseEvent('mousemove', { bubbles: true, cancelable: true }));
+      });
     });
     
     this.update(view, view.state);
@@ -113,24 +144,27 @@ class BlockUIView {
 function findHoveredBlock(view: EditorView, event: MouseEvent): { pos: number; node: any } | null {
   const container = (view as any).dom.closest('.editor-wrapper');
   if (!container) return null;
+  
   const containerRect = container.getBoundingClientRect();
   if (event.clientX < containerRect.left || event.clientX > containerRect.right || event.clientY < containerRect.top || event.clientY > containerRect.bottom) {
     return null;
   }
+
+  // Find the block whose vertical range includes the mouse position
   let hoveredBlockInfo: { pos: number; node: any } | null = null;
-  const deadZoneSize = 3;
   view.state.doc.forEach((node, pos) => {
-    if (hoveredBlockInfo) return;
+    if (hoveredBlockInfo) return; // Already found
     if (node.isBlock) {
       const domNode = view.nodeDOM(pos) as HTMLElement;
       if (domNode) {
         const rect = domNode.getBoundingClientRect();
-        if (event.clientY >= rect.top + deadZoneSize && event.clientY <= rect.bottom - deadZoneSize) {
+        if (event.clientY >= rect.top && event.clientY <= rect.bottom) {
           hoveredBlockInfo = { pos, node };
         }
       }
     }
   });
+
   return hoveredBlockInfo;
 }
 
@@ -160,69 +194,23 @@ function handleMouseLeave(view: EditorView) {
   }
 }
 
-function handleDragStart(view: EditorView, event: DragEvent) {
-  const target = event.target as HTMLElement;
-  const handle = target.closest('[data-drag-handle]');
-  if (!handle || !view.dom.contains(handle)) return false;
+function showDropIndicator(view: EditorView, pos: number) {
   const pluginState = blockUiPluginKey.getState(view.state);
-  if (pluginState?.hoveredBlockPos === null) return false;
-  view.dispatch(view.state.tr.setMeta(blockUiPluginKey, { isDragging: true, draggedNodePos: pluginState.hoveredBlockPos }));
-  return true;
-}
+  // Do not show drop indicator at the position of the dragged block
+  if (pluginState?.draggedNodePos === pos) return;
 
-function findDropTarget(view: EditorView, event: DragEvent): number | null {
-  const posAtCoords = view.posAtCoords({ left: event.clientX, top: event.clientY });
-  if (!posAtCoords) return null;
-  const resolvedPos = view.state.doc.resolve(posAtCoords.pos);
-  for (let i = resolvedPos.depth; i > 0; i--) {
-    const node = resolvedPos.node(i);
-    if (node.isBlock) {
-      const nodeDom = view.nodeDOM(resolvedPos.before(i)) as HTMLElement;
-      if (nodeDom) {
-        const nodeRect = nodeDom.getBoundingClientRect();
-        const isAfter = event.clientY > nodeRect.top + nodeRect.height / 2;
-        return isAfter ? resolvedPos.after(i) : resolvedPos.before(i);
-      }
-    }
+  if (pluginState?.dropTargetPos === pos) {
+    return;
   }
-  return resolvedPos.pos;
+  view.dispatch(view.state.tr.setMeta(blockUiPluginKey, { dropTargetPos: pos }));
 }
 
-function handleDragOver(view: EditorView, event: DragEvent) {
-  event.preventDefault();
+function hideDropIndicator(view: EditorView) {
   const pluginState = blockUiPluginKey.getState(view.state);
-  if (!pluginState?.isDragging) return false;
-  const dropPos = findDropTarget(view, event);
-  if (pluginState.dropTargetPos !== dropPos) {
-    view.dispatch(view.state.tr.setMeta(blockUiPluginKey, { dropTargetPos: dropPos }));
+  if (pluginState?.dropTargetPos === null) {
+    return;
   }
-  return true;
-}
-
-function handleDrop(view: EditorView, event: DragEvent) {
-  event.preventDefault();
-  const pluginState = blockUiPluginKey.getState(view.state);
-  if (!pluginState || !pluginState.isDragging || pluginState.draggedNodePos === null || pluginState.dropTargetPos === null) {
-    return false;
-  }
-  const { draggedNodePos, dropTargetPos } = pluginState;
-  const resolvedPos = view.state.doc.resolve(draggedNodePos);
-  const draggedNode = resolvedPos.nodeAfter;
-  if (!draggedNode) return false;
-  let finalDropPos = dropTargetPos;
-  if (finalDropPos > draggedNodePos && finalDropPos < draggedNodePos + draggedNode.nodeSize) {
-    finalDropPos = draggedNodePos;
-  }
-  const newTr = view.state.tr.delete(draggedNodePos, draggedNodePos + draggedNode.nodeSize);
-  const insertPos = newTr.mapping.map(finalDropPos);
-  newTr.insert(insertPos, draggedNode);
-  view.dispatch(newTr.setMeta(blockUiPluginKey, getInitialState()));
-  return true;
-}
-
-function handleDragEnd(view: EditorView) {
-  view.dispatch(view.state.tr.setMeta(blockUiPluginKey, { isDragging: false, dropTargetPos: null }));
-  return true;
+  view.dispatch(view.state.tr.setMeta(blockUiPluginKey, { dropTargetPos: null, draggedNodePos: null, isDragging: false }));
 }
 
 function createDropIndicator() {
@@ -243,7 +231,8 @@ const blockUiPlugin = (container: HTMLElement, editor: Editor) => {
           return { ...value, ...meta };
         }
         if (tr.docChanged || tr.selectionSet) {
-          return { ...value, hoveredBlockPos: null };
+          // Reset hover and dragging state on document changes
+          return { ...value, hoveredBlockPos: null, isDragging: false };
         }
         return value;
       },
@@ -255,30 +244,130 @@ const blockUiPlugin = (container: HTMLElement, editor: Editor) => {
     props: {
       decorations(state) {
         const pluginState = blockUiPluginKey.getState(state);
-        if (!pluginState || !pluginState.isDragging || pluginState.dropTargetPos === null) {
-          return DecorationSet.empty;
+        const decorations: Decoration[] = [];
+        
+        // Add decoration for the dragged block
+        if (pluginState?.isDragging && pluginState.draggedNodePos !== null) {
+          const node = state.doc.nodeAt(pluginState.draggedNodePos);
+          if (node) {
+            decorations.push(
+              Decoration.node(
+                pluginState.draggedNodePos, 
+                pluginState.draggedNodePos + node.nodeSize, 
+                { class: 'dragging-block' }
+              )
+            );
+          }
         }
-        return DecorationSet.create(state.doc, [
-          Decoration.widget(pluginState.dropTargetPos, createDropIndicator()),
-        ]);
+        
+        // Add decoration for the drop indicator
+        if (pluginState?.dropTargetPos !== null) {
+          decorations.push(
+            Decoration.widget(pluginState.dropTargetPos, createDropIndicator, {
+              key: 'drop-indicator',
+            })
+          );
+        }
+        
+        return DecorationSet.create(state.doc, decorations);
       },
       handleDOMEvents: {
+        dragstart: (view, event) => {
+          const data = (event as DragEvent).dataTransfer?.getData('application/vnd.tiptap-block');
+          if (!data) return false;
+          
+          try {
+            const { pos, content } = JSON.parse(data);
+            view.dispatch(view.state.tr.setMeta(blockUiPluginKey, { isDragging: true, draggedNodePos: pos }));
+
+            const node = Slice.fromJSON(view.state.schema, content).content.firstChild;
+            const textContent = node?.textContent || 'Block';
+            showDragPreview(event as DragEvent, textContent);
+
+            // Hide the default drag preview
+            (event as DragEvent).dataTransfer?.setDragImage(new Image(), 0, 0);
+
+          } catch (e) {
+            console.error("Error on drag start:", e);
+          }
+
+          return true;
+        },
         mousemove: (view, event) => {
-          if (pluginView && pluginView.mouseMoveTimeout) {
-            clearTimeout(pluginView.mouseMoveTimeout);
-          }
-          if (pluginView) {
-            pluginView.mouseMoveTimeout = setTimeout(() => {
-              handleMouseMove(view, event as MouseEvent);
-            }, 10);
-          }
+          handleMouseMove(view, event as MouseEvent);
           return false;
         },
-        dragstart: (view, event) => handleDragStart(view, event as DragEvent),
-        dragover: (view, event) => handleDragOver(view, event as DragEvent),
-        drop: (view, event) => handleDrop(view, event as DragEvent),
-        dragend: (view) => handleDragEnd(view),
         mouseleave: (view) => handleMouseLeave(view),
+        dragover: (view, event) => {
+          const data = (event as DragEvent).dataTransfer?.getData('application/vnd.tiptap-block');
+          if (!data) return false;
+          (event as DragEvent).preventDefault();
+          moveDragPreview(event as DragEvent);
+
+          const pos = view.posAtCoords({ left: (event as DragEvent).clientX, top: (event as DragEvent).clientY });
+          if (pos) {
+            showDropIndicator(view, pos.pos);
+          }
+          return true;
+        },
+        dragleave: (view, event) => {
+          hideDropIndicator(view);
+          return false;
+        },
+        drop: (view, event) => {
+          const data = (event as DragEvent).dataTransfer?.getData('application/vnd.tiptap-block');
+          if (!data) return false;
+
+          (event as DragEvent).preventDefault();
+          const pluginState = blockUiPluginKey.getState(view.state);
+          hideDragPreview();
+          
+          try {
+            const { pos: sourcePos, content: contentJSON } = JSON.parse(data);
+            const slice = Slice.fromJSON(view.state.schema, contentJSON);
+
+            const targetInfo = view.posAtCoords({ left: (event as DragEvent).clientX, top: (event as DragEvent).clientY });
+            if (!targetInfo) {
+              hideDropIndicator(view);
+              return false;
+            }
+            let targetPos = targetInfo.pos;
+
+            // Prevent dropping inside the dragged node itself
+            if (targetPos >= sourcePos && targetPos <= sourcePos + slice.size) {
+              hideDropIndicator(view);
+              return false;
+            }
+
+            const tr = view.state.tr;
+            
+            tr.delete(sourcePos, sourcePos + slice.size);
+            const insertPos = tr.mapping.map(targetPos);
+            tr.insert(insertPos, slice.content);
+            tr.setMeta(blockUiPluginKey, { dropTargetPos: null, isDragging: false, draggedNodePos: null });
+            
+            view.dispatch(tr);
+            
+            // Prevent the "ghost click" after drop
+            const clickHandler = (e: MouseEvent) => {
+              e.preventDefault();
+              e.stopPropagation();
+              window.removeEventListener('click', clickHandler, true);
+            };
+            window.addEventListener('click', clickHandler, true);
+            setTimeout(() => window.removeEventListener('click', clickHandler, true), 50);
+
+          } catch (e) {
+            console.error('Failed to handle drop event:', e);
+            hideDropIndicator(view);
+          }
+          return true;
+        },
+        dragend: (view) => {
+          hideDropIndicator(view);
+          hideDragPreview();
+          return true;
+        }
       },
     },
   });

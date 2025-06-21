@@ -8,45 +8,25 @@
  * 
  * Modified: 2024-12-19 - Complete rewrite as app shell
  */
-'use client'
+import { getCurrentUser } from "@/lib/auth/session"
+import { redirect } from "next/navigation"
+import CanvasShell from "@/components/layout/canvas-shell";
+import type { User } from "@/lib/db/schema";
 
-import React from 'react'
-import { SidebarNav } from "@/components/layout/sidebar-nav"
-import { CommandPalette } from "@/components/command-palette"
-import { AppShellProvider, useAppShell } from "@/lib/app-shell-context"
-
-function AppShellLayout({ children }: { children: React.ReactNode }) {
-  const { sidebarCollapsed } = useAppShell()
-
-      return (
-      <div className="flex h-screen bg-background text-foreground overflow-hidden">
-      {/* Sidebar - Fixed width, doesn't affect main content */}
-      <div className={`h-full flex-shrink-0 transition-all duration-300 ${
-        sidebarCollapsed ? 'w-16' : 'w-64'
-      }`}>
-        <SidebarNav />
-      </div>
-      
-      {/* Main Content Area - Takes remaining space */}
-      <main className="flex-1 overflow-hidden">
-        {children}
-      </main>
-      
-      <CommandPalette />
-    </div>
-  )
-}
-
-export default function CanvasLayout({
+export default async function CanvasLayout({
   children,
 }: {
-  children: React.ReactNode
+  children: React.ReactNode;
 }) {
+  const user = await getCurrentUser();
+
+  if (!user) {
+    redirect("/auth/signin");
+  }
+
   return (
-    <AppShellProvider>
-      <AppShellLayout>
+    <CanvasShell user={user as User}>
         {children}
-      </AppShellLayout>
-    </AppShellProvider>
+    </CanvasShell>
   )
 } 

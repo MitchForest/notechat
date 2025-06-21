@@ -234,7 +234,7 @@ function EmptyState() {
   )
 }
 
-export default function CanvasPage() {
+export default function CanvasView() {
   const { viewConfig, activeChat, activeNote, closeChat, closeNote } = useAppShell()
 
   // Empty state
@@ -258,34 +258,32 @@ export default function CanvasPage() {
         </div>
       )
     }
+    return <EmptyState />
   }
 
   // Split view
   const renderPanel = (item: OpenItem | null, onClose: () => void) => {
-    if (!item) return null
+    if (!item) return <EmptyState />
     if (item.type === 'chat') {
       return <ChatComponent chat={item} onClose={onClose} />
     }
     if (item.type === 'note') {
       return <NoteComponent note={item} onClose={onClose} />
     }
-    return null
+    return <EmptyState />
   }
 
-  const primaryItem = viewConfig.primary === 'chat' ? activeChat : activeNote;
-  const secondaryItem = viewConfig.secondary === 'chat' ? activeChat : activeNote;
-
   return (
-    <ResizablePanelGroup direction="horizontal">
+    <ResizablePanelGroup direction="horizontal" className="h-full">
       <ResizablePanel>
         <div className="h-full p-4">
-          {renderPanel(primaryItem, viewConfig.primary === 'chat' ? closeChat : closeNote)}
+          {renderPanel(activeChat, closeChat)}
         </div>
       </ResizablePanel>
       <ResizableHandle withHandle />
       <ResizablePanel>
         <div className="h-full p-4">
-          {renderPanel(secondaryItem, viewConfig.secondary === 'chat' ? closeChat : closeNote)}
+          {renderPanel(activeNote, closeNote)}
         </div>
       </ResizablePanel>
     </ResizablePanelGroup>

@@ -1,7 +1,6 @@
 import { streamText } from 'ai'
 import { AI_MAX_TOKENS, AI_MODELS, AI_SYSTEM_PROMPTS, AI_TEMPERATURES } from '@/features/ai/lib/ai-config'
 import { NextRequest } from 'next/server'
-import { AIOperation } from '@/features/ai/types'
 
 export const runtime = 'edge'
 

@@ -21,7 +21,7 @@ export const getEditorExtensions = (registry: ErrorRegistry, container: HTMLElem
   StarterKit.configure({
     bulletList: { keepMarks: true, keepAttributes: false },
     orderedList: { keepMarks: true, keepAttributes: false },
-    history: false,
+    history: {},
     codeBlock: false,
   }),
   InlineAI,

@@ -143,4 +143,42 @@ The "Ghost Completions" (`++`) feature is explicitly deferred. All work will adh
 3.  **Final Polish**:
     *   Review and refine all animations and transitions to ensure they are smooth.
     *   Ensure all icons, text, and spacing match the `AI-addendum.md` spec.
-    *   Perform a final code review for clarity, consistency, and adherence to standards. 
+    *   Perform a final code review for clarity, consistency, and adherence to standards.
+
+---
+
+## Sprint 6: Ghost Text Completions (`++`)
+
+**Goal**: Implement AI-powered ghost text completions triggered by `++`.
+
+**User Story**: As a user, when I type `++`, I want to see an AI-generated suggestion for the next few words, which I can accept with `Tab`.
+
+### Tasks:
+
+1.  **Create Ghost Text TipTap Extension**:
+    *   `features/ai/extensions/ghost-text.ts`: Create a new ProseMirror plugin extension.
+    *   **Trigger Detection**: The plugin will handle text input to detect when a user types `++`.
+    *   **Decoration Management**: It will use a TipTap `Decoration` to render the incoming AI suggestion as a virtual, non-interactive overlay. The decoration will have a specific class (e.g., `ghost-text`).
+    *   **Keyboard Handling**: It will listen for `Tab` to accept the suggestion and `Escape` or any other key press to dismiss it.
+
+2.  **Develop Ghost Text React Hook**:
+    *   `features/ai/hooks/use-ghost-text.ts`: Create a new hook to manage the feature's logic.
+    *   **SDK Integration**: It will use the `useCompletion` hook from `'ai/react'`.
+    *   **Orchestration**: It will expose `triggerCompletion`, `acceptCompletion`, and `rejectCompletion` functions to be used by the extension and editor component.
+    *   **State Management**: It will manage the `ghostText` string and pass it to the extension via the editor instance to update the decoration.
+
+3.  **Update Completion API Route**:
+    *   Modify `app/api/ai/completion/route.ts`:
+    *   The request from `useGhostText` will include a `mode: 'ghost-text'` field.
+    *   The API will detect this mode and use a specific, concise `systemPrompt` from `ai-config.ts` suitable for short completions.
+    *   It will also use a lower `maxTokens` limit (e.g., 20) for this mode to ensure suggestions are brief.
+
+4.  **Integrate into the Editor**:
+    *   Modify `features/editor/components/editor.tsx`: Instantiate the `useGhostText` hook.
+    *   Pass the state and handler functions from the hook into the new `GhostText` extension during editor initialization.
+    *   Modify `features/editor/config/extensions.ts`: Add the `GhostText` extension to the list of editor extensions.
+
+5.  **Add CSS for Ghost Text**:
+    *   Modify `features/editor/styles/editor.css`: Add a new CSS rule for the `.ghost-text` class.
+    *   It will use an `::after` pseudo-element with `content: attr(data-text);` to display the suggestion.
+    *   The text will be styled to be semi-transparent and italic, as specified in the design documents. 
