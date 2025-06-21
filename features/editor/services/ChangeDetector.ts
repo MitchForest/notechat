@@ -66,7 +66,7 @@ export class ChangeDetector {
     transaction.steps.forEach((step: any, index: number) => {
       step.getMap().forEach((oldStart: number, oldEnd: number, newStart: number, newEnd: number) => {
         doc.nodesBetween(newStart, newEnd, (node: ProseMirrorNode, pos: number) => {
-          if (node.type.name === 'paragraph') {
+          if (node && node.type.name === 'paragraph') {
             const id = `p-${pos}`;
             if (!changedParagraphs.has(id)) {
               changedParagraphs.set(id, {

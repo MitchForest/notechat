@@ -105,7 +105,9 @@ export class EditorService extends EventEmitter {
       performanceMonitor.endTimer(timerId);
 
       changedParagraphs.forEach(p => {
-        this.debouncedCheck(p.text, p.id, { from: p.pos, to: p.pos + p.node.nodeSize });
+        if (p.node) {
+          this.debouncedCheck(p.text, p.id, { from: p.pos, to: p.pos + p.node.nodeSize });
+        }
       });
     });
 
@@ -144,7 +146,9 @@ export class EditorService extends EventEmitter {
   private handleDocChange({ editor, transaction }: { editor: Editor; transaction: any }) {
     const changedParagraphs = this.changeDetector.getChangedParagraphs(editor.state.doc, transaction);
     changedParagraphs.forEach((p: { id: string, text: string, pos: number, node: ProseMirrorNode }) => {
-      this.debouncedCheck(p.text, p.id, { from: p.pos, to: p.pos + p.node.nodeSize });
+      if (p.node) {
+        this.debouncedCheck(p.text, p.id, { from: p.pos, to: p.pos + p.node.nodeSize });
+      }
     });
   }
 

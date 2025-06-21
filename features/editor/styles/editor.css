@@ -14,16 +14,63 @@
   float: left;
   height: 0;
   pointer-events: none;
+  opacity: 0.5;
 }
 
 /* Fix list positioning */
 .ProseMirror ul,
 .ProseMirror ol {
   padding-left: 1.5rem;
+  margin-top: 1rem;
+  margin-bottom: 1rem;
+}
+
+.ProseMirror ul {
+  list-style: disc;
+}
+
+.ProseMirror ol {
+  list-style: decimal;
 }
 
 .ProseMirror li {
   position: relative;
+  margin-top: 0.5rem;
+}
+
+/* Headings */
+.ProseMirror h1,
+.ProseMirror h2,
+.ProseMirror h3,
+.ProseMirror h4,
+.ProseMirror h5,
+.ProseMirror h6 {
+  font-weight: bold;
+  margin-top: 1.5em;
+  margin-bottom: 0.5em;
+  line-height: 1.2;
+}
+
+.ProseMirror h1 {
+  font-size: 2em;
+}
+
+.ProseMirror h2 {
+  font-size: 1.5em;
+}
+
+.ProseMirror h3 {
+  font-size: 1.25em;
+}
+
+/* Blockquote */
+.ProseMirror blockquote {
+  border-left: 3px solid hsl(var(--foreground));
+  margin: 1.5rem 0;
+  padding-left: 1rem;
+  font-style: italic;
+  color: hsl(var(--foreground));
+  opacity: 0.8;
 }
 
 /* Task list specific styles */
@@ -34,7 +81,7 @@
 
 .ProseMirror ul[data-type="taskList"] li {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   margin-top: 0.5rem;
 }
 
@@ -42,7 +89,6 @@
   flex: 0 0 auto;
   margin-right: 0.5rem;
   user-select: none;
-  margin-top: 0.25rem;
 }
 
 .ProseMirror ul[data-type="taskList"] li > div {
@@ -51,16 +97,24 @@
 
 /* Fix code block spacing */
 .ProseMirror pre {
-  margin: 1rem 0;
+  margin: 1.5rem 0;
 }
 
 /* Code block syntax highlighting styles */
+.ProseMirror pre.hljs {
+  background-color: rgb(243 244 246); /* gray-100 */
+}
+
+.dark .ProseMirror pre.hljs {
+  background-color: rgb(31 41 55); /* gray-800 */
+}
+
 .ProseMirror pre {
-  background: hsl(var(--muted));
-  color: hsl(var(--muted-foreground));
+  color: hsl(var(--secondary-foreground));
   font-family: 'JetBrains Mono', monospace;
-  padding: 0.75rem 1rem;
+  padding: 1rem;
   border-radius: 0.5rem;
+  margin: 1.5rem 0;
 }
 
 .ProseMirror pre code {

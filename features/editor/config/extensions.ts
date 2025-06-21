@@ -13,6 +13,8 @@ import javascript from 'highlight.js/lib/languages/javascript'
 import typescript from 'highlight.js/lib/languages/typescript'
 import css from 'highlight.js/lib/languages/css'
 import html from 'highlight.js/lib/languages/xml' // for HTML
+import { TrailingNode } from '../extensions/trailing-node'
+import ListItem from '@tiptap/extension-list-item'
 
 const lowlight = createLowlight()
 lowlight.register('javascript', javascript)
@@ -21,11 +23,23 @@ lowlight.register('css', css)
 lowlight.register('html', html)
 
 export const getEditorExtensions = (registry: ErrorRegistry) => [
-  StarterKit,
+  StarterKit.configure({
+    codeBlock: false,
+  }),
+  ListItem.extend({
+    priority: 1001,
+    addKeyboardShortcuts() {
+      return {
+        Enter: () => this.editor.commands.splitListItem('listItem'),
+        'Tab': () => this.editor.commands.sinkListItem('listItem'),
+        'Shift-Tab': () => this.editor.commands.liftListItem('listItem'),
+      }
+    },
+  }),
   CodeBlockLowlight.configure({
     lowlight,
     HTMLAttributes: {
-      class: 'bg-gray-100 dark:bg-gray-800 rounded-md p-4 font-mono text-sm my-4',
+      class: 'bg-muted',
     },
     exitOnArrowDown: true,
     exitOnTripleEnter: true,
@@ -59,4 +73,5 @@ export const getEditorExtensions = (registry: ErrorRegistry) => [
   SpellCheckExtension.configure({
     registry: registry,
   }),
+  TrailingNode,
 ] 

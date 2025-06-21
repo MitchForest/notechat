@@ -11,7 +11,7 @@ interface CommandListProps {
 }
 
 export const CommandList = forwardRef<CommandListRef, CommandListProps>((props, ref) => {
-  const [selectedIndex, setSelectedIndex] = useState(0)
+  const [selectedIndex, setSelectedIndex] = useState(-1)
 
   const selectItem = (index: number) => {
     const item = props.items[index]
@@ -33,6 +33,9 @@ export const CommandList = forwardRef<CommandListRef, CommandListProps>((props, 
       }
 
       if (event.key === 'Enter') {
+        if (selectedIndex === -1) {
+          return false
+        }
         selectItem(selectedIndex)
         return true
       }
@@ -41,7 +44,9 @@ export const CommandList = forwardRef<CommandListRef, CommandListProps>((props, 
     },
   }))
 
-  useEffect(() => setSelectedIndex(0), [props.items])
+  useEffect(() => {
+    setSelectedIndex(-1)
+  }, [props.items])
 
   return (
     <div className="z-50 min-w-[18rem] overflow-hidden rounded-md border bg-background p-1 shadow-md">
