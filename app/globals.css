@@ -176,6 +176,13 @@
     font-feature-settings: "cv11", "ss01", "ss03";
   }
   
+  /* Global selection style */
+  ::selection {
+    background-color: hsla(210, 100%, 50%, 0.2); /* Fallback for older browsers */
+    background-color: oklch(var(--primary) / 0.2);
+    color: oklch(var(--foreground));
+  }
+  
   /* Typography */
   .font-mono {
     font-family: var(--font-family-mono);
@@ -255,6 +262,17 @@
   /* Focus ring utility */
   .focus-ring {
     @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background;
+  }
+  
+  .prose .task-list-item input[type="checkbox"]:checked {
+    background-color: oklch(var(--primary));
+    border-color: oklch(var(--primary));
+  }
+  
+  /* Selection color */
+  .prose ::selection {
+    background-color: oklch(var(--primary) / 0.3); /* Slightly more opaque for editor */
+    color: oklch(var(--foreground));
   }
 }
 

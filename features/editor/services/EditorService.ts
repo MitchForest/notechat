@@ -1,18 +1,16 @@
 import { Editor } from '@tiptap/core';
 import { Node as ProseMirrorNode } from 'prosemirror-model';
 import { EventEmitter } from 'events';
-import StarterKit from '@tiptap/starter-kit';
 import { CheckOrchestrator, CheckResult } from './CheckOrchestrator';
-import { SpellCheckExtension } from './SpellCheckExtension';
-import { TextError } from '../workers/grammar.worker';
 import { ErrorRegistry } from './ErrorRegistry';
 import { ChangeDetector } from './ChangeDetector';
-import { performanceMonitor } from './PerformanceMonitor';
-import { debounce } from 'lodash-es';
-import Placeholder from '@tiptap/extension-placeholder';
-import TaskList from '@tiptap/extension-task-list';
-import TaskItem from '@tiptap/extension-task-item';
-import HorizontalRule from '@tiptap/extension-horizontal-rule';
+import { PerformanceMonitor } from './PerformanceMonitor';
+import { SpellCheckExtension } from './SpellCheckExtension';
+import { debounce } from 'lodash';
+import { getEditorExtensions } from '../config/extensions';
+import { TextError } from '../workers/grammar.worker';
+
+const performanceMonitor = new PerformanceMonitor();
 
 export class EditorService extends EventEmitter {
   private _editor: Editor;
@@ -20,6 +18,7 @@ export class EditorService extends EventEmitter {
   private errorRegistry: ErrorRegistry;
   private changeDetector: ChangeDetector;
   private debouncedCheck: (text: string, paragraphId: string, range: { from: number; to: number }) => void;
+  private debouncedOnUpdate: (args: { editor: Editor, transaction: any }) => void;
 
   constructor() {
     super();
@@ -35,63 +34,22 @@ export class EditorService extends EventEmitter {
       }
     }, 300);
 
+    this.debouncedOnUpdate = debounce(({ editor, transaction }) => {
+      this.emit('update');
+      if (transaction.docChanged) {
+        this.handleDocChange({ editor, transaction });
+      } else {
+        this.handleBoundaryCheck({ editor, transaction });
+      }
+    }, 300);
+
     this._editor = new Editor({
-      extensions: [
-        StarterKit.configure({
-          paragraph: {
-            HTMLAttributes: {
-              class: 'notion-block',
-            },
-          },
-          heading: {
-            levels: [1, 2, 3],
-            HTMLAttributes: {
-              class: 'notion-block',
-            },
-          },
-          bulletList: {
-            HTMLAttributes: {
-              class: 'notion-block',
-            },
-          },
-          orderedList: {
-            HTMLAttributes: {
-              class: 'notion-block',
-            },
-          },
-          blockquote: {
-            HTMLAttributes: {
-              class: 'notion-block',
-            },
-          },
-          codeBlock: {
-            HTMLAttributes: {
-              class: 'notion-block',
-            },
-          },
-        }),
-        HorizontalRule,
-        TaskList,
-        TaskItem.configure({
-          nested: true,
-        }),
-        Placeholder.configure({
-          placeholder: ({ node }) => {
-            if (node.type.name === 'heading') {
-              return `Heading ${node.attrs.level}`;
-            }
-            return "Type '/' for commands, or just start writing...";
-          },
-        }),
-        SpellCheckExtension.configure({
-          registry: this.errorRegistry,
-        }),
-      ],
-      content: `<p>i cant spell gud. This is a testt of the spell checker.</p>`,
+      extensions: getEditorExtensions(this.errorRegistry),
+      content: `<p>Start writing...</p>`,
       editable: true,
       editorProps: {
         attributes: {
-          class: "prose prose-neutral dark:prose-invert max-w-none focus:outline-none min-h-[500px]",
+          class: "focus:outline-none min-h-[500px] px-8 py-4",
           spellcheck: "false",
           autocorrect: 'off',
           autocapitalize: 'off',
@@ -122,6 +80,19 @@ export class EditorService extends EventEmitter {
       },
     });
 
+    // --- NEW DEBUG VERIFICATION ---
+    console.log('=== EXTENSION DEBUG ===');
+    this._editor.extensionManager.extensions.forEach(ext => {
+      const anyExt = ext as any;
+      if (anyExt.config.addInputRules) {
+        const rules = anyExt.config.addInputRules.call(anyExt);
+        if (rules.length > 0) {
+          console.log(`Extension: ${anyExt.name}, Input rules: ${rules.length}`);
+        }
+      }
+    });
+    // --- END NEW DEBUG VERIFICATION ---
+
     this.setupEventListeners();
   }
 
@@ -139,18 +110,20 @@ export class EditorService extends EventEmitter {
     });
 
     this.editor.on('update', ({ editor, transaction }) => {
-      this.emit('update');
-      if (transaction.docChanged) {
-        this.handleDocChange({ editor, transaction });
-      } else {
-        this.handleBoundaryCheck({ editor, transaction });
-      }
+      this.debouncedOnUpdate({ editor, transaction });
+    });
+
+    this.editor.on('update', () => {
+      const json = this._editor.getJSON();
+      console.log('Document structure:', json);
     });
 
     this.checkOrchestrator.on('results', (result: CheckResult) => this.onResults(result));
 
-    // Initialize with existing content
-    setTimeout(() => this.initialCheck(), 100);
+    // Wait for the editor to be fully created before running the initial check
+    this._editor.on('create', () => {
+      this.initialCheck();
+    });
   }
 
   private initialCheck() {

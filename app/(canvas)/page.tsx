@@ -14,11 +14,12 @@
 import React, { useState, useCallback } from 'react'
 import { useAppShell, OpenItem } from '@/lib/app-shell-context'
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable'
-import { X, Send, Bot } from 'lucide-react'
+import { X, Send, Bot, Info } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { NovelEditor } from "@/features/editor/components/novel-editor"
+import { Editor } from "@/features/editor/components/editor"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
 // Placeholder components - these will be replaced with actual implementations
 function ChatComponent({
@@ -103,14 +104,19 @@ function ChatComponent({
 function NoteComponent({
   note,
   onClose,
-  content,
-  onContentChange
 }: {
-  note: { id:string; title?: string };
+  note: { id: string; title?: string; content?: string };
   onClose?: () => void;
-  content: string;
-  onContentChange: (content: string) => void;
 }) {
+  const [content, setContent] = useState<string>(note.content || "");
+
+  const handleUpdate = useCallback((newContent: string) => {
+    setContent(newContent);
+    // Here you would typically also trigger a save to your backend,
+    // possibly debounced.
+    // e.g., debouncedSave(note.id, newContent);
+  }, []);
+
   return (
     <Card className="h-full flex flex-col">
       <CardHeader className="flex flex-row items-center justify-between py-3">
@@ -118,6 +124,31 @@ function NoteComponent({
           {note.title || 'Note'}
         </CardTitle>
         <div className="flex items-center gap-2">
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-8 w-8">
+                  <Info className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="bg-background border-border text-foreground">
+                <div className="p-2 text-sm">
+                  <div className="font-bold mb-2">Markdown Shortcuts</div>
+                  <ul className="list-disc list-inside space-y-1">
+                    <li><span className="font-mono">#</span> Space → H1</li>
+                    <li><span className="font-mono">##</span> Space → H2</li>
+                    <li><span className="font-mono">###</span> Space → H3</li>
+                    <li><span className="font-mono">-</span> or <span className="font-mono">*</span> Space → Bullet List</li>
+                    <li><span className="font-mono">1.</span> Space → Numbered List</li>
+                    <li><span className="font-mono">[]</span> Space → To-do List</li>
+                    <li><span className="font-mono">&gt;</span> Space → Blockquote</li>
+                    <li><span className="font-mono">---</span> → Horizontal Rule</li>
+                  </ul>
+                </div>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+
           <div className="text-sm text-muted-foreground">
             ID: {note.id}
           </div>
@@ -135,8 +166,8 @@ function NoteComponent({
       </CardHeader>
 
       <CardContent className="flex-1 p-0 overflow-y-auto">
-        <NovelEditor 
-          onChange={onContentChange}
+        <Editor 
+          onChange={handleUpdate}
           content={content}
         />
       </CardContent>
@@ -205,12 +236,6 @@ function EmptyState() {
 
 export default function CanvasPage() {
   const { viewConfig, activeChat, activeNote, closeChat, closeNote } = useAppShell()
-  const [content, setContent] = useState<string>("")
-
-  const handleUpdate = useCallback((newContent: string) => {
-    setContent(newContent)
-    // console.log(newContent) // For debugging
-  }, [])
 
   // Empty state
   if (viewConfig.primary === 'empty') {
@@ -222,85 +247,47 @@ export default function CanvasPage() {
     if (viewConfig.primary === 'chat' && activeChat) {
       return (
         <div className="h-full p-4">
-          <ChatComponent 
-            chat={activeChat} 
-            onClose={closeChat}
-          />
+          <ChatComponent chat={activeChat} />
         </div>
       )
     }
-    
     if (viewConfig.primary === 'note' && activeNote) {
       return (
         <div className="h-full p-4">
-          <NoteComponent 
-            note={activeNote} 
-            onClose={closeNote}
-            content={content}
-            onContentChange={handleUpdate}
-          />
+          <NoteComponent note={activeNote} />
         </div>
       )
     }
   }
 
-  // Split view (primary + secondary)
-  if (viewConfig.secondary) {
-    const primarySize = viewConfig.primarySize || 50
-    
-    const renderPanel = (item: OpenItem | null, onClose: () => void) => {
-        if (!item) return null;
-        switch (item.type) {
-          case 'chat':
-            return <ChatComponent chat={item} onClose={onClose} />
-          case 'note':
-            return (
-              <NoteComponent
-                note={item}
-                onClose={onClose}
-                content={content}
-                onContentChange={handleUpdate}
-              />
-            )
-          default:
-            return null
-        }
+  // Split view
+  const renderPanel = (item: OpenItem | null, onClose: () => void) => {
+    if (!item) return null
+    if (item.type === 'chat') {
+      return <ChatComponent chat={item} onClose={onClose} />
     }
-
-    const primaryItem = viewConfig.primary === 'chat' ? activeChat : activeNote;
-    const secondaryItem = viewConfig.secondary === 'chat' ? activeChat : activeNote;
-    
-    const primaryContent = renderPanel(
-        primaryItem,
-        viewConfig.primary === 'chat' ? closeChat : closeNote
-    );
-
-    const secondaryContent = renderPanel(
-        secondaryItem,
-        viewConfig.secondary === 'chat' ? closeChat : closeNote
-    );
-
-    return (
-      <div className="h-full p-4">
-        <ResizablePanelGroup direction="horizontal" className="h-full">
-          <ResizablePanel defaultSize={primarySize} minSize={30}>
-            <div className="h-full pr-2">
-              {primaryContent}
-            </div>
-          </ResizablePanel>
-          
-          <ResizableHandle withHandle />
-          
-          <ResizablePanel defaultSize={100 - primarySize} minSize={30}>
-            <div className="h-full pl-2">
-              {secondaryContent}
-            </div>
-          </ResizablePanel>
-        </ResizablePanelGroup>
-      </div>
-    )
+    if (item.type === 'note') {
+      return <NoteComponent note={item} onClose={onClose} />
+    }
+    return null
   }
 
-  // Should not happen, but as a fallback
-  return <EmptyState />
+  const primaryItem = viewConfig.primary === 'chat' ? activeChat : activeNote;
+  const secondaryItem = viewConfig.secondary === 'chat' ? activeChat : activeNote;
+
+  return (
+    <ResizablePanelGroup direction="horizontal">
+      <ResizablePanel>
+        <div className="h-full p-4">
+          {renderPanel(primaryItem, viewConfig.primary === 'chat' ? closeChat : closeNote)}
+        </div>
+      </ResizablePanel>
+      <ResizableHandle withHandle />
+      <ResizablePanel>
+        <div className="h-full p-4">
+          {renderPanel(secondaryItem, viewConfig.secondary === 'chat' ? closeChat : closeNote)}
+        </div>
+      </ResizablePanel>
+    </ResizablePanelGroup>
+  )
 } 

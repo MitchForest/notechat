@@ -1,9 +1,11 @@
 "use client";
 
+import "../styles/editor.css";
 import { EditorContent } from "@tiptap/react";
 import { useEffect, useState, useRef } from "react";
 import { EditorService } from "../services/EditorService";
-import { Editor } from "@tiptap/core";
+import { type Editor as TiptapEditor } from "@tiptap/core";
+import { EditorBubbleMenu } from "./bubble-menu";
 import dynamic from "next/dynamic";
 
 // No longer need a separate dynamic wrapper for the whole component
@@ -12,17 +14,17 @@ const NovelEditorContentDynamic = dynamic(() => Promise.resolve(EditorContent), 
   loading: () => <div className="min-h-[500px] animate-pulse bg-muted rounded-lg" />
 });
 
-interface NovelEditorProps {
+interface EditorProps {
   content?: string;
   onChange?: (content: string) => void;
 }
 
-export function NovelEditor({ content = "", onChange }: NovelEditorProps) {
+export function Editor({ content = "", onChange }: EditorProps) {
   // Use a ref to hold the service instance. It persists across re-renders.
   const editorService = useRef<EditorService | null>(null);
   
   // The editor instance itself is state, so React can render it.
-  const [editor, setEditor] = useState<Editor | null>(null);
+  const [editor, setEditor] = useState<TiptapEditor | null>(null);
 
   // Effect for creating and destroying the service. Runs ONLY ONCE.
   useEffect(() => {
@@ -35,9 +37,8 @@ export function NovelEditor({ content = "", onChange }: NovelEditorProps) {
       service.destroy();
       editorService.current = null;
     };
-  }, []); // <-- CRITICAL: Empty dependency array
+  }, []);
 
-  // Effect for handling updates and syncing state.
   useEffect(() => {
     if (!editor || !onChange) {
       return;
@@ -49,17 +50,15 @@ export function NovelEditor({ content = "", onChange }: NovelEditorProps) {
 
     editor.on('update', handleUpdate);
 
-    // Sync incoming `content` prop with the editor state, but only if different.
     const editorContent = editor.getHTML();
     if (content !== editorContent) {
-      // `emitUpdate: false` prevents an infinite loop.
       editor.commands.setContent(content, false);
     }
     
     return () => {
       editor.off('update', handleUpdate);
     };
-  }, [editor, content, onChange]); // Dependencies for syncing
+  }, [editor, content, onChange]);
 
   if (!editor) {
     return <div className="min-h-[500px] animate-pulse bg-muted rounded-lg" />;
@@ -67,6 +66,7 @@ export function NovelEditor({ content = "", onChange }: NovelEditorProps) {
 
   return (
     <div className="relative w-full">
+      <EditorBubbleMenu editor={editor} />
       <NovelEditorContentDynamic 
         editor={editor} 
         className="relative"
@@ -77,8 +77,8 @@ export function NovelEditor({ content = "", onChange }: NovelEditorProps) {
 }
 
 // Alternative: Export a fully client-side version
-export const NovelEditorClient = dynamic(
-  () => Promise.resolve(NovelEditor),
+export const EditorClient = dynamic(
+  () => Promise.resolve(Editor),
   { 
     ssr: false,
     loading: () => (
