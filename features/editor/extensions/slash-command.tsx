@@ -32,7 +32,7 @@ const getSuggestionItems = ({ query }: { query: string }): CommandItem[] => {
       description: 'Open AI assistant to write or edit.',
       icon: Wand2,
       command: ({ editor, range }: { editor: Editor, range: Range }) => {
-        editor.chain().focus().deleteRange(range).setNode('inlineAi').run()
+        editor.chain().focus().deleteRange(range).insertContent({ type: 'inlineAi' }).run()
       }
     },
     {

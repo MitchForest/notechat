@@ -93,35 +93,26 @@ export function BlockHandle({ editor, blockPos, blockNode, onMenuToggle }: Block
   const currentBlockType = blockNode.type.name
   const currentLevel = blockNode.attrs?.level
 
-  // Prevents the menu from opening on drag
-  const handleMouseDown = (e: React.MouseEvent) => {
-    if (e.button === 0) {
-      isDraggingRef.current = false;
-    }
-  };
-
-  // If the mouse didn't move, it's a click, so open the menu.
-  const handleClick = () => {
-    if (!isDraggingRef.current) {
-      onOpenChange(true);
-    }
-  };
-
   return (
-    <div className="block-handle" onMouseDown={handleMouseDown}>
+    <div className="block-handle">
+      <button
+        className="handle-button drag-handle"
+        draggable="true"
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
+        data-drag-handle
+        title="Drag to move"
+      >
+        <GripVertical size={18} />
+      </button>
+
       <DropdownMenu.Root open={menuOpen} onOpenChange={onOpenChange}>
         <DropdownMenu.Trigger asChild>
           <button
-            ref={dragHandleRef}
-            className="handle-button drag-handle"
-            draggable="true"
-            onDragStart={handleDragStart}
-            onDragEnd={handleDragEnd}
-            onClick={handleClick}
-            data-drag-handle
-            title="Drag to move, click for options"
+            className="handle-button"
+            title="Block options"
           >
-            <GripVertical size={18} />
+            <Plus size={18} />
           </button>
         </DropdownMenu.Trigger>
 

@@ -42,7 +42,8 @@ export function EditorBubbleMenu({ editor }: EditorBubbleMenuProps) {
       tippyOptions={{
         duration: 100,
         placement: 'top-start',
-        onHidden: () => setView('format')
+        onHidden: () => setView('format'),
+        zIndex: 99
       }}
       className="flex items-center rounded-md border bg-background p-1 shadow-md"
     >
@@ -53,7 +54,6 @@ export function EditorBubbleMenu({ editor }: EditorBubbleMenuProps) {
             size="sm"
             className="gap-1.5"
             onClick={handleAiClick}
-            disabled={editor.state.selection.empty}
           >
             <Wand2 className="h-4 w-4" />
             Use AI

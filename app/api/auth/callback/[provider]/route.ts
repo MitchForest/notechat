@@ -58,7 +58,7 @@ export async function GET(
     let tokenData: {
         accessToken: string,
         refreshToken?: string | null,
-        accessTokenExpiresAt?: Date | null
+        accessTokenExpiresAt?: Date | null,
     };
 
     if (provider === 'github') {

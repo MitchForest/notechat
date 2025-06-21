@@ -294,17 +294,17 @@ export const SpellCheckExtension = Extension.create<SpellCheckExtensionOptions>(
                             }
                             return false;
                         },
-                        mouseover: (view, event) => {
-                            const target = event.target as HTMLElement;
-                            const errorWrapper = target.closest('[data-error]');
-                            if (errorWrapper instanceof HTMLElement && errorWrapper.dataset.error) {
-                               const error = JSON.parse(errorWrapper.dataset.error) as TextError;
-                               showTooltip(error, errorWrapper);
-                            }
-                        },
-                        mouseout: () => {
-                            hideTooltip();
-                        }
+                        // mouseover: (view, event) => {
+                        //     const target = event.target as HTMLElement;
+                        //     const errorWrapper = target.closest('[data-error]');
+                        //     if (errorWrapper instanceof HTMLElement && errorWrapper.dataset.error) {
+                        //        const error = JSON.parse(errorWrapper.dataset.error) as TextError;
+                        //        showTooltip(error, errorWrapper);
+                        //     }
+                        // },
+                        // mouseout: () => {
+                        //     hideTooltip();
+                        // }
                     }
                 }
             })

@@ -119,7 +119,7 @@ class BlockUIView {
         const containerRect = this.container.getBoundingClientRect();
         const nodeRect = domNode.getBoundingClientRect();
         const top = nodeRect.top - containerRect.top;
-        const left = (60 - 28) / 2; // Recalculate based on new handle size
+        const left = 24; // Position handle in the new gutter area
         this.portal.style.display = 'block';
         this.portal.style.position = 'absolute';
         this.portal.style.top = `${top}px`;
@@ -157,12 +157,15 @@ function findHoveredBlock(view: EditorView, event: MouseEvent): { pos: number; n
   const container = (view as any).dom.closest('.editor-wrapper');
   if (!container) return null;
   
-  const containerRect = container.getBoundingClientRect();
-  if (event.clientX < containerRect.left || event.clientX > containerRect.right || event.clientY < containerRect.top || event.clientY > containerRect.bottom) {
+  // Check if the cursor is vertically within the editor's content area
+  const editorRect = view.dom.getBoundingClientRect();
+  if (event.clientY < editorRect.top || event.clientY > editorRect.bottom) {
     return null;
   }
 
-  // Find the block whose vertical range includes the mouse position
+  // Find the block whose vertical range includes the mouse position.
+  // This logic now ignores the horizontal cursor position, effectively extending
+  // the hover area to the full width of the editor.
   let hoveredBlockInfo: { pos: number; node: any } | null = null;
   view.state.doc.forEach((node, pos) => {
     if (hoveredBlockInfo) return; // Already found
@@ -305,11 +308,6 @@ const blockUiPlugin = (container: HTMLElement, editor: Editor) => {
 
           return true;
         },
-        mousemove: (view, event) => {
-          handleMouseMove(view, event as MouseEvent);
-          return false;
-        },
-        mouseleave: (view) => handleMouseLeave(view),
         dragover: (view, event) => {
           const data = (event as DragEvent).dataTransfer?.getData('application/vnd.tiptap-block');
           if (!data) return false;
@@ -322,9 +320,18 @@ const blockUiPlugin = (container: HTMLElement, editor: Editor) => {
           }
           return true;
         },
-        dragleave: (view, event) => {
-          hideDropIndicator(view);
-          return false;
+        dragend: (view) => {
+          // This is the correct way to reset state in Prosemirror.
+          // It guarantees the isDragging state and dragging class are removed.
+          const { state, dispatch } = view;
+          const tr = state.tr.setMeta(blockUiPluginKey, { 
+            isDragging: false, 
+            draggedNodePos: null, 
+            dropTargetPos: null 
+          });
+          dispatch(tr);
+          hideDragPreview();
+          return true;
         },
         drop: (view, event) => {
           const data = (event as DragEvent).dataTransfer?.getData('application/vnd.tiptap-block');
@@ -359,8 +366,10 @@ const blockUiPlugin = (container: HTMLElement, editor: Editor) => {
             tr.setMeta(blockUiPluginKey, { dropTargetPos: null, isDragging: false, draggedNodePos: null });
             
             view.dispatch(tr);
+
+            // Prevent the "ghost click" and unfocus the editor
+            view.dom.blur();
             
-            // Prevent the "ghost click" after drop
             const clickHandler = (e: MouseEvent) => {
               e.preventDefault();
               e.stopPropagation();
@@ -375,11 +384,22 @@ const blockUiPlugin = (container: HTMLElement, editor: Editor) => {
           }
           return true;
         },
-        dragend: (view) => {
-          hideDropIndicator(view);
-          hideDragPreview();
-          return true;
-        }
+        dragleave: (view, event) => {
+          // Hide indicator if we are leaving the editor bounds
+          const editorRect = (view.dom as HTMLElement).getBoundingClientRect();
+          if (
+            (event as DragEvent).clientX <= editorRect.left || (event as DragEvent).clientX >= editorRect.right ||
+            (event as DragEvent).clientY <= editorRect.top || (event as DragEvent).clientY >= editorRect.bottom
+          ) {
+            hideDropIndicator(view);
+          }
+          return false;
+        },
+        mousemove: (view, event) => {
+          handleMouseMove(view, event as MouseEvent);
+          return false;
+        },
+        mouseleave: (view) => handleMouseLeave(view),
       },
     },
   });

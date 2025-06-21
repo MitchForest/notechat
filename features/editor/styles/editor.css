@@ -45,7 +45,7 @@
    ========================================================================== */
 .ProseMirror {
   min-height: 200px;
-  padding: 4px 40px 4px 60px; /* The gutter for the block handle */
+  padding: 4px 40px 4px 80px; /* Increased gutter for the block handle */
   width: 100%;
   position: relative;
 }
@@ -176,7 +176,7 @@
   position: relative;
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 2px; /* Reduced gap */
   padding: 2px;
   background: white;
   border: 1px solid hsl(var(--border));
@@ -189,8 +189,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 28px; /* Increased size for easier clicking */
-  height: 28px;
+  width: 24px; /* Reduced size */
+  height: 24px; /* Reduced size */
   border: none;
   background: transparent;
   color: hsl(var(--muted-foreground));
@@ -330,11 +330,11 @@
   left: 0;
   right: 0;
   height: 4px; /* Make the drop zone more prominent */
-  background-color: hsl(var(--primary) / 0.8); /* Use a vibrant blue */
+  background-color: hsl(var(--success) / 0.8); /* Use a vibrant green */
   border-radius: 2px;
   pointer-events: none;
   z-index: 100;
-  box-shadow: 0 0 10px hsl(var(--primary) / 0.5); /* Add a subtle glow */
+  box-shadow: 0 0 10px hsl(var(--success) / 0.5); /* Add a subtle glow */
 }
 
 .drop-indicator::before {
@@ -351,11 +351,14 @@
 .ProseMirror h2 { margin-bottom: 0.75rem; }
 .ProseMirror h3 { margin-bottom: 0.5rem; }
 
-.ProseMirror p.is-editor-empty:first-child::before {
+.ProseMirror p.is-editor-empty:first-child::before,
+.ProseMirror h1.is-empty::before,
+.ProseMirror h2.is-empty::before,
+.ProseMirror h3.is-empty::before {
   color: #adb5bd;
   content: attr(data-placeholder);
-  float: left;
-  height: 0;
+  float: left; /* This is the key fix for the cursor position */
+  height: 0; /* This is the key fix for the cursor position */
   pointer-events: none;
 }
 
