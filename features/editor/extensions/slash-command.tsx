@@ -14,6 +14,7 @@ import {
   Quote,
   Code,
   CheckSquare,
+  Wand2
 } from 'lucide-react'
 import { CommandList, CommandListRef } from '../components/command-list'
 
@@ -26,6 +27,14 @@ export interface CommandItem {
 
 const getSuggestionItems = ({ query }: { query: string }): CommandItem[] => {
   return [
+    {
+      title: 'Ask AI',
+      description: 'Open AI assistant to write or edit.',
+      icon: Wand2,
+      command: ({ editor, range }: { editor: Editor, range: Range }) => {
+        editor.chain().focus().deleteRange(range).setNode('inlineAi').run()
+      }
+    },
     {
       title: 'Text',
       description: 'Just start typing with plain text.',
@@ -98,7 +107,12 @@ const getSuggestionItems = ({ query }: { query: string }): CommandItem[] => {
         editor.chain().focus().deleteRange(range).toggleTaskList().run()
       },
     },
-  ].filter(item => item.title.toLowerCase().includes(query.toLowerCase()))
+  ].filter(item => {
+    if (item.title === 'Ask AI') {
+      return 'ask ai'.includes(query.toLowerCase()) || 'ai'.includes(query.toLowerCase())
+    }
+    return item.title.toLowerCase().includes(query.toLowerCase())
+  })
 }
 
 export const SlashCommand = Extension.create({

@@ -1,103 +1,67 @@
-import StarterKit from '@tiptap/starter-kit'
+import { Color } from '@tiptap/extension-color'
+import TextStyle from '@tiptap/extension-text-style'
+import { StarterKit } from '@tiptap/starter-kit'
+import { CodeBlockLowlight } from '@tiptap/extension-code-block-lowlight'
+import { common, createLowlight } from 'lowlight'
 import Placeholder from '@tiptap/extension-placeholder'
-import TaskList from '@tiptap/extension-task-list'
-import TaskItem from '@tiptap/extension-task-item'
-import Underline from '@tiptap/extension-underline'
+import { TrailingNode } from '../extensions/trailing-node'
 import { SlashCommand } from '../extensions/slash-command'
-import { BubbleMenu } from '@tiptap/extension-bubble-menu'
 import { SpellCheckExtension } from '../services/SpellCheckExtension'
 import { ErrorRegistry } from '../services/ErrorRegistry'
-import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight'
-import { createLowlight } from 'lowlight'
-import javascript from 'highlight.js/lib/languages/javascript'
-import typescript from 'highlight.js/lib/languages/typescript'
-import css from 'highlight.js/lib/languages/css'
-import html from 'highlight.js/lib/languages/xml' // for HTML
-import { TrailingNode } from '../extensions/trailing-node'
-import ListItem from '@tiptap/extension-list-item'
-import { BlockDragDrop } from '../extensions/block-drag-drop'
-import { mergeAttributes } from '@tiptap/core'
+import Underline from '@tiptap/extension-underline';
+import TaskList from '@tiptap/extension-task-list';
+import TaskItem from '@tiptap/extension-task-item';
+import { BlockUi } from '../extensions/block-ui-plugin';
+import { Extension } from '@tiptap/core'
+import { InlineAI } from '@/features/ai/extensions/inline-ai';
 
-const lowlight = createLowlight()
-lowlight.register('javascript', javascript)
-lowlight.register('typescript', typescript)
-lowlight.register('css', css)
-lowlight.register('html', html)
+const lowlight = createLowlight(common)
 
-const CustomCodeBlock = CodeBlockLowlight.extend({
-  addAttributes() {
-    return {
-      ...this.parent?.(),
-    }
-  },
-
-  renderHTML({ node, HTMLAttributes }) {
-    // Remove any style attribute
-    const { style, ...attrs } = HTMLAttributes
-
-    return ['pre', mergeAttributes(this.options.HTMLAttributes, attrs, { class: 'hljs code-block' }), ['code', {}, 0]]
-  },
-})
-
-export const getEditorExtensions = (registry: ErrorRegistry) => [
+export const getEditorExtensions = (registry: ErrorRegistry, container: HTMLElement) => [
   StarterKit.configure({
+    bulletList: { keepMarks: true, keepAttributes: false },
+    orderedList: { keepMarks: true, keepAttributes: false },
+    history: false,
     codeBlock: false,
-    listItem: false,
-    heading: {
-      HTMLAttributes: {
-        class: 'font-bold',
-      },
-    },
+  }),
+  InlineAI,
+  SlashCommand,
+  TrailingNode,
+  CodeBlockLowlight.configure({
+    lowlight,
+    languageClassPrefix: 'language-',
+    defaultLanguage: 'plaintext',
+  }),
+  TextStyle,
+  Color,
+  Underline,
+  TaskList,
+  TaskItem,
+  SpellCheckExtension.configure({
+    registry,
   }),
   Placeholder.configure({
-    placeholder: ({ node }) => {
+    placeholder: ({ node, editor, pos }) => {
       if (node.type.name === 'heading') {
         return `Heading ${node.attrs.level}`
       }
+
+      const resolvedPos = editor.state.doc.resolve(pos)
+      const parent = resolvedPos.parent
+
       if (node.type.name === 'paragraph') {
-        return "Write, press 'space' for AI, '/' for commands..."
+        if (parent.type.name === 'listItem') {
+          return ''
+        }
+        return "Type '/' for commands"
       }
-      if (node.type.name === 'listItem') {
-        return 'List item'
-      }
+
       return ''
     },
+    considerAnyAsEmpty: true,
+    showOnlyCurrent: true,
   }),
-  ListItem.extend({
-    priority: 1001,
-    addKeyboardShortcuts() {
-      return {
-        Enter: () => this.editor.commands.splitListItem('listItem'),
-        Tab: () => this.editor.commands.sinkListItem('listItem'),
-        'Shift-Tab': () => this.editor.commands.liftListItem('listItem'),
-      }
-    },
+  BlockUi.configure({
+    container,
   }),
-  CustomCodeBlock.configure({
-    lowlight,
-    HTMLAttributes: {
-      class: 'hljs code-block',
-    },
-  }),
-  Underline,
-  TaskList.configure({
-    HTMLAttributes: {
-      class: 'list-none',
-    },
-  }),
-  TaskItem.configure({
-    nested: true,
-    HTMLAttributes: {
-      class: 'flex items-start',
-    },
-  }),
-  SlashCommand,
-  BubbleMenu.configure({
-    pluginKey: 'bubbleMenu',
-  }),
-  SpellCheckExtension.configure({
-    registry: registry,
-  }),
-  TrailingNode,
-  BlockDragDrop,
 ] 

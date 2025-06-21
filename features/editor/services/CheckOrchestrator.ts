@@ -123,6 +123,11 @@ export class CheckOrchestrator extends EventEmitter {
    * Sends text to the worker for checking. It will not check if the text is in the cache.
    */
   public check(text: string, paragraphId: string, options?: { scope?: 'word' | 'sentence' | 'paragraph', range?: { from: number, to: number } }): void {
+    if (!this.isWorkerReady) {
+      // console.warn('[CheckOrchestrator] Worker not ready, skipping check.');
+      return;
+    }
+
     const scope = options?.scope || 'paragraph';
     const range = options?.range;
 

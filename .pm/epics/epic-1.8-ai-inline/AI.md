@@ -4,6 +4,9 @@
 
 **Goal**: Implement three AI-powered features in the editor: Ghost Completions, Bubble Menu AI Commands, and AI Assistant Panel.
 
+NOTE: We will invoke AI with a space on a new line instead of /ai
+"Write, press 'space' for AI, '/' for commands..."
+
 **Duration**: 5-7 days  
 **Team**: 1-2 developers  
 **Priority**: High  

@@ -5,10 +5,24 @@ import { CheckOrchestrator, CheckResult } from './CheckOrchestrator';
 import { ErrorRegistry } from './ErrorRegistry';
 import { ChangeDetector } from './ChangeDetector';
 import { PerformanceMonitor } from './PerformanceMonitor';
-import { SpellCheckExtension } from './SpellCheckExtension';
 import { debounce } from 'lodash';
 import { getEditorExtensions } from '../config/extensions';
 import { TextError } from '../workers/grammar.worker';
+import { Color } from '@tiptap/extension-color'
+import ListItem from '@tiptap/extension-list-item'
+import TextStyle from '@tiptap/extension-text-style'
+import { StarterKit } from '@tiptap/starter-kit'
+import { CodeBlockLowlight } from '@tiptap/extension-code-block-lowlight'
+import { common, createLowlight } from 'lowlight'
+import Placeholder from '@tiptap/extension-placeholder'
+import { TrailingNode } from '../extensions/trailing-node'
+import { SlashCommand } from '../extensions/slash-command'
+import { SpellCheckExtension } from '../services/SpellCheckExtension'
+import Underline from '@tiptap/extension-underline';
+import TaskList from '@tiptap/extension-task-list';
+import TaskItem from '@tiptap/extension-task-item';
+
+const lowlight = createLowlight(common)
 
 const performanceMonitor = new PerformanceMonitor();
 
@@ -20,7 +34,7 @@ export class EditorService extends EventEmitter {
   private debouncedCheck: (text: string, paragraphId: string, range: { from: number; to: number }) => void;
   private debouncedOnUpdate: (args: { editor: Editor, transaction: any }) => void;
 
-  constructor() {
+  constructor(container: HTMLElement) {
     super();
     this.checkOrchestrator = new CheckOrchestrator();
     this.errorRegistry = new ErrorRegistry();
@@ -44,7 +58,7 @@ export class EditorService extends EventEmitter {
     }, 300);
 
     this._editor = new Editor({
-      extensions: getEditorExtensions(this.errorRegistry),
+      extensions: getEditorExtensions(this.errorRegistry, container),
       content: `<p>Start writing...</p>`,
       editable: true,
       editorProps: {
@@ -129,8 +143,8 @@ export class EditorService extends EventEmitter {
 
     this.checkOrchestrator.on('results', (result: CheckResult) => this.onResults(result));
 
-    // Wait for the editor to be fully created before running the initial check
-    this._editor.on('create', () => {
+    // Wait for the orchestrator to be ready before running the initial check
+    this.checkOrchestrator.on('ready', () => {
       this.initialCheck();
     });
   }
