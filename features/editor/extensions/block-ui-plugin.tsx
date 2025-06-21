@@ -18,6 +18,7 @@ interface BlockUIPluginState {
   hoveredBlockPos: number | null;
   dropTargetPos: number | null;
   draggedNodePos: number | null; // Keep track of the source node
+  isMenuOpen: boolean; // Prevent handle from moving while menu is open
 }
 
 function getInitialState(): BlockUIPluginState {
@@ -26,6 +27,7 @@ function getInitialState(): BlockUIPluginState {
     hoveredBlockPos: null,
     dropTargetPos: null,
     draggedNodePos: null,
+    isMenuOpen: false,
   };
 }
 
@@ -94,11 +96,20 @@ class BlockUIView {
     this.update(view, view.state);
   }
 
+  handleMenuToggle(isOpen: boolean) {
+    this.view.dispatch(this.view.state.tr.setMeta(blockUiPluginKey, { isMenuOpen: isOpen }));
+  }
+
   update(view: EditorView, prevState: any) {
     const state = blockUiPluginKey.getState(view.state);
-    if (this.hideTimeout) {
-      clearTimeout(this.hideTimeout);
-      this.hideTimeout = null;
+    const prevPluginState = blockUiPluginKey.getState(prevState);
+
+    // Sync dragging class with plugin state
+    if (state?.isDragging && !prevPluginState?.isDragging) {
+      view.dom.classList.add('is-dragging');
+    }
+    if (!state?.isDragging && prevPluginState?.isDragging) {
+      view.dom.classList.remove('is-dragging');
     }
 
     if (state?.hoveredBlockPos !== null && !state.isDragging) {
@@ -108,7 +119,7 @@ class BlockUIView {
         const containerRect = this.container.getBoundingClientRect();
         const nodeRect = domNode.getBoundingClientRect();
         const top = nodeRect.top - containerRect.top;
-        const left = (60 - 52) / 2;
+        const left = (60 - 28) / 2; // Recalculate based on new handle size
         this.portal.style.display = 'block';
         this.portal.style.position = 'absolute';
         this.portal.style.top = `${top}px`;
@@ -118,6 +129,7 @@ class BlockUIView {
             editor={this.editor}
             blockPos={state.hoveredBlockPos}
             blockNode={node}
+            onMenuToggle={(isOpen) => this.handleMenuToggle(isOpen)}
           />
         );
       }
@@ -170,7 +182,7 @@ function findHoveredBlock(view: EditorView, event: MouseEvent): { pos: number; n
 
 function handleMouseMove(view: EditorView, event: MouseEvent) {
   const pluginState = blockUiPluginKey.getState(view.state);
-  if (pluginState?.isDragging) return;
+  if (pluginState?.isDragging || pluginState?.isMenuOpen) return;
 
   const target = event.target as HTMLElement;
   if (target?.closest('.block-handle-portal')) return;

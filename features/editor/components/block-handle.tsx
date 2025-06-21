@@ -21,6 +21,7 @@ interface BlockHandleProps {
   editor: Editor
   blockPos: number
   blockNode: any
+  onMenuToggle: (isOpen: boolean) => void;
 }
 
 const BLOCK_TYPES = [
@@ -34,10 +35,15 @@ const BLOCK_TYPES = [
   { type: 'codeBlock', icon: Code, label: 'Code' },
 ]
 
-export function BlockHandle({ editor, blockPos, blockNode }: BlockHandleProps) {
+export function BlockHandle({ editor, blockPos, blockNode, onMenuToggle }: BlockHandleProps) {
   const [menuOpen, setMenuOpen] = useState(false)
   const isDraggingRef = useRef(false)
   const dragHandleRef = useRef<HTMLButtonElement>(null)
+
+  const onOpenChange = (open: boolean) => {
+    setMenuOpen(open);
+    onMenuToggle(open);
+  }
 
   const handleDragStart = (e: React.DragEvent) => {
     isDraggingRef.current = true;
@@ -58,19 +64,19 @@ export function BlockHandle({ editor, blockPos, blockNode }: BlockHandleProps) {
   const handleAddBlock = () => {
     const endPos = blockPos + blockNode.nodeSize
     editor.chain().focus().insertContentAt(endPos, { type: 'paragraph' }).run()
-    setMenuOpen(false)
+    onOpenChange(false);
   }
 
   const handleDuplicate = () => {
     const endPos = blockPos + blockNode.nodeSize
     const content = editor.state.doc.slice(blockPos, endPos)
     editor.chain().focus().insertContentAt(endPos, content.toJSON()).run()
-    setMenuOpen(false)
+    onOpenChange(false);
   }
 
   const handleDelete = () => {
     editor.chain().focus().deleteRange({ from: blockPos, to: blockPos + blockNode.nodeSize }).run()
-    setMenuOpen(false)
+    onOpenChange(false);
   }
 
   const handleConvertBlock = (type: string, attrs?: any) => {
@@ -81,7 +87,7 @@ export function BlockHandle({ editor, blockPos, blockNode }: BlockHandleProps) {
     } else {
       editor.chain().focus().setNodeSelection(from).setNode(type, attrs).run()
     }
-    setMenuOpen(false)
+    onOpenChange(false);
   }
 
   const currentBlockType = blockNode.type.name
@@ -97,13 +103,13 @@ export function BlockHandle({ editor, blockPos, blockNode }: BlockHandleProps) {
   // If the mouse didn't move, it's a click, so open the menu.
   const handleClick = () => {
     if (!isDraggingRef.current) {
-      setMenuOpen(true);
+      onOpenChange(true);
     }
   };
 
   return (
     <div className="block-handle" onMouseDown={handleMouseDown}>
-      <DropdownMenu.Root open={menuOpen} onOpenChange={setMenuOpen}>
+      <DropdownMenu.Root open={menuOpen} onOpenChange={onOpenChange}>
         <DropdownMenu.Trigger asChild>
           <button
             ref={dragHandleRef}
