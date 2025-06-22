@@ -4,21 +4,12 @@ import { blockDebugger } from '../utils/block-debug'
 
 export interface UseStableEditorProps {
   elementRef: React.RefObject<HTMLDivElement>
-  dragManager?: any
   onEditorReady?: (editorService: EditorService) => void
-  dragHandlers?: {
-    onDragStart?: (data: any) => void
-    onDragEnd?: () => void
-    onDrop?: (targetPos: number, position: 'before' | 'after') => void
-    onUpdateDropTarget?: (targetId: string | null, position: 'before' | 'after' | null) => void
-  }
 }
 
 export const useStableEditor = ({
   elementRef,
-  dragManager,
-  onEditorReady,
-  dragHandlers
+  onEditorReady
 }: UseStableEditorProps) => {
   const editorServiceRef = useRef<EditorService | null>(null)
   const [, forceUpdate] = useState({})
@@ -26,13 +17,11 @@ export const useStableEditor = ({
   
   // Store callbacks in refs to avoid dependency issues
   const onEditorReadyRef = useRef(onEditorReady)
-  const dragHandlersRef = useRef(dragHandlers)
   
   // Update refs when props change
   useEffect(() => {
     onEditorReadyRef.current = onEditorReady
-    dragHandlersRef.current = dragHandlers
-  }, [onEditorReady, dragHandlers])
+  }, [onEditorReady])
 
   // Use useLayoutEffect to ensure DOM is ready before creating editor
   useLayoutEffect(() => {
@@ -44,11 +33,10 @@ export const useStableEditor = ({
         // Validate container before creating editor
         blockDebugger.validateContainer(elementRef.current)
         
-        // Create editor service with validated container and drag handlers
+        // Create editor service with validated container
         editorServiceRef.current = new EditorService(
           elementRef.current, 
-          [], 
-          dragHandlersRef.current
+          []
         )
         
         // Notify that editor is ready

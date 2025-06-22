@@ -5,13 +5,21 @@
  * - Message storage and caching
  * - Chat preview updates
  * - Persistence to database
+ * - Optimistic updates
  * 
  * Created: December 2024
+ * Updated: December 2024 - Added optimistic updates
  */
 
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { Message } from 'ai'
+
+interface OptimisticMessage extends Message {
+  metadata?: {
+    status?: 'pending' | 'sent' | 'failed'
+  }
+}
 
 interface ChatStore {
   // Message storage (in-memory cache)
@@ -22,6 +30,11 @@ interface ChatStore {
   loadMessages: (chatId: string) => Message[]
   updateChatPreview: (chatId: string, preview: string) => Promise<void>
   clearMessages: (chatId: string) => void
+  
+  // Optimistic updates
+  addOptimisticMessage: (chatId: string, message: OptimisticMessage) => void
+  confirmMessage: (chatId: string, tempId: string, realMessage: Message) => void
+  markMessageFailed: (chatId: string, tempId: string) => void
 }
 
 export const useChatStore = create<ChatStore>()(
@@ -72,6 +85,61 @@ export const useChatStore = create<ChatStore>()(
             [chatId]: [],
           },
         }))
+      },
+      
+      // Add optimistic message immediately
+      addOptimisticMessage: (chatId, message) => {
+        set((state) => ({
+          messages: {
+            ...state.messages,
+            [chatId]: [...(state.messages[chatId] || []), message],
+          },
+        }))
+      },
+      
+      // Replace temporary message with real one
+      confirmMessage: (chatId, tempId, realMessage) => {
+        set((state) => {
+          const messages = state.messages[chatId] || []
+          const index = messages.findIndex(m => m.id === tempId)
+          
+          if (index !== -1) {
+            const updatedMessages = [...messages]
+            updatedMessages[index] = realMessage
+            
+            return {
+              messages: {
+                ...state.messages,
+                [chatId]: updatedMessages,
+              },
+            }
+          }
+          
+          return state
+        })
+      },
+      
+      // Mark message as failed
+      markMessageFailed: (chatId, tempId) => {
+        set((state) => {
+          const messages = state.messages[chatId] || []
+          const index = messages.findIndex(m => m.id === tempId)
+          
+          if (index !== -1) {
+            const updatedMessages = [...messages]
+            const failedMessage = updatedMessages[index] as OptimisticMessage
+            failedMessage.metadata = { ...failedMessage.metadata, status: 'failed' }
+            
+            return {
+              messages: {
+                ...state.messages,
+                [chatId]: updatedMessages,
+              },
+            }
+          }
+          
+          return state
+        })
       },
     }),
     {

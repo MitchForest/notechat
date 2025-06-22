@@ -56,6 +56,24 @@ import useOrganizationStore from '@/features/organization/store/organization-sto
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
 import Image from 'next/image'
+import { CreateSpaceDialog } from '@/features/organization/components/create-space-dialog'
+import { CreateCollectionDialog } from '@/features/organization/components/create-collection-dialog'
+import { SpaceContextMenu } from '@/features/organization/components/space-context-menu'
+import { CollectionContextMenu } from '@/features/organization/components/collection-context-menu'
+import { ItemContextMenu } from '@/features/organization/components/item-context-menu'
+import { RenameDialog } from '@/features/organization/components/rename-dialog'
+import { SearchResults } from '@/features/organization/components/search-results'
+import { DragPreview } from '@/features/organization/components/drag-overlay'
+import { DraggableItem } from '@/features/organization/components/draggable-item'
+import { DroppableCollection } from '@/features/organization/components/droppable-collection'
+import { 
+  DndContext,
+} from '@dnd-kit/core'
+import {
+  SortableContext,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable'
+import { useDragDrop } from '@/features/organization/hooks/use-drag-drop'
 
 interface SidebarNavProps {
   className?: string
@@ -99,8 +117,10 @@ const CollectionItem = React.memo(({
   onToggle,
   onSelect,
   onItemClick,
+  onItemAction,
   getFilteredItems,
-  getCollectionIcon
+  getCollectionIcon,
+  dragDropHook
 }: {
   collection: Collection;
   space: Space;
@@ -110,8 +130,10 @@ const CollectionItem = React.memo(({
   onToggle: (id: string) => void;
   onSelect: (collectionId: string, spaceId: string) => void;
   onItemClick: (item: Note | Chat, type: 'note' | 'chat') => void;
+  onItemAction: (action: string, itemId: string) => void;
   getFilteredItems: (collection: Collection, spaceId: string, items: (Note | Chat)[]) => (Note | Chat)[];
   getCollectionIcon: (name: string) => React.ReactNode;
+  dragDropHook: ReturnType<typeof useDragDrop>;
 }) => {
   const filteredItems = useMemo(
     () => getFilteredItems(collection, space.id, items),
@@ -119,8 +141,23 @@ const CollectionItem = React.memo(({
   );
   const itemCount = filteredItems.length;
 
+  // Create drop data for this collection
+  const dropData = dragDropHook.createDropData({
+    id: collection.id,
+    type: 'collection',
+    spaceId: space.id,
+    spaceType: space.type,
+    collectionType: collection.type,
+    acceptsType: space.id === 'permanent-chats' ? 'chat' : 'note',
+    name: collection.name,
+  });
+
   return (
-    <div>
+    <DroppableCollection 
+      id={collection.id} 
+      data={dropData}
+      dropIndicator={dragDropHook.dropIndicator}
+    >
       <button
         className={cn(
           "w-full flex items-center justify-between rounded-md px-2 py-1.5 text-sm",
@@ -152,26 +189,53 @@ const CollectionItem = React.memo(({
       {/* Items under collection */}
       {isExpanded && itemCount > 0 && (
         <div className="mt-0.5 ml-5 space-y-0.5">
-          {filteredItems.map((item) => (
-            <button
-              key={item.id}
-              className={cn(
-                "w-full flex items-center gap-2 rounded-md px-2 py-1 text-sm text-left",
-                "hover:bg-hover-1",
-                "text-muted-foreground hover:text-foreground"
-              )}
-              onClick={(event) => {
-                event.stopPropagation();
-                onItemClick(item, space.id === 'permanent-chats' ? 'chat' : 'note');
-              }}
-            >
-              {item.isStarred && <Star className="h-3 w-3 fill-current" />}
-              <span className="truncate">{item.title}</span>
-            </button>
-          ))}
+          <SortableContext
+            items={filteredItems.map(item => item.id)}
+            strategy={verticalListSortingStrategy}
+          >
+            {filteredItems.map((item) => {
+              const itemType = space.id === 'permanent-chats' ? 'chat' : 'note'
+              const dragData = dragDropHook.createDragData({
+                id: item.id,
+                type: itemType,
+                title: item.title,
+                collectionId: item.collectionId,
+                isStarred: item.isStarred ?? false,
+              });
+              
+              return (
+                <DraggableItem
+                  key={item.id}
+                  id={item.id}
+                  data={dragData}
+                >
+                  <ItemContextMenu
+                    item={item}
+                    itemType={itemType}
+                    onAction={onItemAction}
+                  >
+                    <button
+                      className={cn(
+                        "w-full flex items-center gap-2 rounded-md px-2 py-1 text-sm text-left",
+                        "hover:bg-hover-1",
+                        "text-muted-foreground hover:text-foreground"
+                      )}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onItemClick(item, itemType);
+                      }}
+                    >
+                      {item.isStarred && <Star className="h-3 w-3 fill-current" />}
+                      <span className="truncate">{item.title}</span>
+                    </button>
+                  </ItemContextMenu>
+                </DraggableItem>
+              )
+            })}
+          </SortableContext>
         </div>
       )}
-    </div>
+    </DroppableCollection>
   );
 });
 
@@ -224,23 +288,53 @@ const SpaceSection = React.memo(({
 SpaceSection.displayName = 'SpaceSection';
 
 export function SidebarNav({ className, user }: SidebarNavProps) {
-  const { 
-    spaces, 
-    notes, 
-    chats, 
-    fetchInitialData, 
-    setActiveSpace,
-    setActiveCollection,
+  const {
+    spaces,
+    notes,
+    chats,
     activeSpaceId,
     activeCollectionId,
+    fetchInitialData,
+    setActiveSpace,
+    setActiveCollection,
     createSpace,
     createCollection,
+    updateNote,
+    updateChat,
+    deleteNote,
+    deleteChat,
     searchQuery,
-    setSearchQuery
+    setSearchQuery,
+    searchResults,
+    isSearching,
+    toggleNoteStar,
+    toggleChatStar
   } = useOrganizationStore()
   const { openChat, openNote } = useAppShell()
   const { theme, setTheme } = useTheme()
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  
+  // Dialog states
+  const [createSpaceOpen, setCreateSpaceOpen] = useState(false)
+  const [createCollectionOpen, setCreateCollectionOpen] = useState(false)
+  const [createCollectionSpaceId, setCreateCollectionSpaceId] = useState<string>('')
+  const [createCollectionSpaceName, setCreateCollectionSpaceName] = useState<string>('')
+  
+  // Rename dialog state
+  const [renameDialog, setRenameDialog] = useState<{
+    open: boolean
+    itemId: string
+    itemType: 'space' | 'collection' | 'note' | 'chat'
+    currentName: string
+  }>({
+    open: false,
+    itemId: '',
+    itemType: 'note',
+    currentName: ''
+  })
+  
+  // Drag & drop state
+  const dragDropHook = useDragDrop()
   
   // Track which spaces and collections are expanded
   const [spaceExpansion, setSpaceExpansion] = useState<Record<string, boolean>>({
@@ -337,19 +431,137 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
   }, [])
 
   const handleNewSpace = useCallback(async () => {
-    // TODO: Show emoji picker dialog
-    const name = prompt('Space name:')
-    if (name) {
-      await createSpace(name, '📁')
-    }
-  }, [createSpace])
+    setCreateSpaceOpen(true)
+  }, [])
 
   const handleNewCollection = useCallback(async (spaceId: string) => {
-    const name = prompt('Collection name:')
-    if (name) {
-      await createCollection(name, spaceId)
+    const space = spaces.find(s => s.id === spaceId)
+    if (space) {
+      setCreateCollectionSpaceId(spaceId)
+      setCreateCollectionSpaceName(space.name)
+      setCreateCollectionOpen(true)
     }
-  }, [createCollection])
+  }, [spaces])
+
+  const handleCreateSpace = useCallback(async (name: string, emoji: string) => {
+    await createSpace(name, emoji)
+  }, [createSpace])
+
+  const handleCreateCollection = useCallback(async (name: string) => {
+    if (createCollectionSpaceId) {
+      await createCollection(name, createCollectionSpaceId)
+    }
+  }, [createCollection, createCollectionSpaceId])
+
+  // Context menu action handlers
+  const handleSpaceAction = useCallback((action: string, spaceId: string) => {
+    const space = spaces.find(s => s.id === spaceId)
+    if (!space) return
+
+    switch (action) {
+      case 'rename':
+        setRenameDialog({
+          open: true,
+          itemId: spaceId,
+          itemType: 'space',
+          currentName: space.name
+        })
+        break
+      case 'delete':
+        if (confirm(`Delete space "${space.name}"? All collections and items will be moved to Uncategorized.`)) {
+          // TODO: Call deleteSpace API when available
+          console.log('Delete space:', spaceId)
+        }
+        break
+      case 'changeEmoji':
+        // TODO: Open emoji picker dialog
+        console.log('Change emoji for space:', spaceId)
+        break
+      case 'duplicate':
+        // TODO: Implement space duplication
+        console.log('Duplicate space:', spaceId)
+        break
+      case 'export':
+        // TODO: Implement space export
+        console.log('Export space:', spaceId)
+        break
+    }
+  }, [spaces])
+
+  const handleCollectionAction = useCallback((action: string, collectionId: string) => {
+    const collection = spaces.flatMap(s => s.collections).find(c => c.id === collectionId)
+    if (!collection) return
+
+    switch (action) {
+      case 'rename':
+        setRenameDialog({
+          open: true,
+          itemId: collectionId,
+          itemType: 'collection',
+          currentName: collection.name
+        })
+        break
+      case 'delete':
+        if (confirm(`Delete collection "${collection.name}"? All items will be moved to Uncategorized.`)) {
+          // TODO: Call deleteCollection API when available
+          console.log('Delete collection:', collectionId)
+        }
+        break
+      case 'duplicate':
+        // TODO: Implement collection duplication
+        console.log('Duplicate collection:', collectionId)
+        break
+      case 'moveToSpace':
+        // TODO: Implement move to space dialog
+        console.log('Move collection to space:', collectionId)
+        break
+    }
+  }, [spaces])
+
+  const handleItemAction = useCallback((action: string, itemId: string) => {
+    const item = [...notes, ...chats].find(i => i.id === itemId)
+    if (!item) return
+
+    const isNote = notes.some(n => n.id === itemId)
+
+    switch (action) {
+      case 'open':
+        handleItemClick(item, isNote ? 'note' : 'chat')
+        break
+      case 'rename':
+        setRenameDialog({
+          open: true,
+          itemId: itemId,
+          itemType: isNote ? 'note' : 'chat',
+          currentName: item.title
+        })
+        break
+      case 'star':
+        if (isNote) {
+          toggleNoteStar(itemId)
+        } else {
+          toggleChatStar(itemId)
+        }
+        break
+      case 'delete':
+        if (confirm(`Delete "${item.title}"?`)) {
+          if (isNote) {
+            deleteNote(itemId)
+          } else {
+            deleteChat(itemId)
+          }
+        }
+        break
+      case 'move':
+        // TODO: Implement move to collection dialog
+        console.log('Move item:', itemId)
+        break
+      case 'duplicate':
+        // TODO: Implement item duplication
+        console.log('Duplicate item:', itemId)
+        break
+    }
+  }, [notes, chats, handleItemClick, toggleNoteStar, toggleChatStar, deleteNote, deleteChat])
 
   // Separate permanent and user spaces
   const permanentSpaces = spaces.filter(s => s.type === 'static')
@@ -539,236 +751,317 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
 
   // Expanded sidebar - full view
   return (
-    <div className={cn("h-full bg-card border-r flex flex-col overflow-hidden", className)}>
-      {/* Header - Fixed */}
-      <div className="p-4 border-b flex-shrink-0">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-              <span className="font-bold text-primary-foreground">NC</span>
+    <DndContext
+      sensors={dragDropHook.sensors}
+      collisionDetection={dragDropHook.collisionDetection}
+      onDragStart={dragDropHook.onDragStart}
+      onDragOver={dragDropHook.onDragOver}
+      onDragEnd={dragDropHook.onDragEnd}
+      onDragCancel={dragDropHook.onDragCancel}
+    >
+      <div className={cn("h-full bg-card border-r flex flex-col overflow-hidden relative", className)}>
+        {/* Header - Fixed */}
+        <div className="p-4 border-b flex-shrink-0">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
+                <span className="font-bold text-primary-foreground">NC</span>
+              </div>
+              <span className="font-semibold text-lg">NoteChat</span>
             </div>
-            <span className="font-semibold text-lg">NoteChat</span>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setSidebarCollapsed(true)}
+                  className="w-8 h-8 p-0"
+                >
+                  <PanelLeft className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="right">
+                <p>Collapse sidebar</p>
+              </TooltipContent>
+            </Tooltip>
           </div>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setSidebarCollapsed(true)}
-                className="w-8 h-8 p-0"
-              >
-                <PanelLeft className="h-4 w-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="right">
-              <p>Collapse sidebar</p>
-            </TooltipContent>
-          </Tooltip>
         </div>
-      </div>
 
-      {/* Action Buttons - Fixed */}
-      <div className="p-3 space-y-2 flex-shrink-0">
-        <Button
-          onClick={handleNewChat}
-          className="w-full justify-start hover:bg-hover-2"
-          variant="secondary"
-        >
-          <MessageSquare className="mr-2 h-4 w-4" />
-          New Chat
-        </Button>
-        <Button
-          onClick={handleNewNote}
-          className="w-full justify-start hover:bg-hover-2"
-          variant="secondary"
-        >
-          <FileText className="mr-2 h-4 w-4" />
-          New Note
-        </Button>
+        {/* Action Buttons - Fixed */}
+        <div className="p-3 space-y-2 flex-shrink-0">
+          <Button
+            onClick={handleNewChat}
+            className="w-full justify-start hover:bg-hover-2"
+            variant="secondary"
+          >
+            <MessageSquare className="mr-2 h-4 w-4" />
+            New Chat
+          </Button>
+          <Button
+            onClick={handleNewNote}
+            className="w-full justify-start hover:bg-hover-2"
+            variant="secondary"
+          >
+            <FileText className="mr-2 h-4 w-4" />
+            New Note
+          </Button>
+        </div>
+        
+        {/* Search - Fixed */}
+        <div className="px-3 pb-2 flex-shrink-0">
+          <div className="relative">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search..."
+              className="pl-9"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
+        </div>
+
+        {/* Search Results Overlay */}
+        {searchQuery && (
+          <SearchResults
+            searchQuery={searchQuery}
+            isSearching={isSearching}
+            results={searchResults}
+            onItemClick={(item, type) => {
+              handleItemClick(item, type)
+              setSearchQuery('')
+            }}
+            onClear={() => setSearchQuery('')}
+          />
+        )}
+
+        {/* Main navigation - Scrollable */}
+        <ScrollArea className="flex-1 scrollbar-minimal">
+          <div className="px-2 pb-2">
+            {/* Permanent Spaces */}
+            {permanentSpaces.map((space) => {
+              const spaceItems = getItemsForSpace(space.id)
+              const isSpaceExpanded = spaceExpansion[space.id]
+              
+              return (
+                <SpaceSection
+                  key={space.id}
+                  space={space}
+                  isExpanded={isSpaceExpanded}
+                  onToggle={() => toggleSpace(space.id)}
+                >
+                  {space.collections && (
+                    <div className="mt-1 ml-6 space-y-0.5">
+                      {space.collections.map((collection) => {
+                        const isExpanded = collectionExpansion[collection.id]
+                        const isActive = activeCollectionId === collection.id
+                        
+                        return (
+                          <CollectionItem
+                            key={collection.id}
+                            collection={collection}
+                            space={space}
+                            items={spaceItems}
+                            isExpanded={isExpanded}
+                            isActive={isActive}
+                            onToggle={toggleCollection}
+                            onSelect={handleCollectionClick}
+                            onItemClick={handleItemClick}
+                            onItemAction={handleItemAction}
+                            getFilteredItems={getFilteredItems}
+                            getCollectionIcon={getCollectionIcon}
+                            dragDropHook={dragDropHook}
+                          />
+                        )
+                      })}
+                    </div>
+                  )}
+                </SpaceSection>
+              )
+            })}
+
+            {userSpaces.length > 0 && <Separator className="my-3" />}
+
+            {/* User Spaces */}
+            {userSpaces.map((space) => {
+              const spaceItems = getItemsForSpace(space.id)
+              const isSpaceExpanded = spaceExpansion[space.id]
+              
+              return (
+                <SpaceContextMenu
+                  key={space.id}
+                  space={space}
+                  onAction={handleSpaceAction}
+                >
+                  <SpaceSection
+                    space={space}
+                    isExpanded={isSpaceExpanded}
+                    onToggle={() => toggleSpace(space.id)}
+                  >
+                    {space.collections && (
+                      <div className="mt-1 ml-6 space-y-0.5">
+                        {space.collections.map((collection) => {
+                          const isExpanded = collectionExpansion[collection.id]
+                          const isActive = activeCollectionId === collection.id
+                          
+                          return (
+                            <CollectionContextMenu
+                              key={collection.id}
+                              collection={collection}
+                              onAction={handleCollectionAction}
+                            >
+                              <CollectionItem
+                                collection={collection}
+                                space={space}
+                                items={spaceItems}
+                                isExpanded={isExpanded}
+                                isActive={isActive}
+                                onToggle={toggleCollection}
+                                onSelect={handleCollectionClick}
+                                onItemClick={handleItemClick}
+                                onItemAction={handleItemAction}
+                                getFilteredItems={getFilteredItems}
+                                getCollectionIcon={getCollectionIcon}
+                                dragDropHook={dragDropHook}
+                              />
+                            </CollectionContextMenu>
+                          )
+                        })}
+                        
+                        {/* Add new collection button */}
+                        <button
+                          className="w-full flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground hover:bg-hover-1 hover:text-foreground"
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            handleNewCollection(space.id)
+                          }}
+                        >
+                          <Plus className="h-3 w-3" />
+                          <span>New Collection</span>
+                        </button>
+                      </div>
+                    )}
+                  </SpaceSection>
+                </SpaceContextMenu>
+              )
+            })}
+
+            {/* New Space Button */}
+            <button
+              onClick={handleNewSpace}
+              className="w-full flex items-center gap-2 rounded-md px-2 py-1.5 text-sm font-medium text-muted-foreground hover:bg-hover-2 hover:text-foreground mt-2"
+            >
+              <Plus className="h-4 w-4" />
+              <span>New Space</span>
+            </button>
+          </div>
+        </ScrollArea>
+
+        {/* User Menu - Fixed */}
+        <div className="p-3 border-t flex-shrink-0">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" className="w-full justify-start text-left">
+                <div className="flex items-center">
+                  {user.avatarUrl ? (
+                    <Image
+                      src={user.avatarUrl}
+                      alt={user.name || user.email}
+                      width={24}
+                      height={24}
+                      className="h-6 w-6 rounded-full mr-2"
+                    />
+                  ) : (
+                    <div className="h-6 w-6 rounded-full bg-muted flex items-center justify-center mr-2 text-xs font-bold">
+                      {getInitials(user.name, user.email)}
+                    </div>
+                  )}
+                  <div className="flex flex-col truncate">
+                    <span className="text-sm font-medium truncate">
+                      {user.name || user.email}
+                    </span>
+                    <span className="text-xs text-muted-foreground truncate">
+                      {user.email}
+                    </span>
+                  </div>
+                </div>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent className="w-56" align="end" forceMount>
+              <DropdownMenuItem>
+                <User className="mr-2 h-4 w-4" />
+                Profile
+              </DropdownMenuItem>
+              <DropdownMenuItem>
+                <Settings className="mr-2 h-4 w-4" />
+                Settings
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>
+                {theme === 'dark' ? (
+                  <>
+                    <Sun className="mr-2 h-4 w-4" />
+                    Light Mode
+                  </>
+                ) : (
+                  <>
+                    <Moon className="mr-2 h-4 w-4" />
+                    Dark Mode
+                  </>
+                )}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={handleSignOut}>
+                <LogOut className="mr-2 h-4 w-4" />
+                <span>Log out</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+
+        {/* Dialogs */}
+        <CreateSpaceDialog
+          open={createSpaceOpen}
+          onOpenChange={setCreateSpaceOpen}
+          onCreateSpace={handleCreateSpace}
+        />
+        
+        <CreateCollectionDialog
+          open={createCollectionOpen}
+          onOpenChange={setCreateCollectionOpen}
+          spaceName={createCollectionSpaceName}
+          onCreateCollection={handleCreateCollection}
+        />
+        
+        <RenameDialog
+          open={renameDialog.open}
+          onOpenChange={(open) => setRenameDialog(prev => ({ ...prev, open }))}
+          currentName={renameDialog.currentName}
+          itemType={renameDialog.itemType}
+          onRename={async (newName) => {
+            const { itemId, itemType } = renameDialog
+            
+            switch (itemType) {
+              case 'space':
+                // TODO: Call updateSpace API when available
+                console.log('Rename space:', itemId, newName)
+                break
+              case 'collection':
+                // TODO: Call updateCollection API when available
+                console.log('Rename collection:', itemId, newName)
+                break
+              case 'note':
+                await updateNote(itemId, { title: newName })
+                break
+              case 'chat':
+                await updateChat(itemId, { title: newName })
+                break
+            }
+          }}
+        />
       </div>
       
-      {/* Search - Fixed */}
-      <div className="px-3 pb-2 flex-shrink-0">
-        <div className="relative">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search..."
-            className="pl-9"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
-        </div>
-      </div>
-
-      {/* Main navigation - Scrollable */}
-      <ScrollArea className="flex-1 scrollbar-minimal">
-        <div className="px-2 pb-2">
-          {/* Permanent Spaces */}
-          {permanentSpaces.map((space) => {
-            const spaceItems = getItemsForSpace(space.id)
-            const isSpaceExpanded = spaceExpansion[space.id]
-            
-            return (
-              <SpaceSection
-                key={space.id}
-                space={space}
-                isExpanded={isSpaceExpanded}
-                onToggle={() => toggleSpace(space.id)}
-              >
-                {space.collections && (
-                  <div className="mt-1 ml-6 space-y-0.5">
-                    {space.collections.map((collection) => {
-                      const isExpanded = collectionExpansion[collection.id]
-                      const isActive = activeCollectionId === collection.id
-                      
-                      return (
-                        <CollectionItem
-                          key={collection.id}
-                          collection={collection}
-                          space={space}
-                          items={spaceItems}
-                          isExpanded={isExpanded}
-                          isActive={isActive}
-                          onToggle={toggleCollection}
-                          onSelect={handleCollectionClick}
-                          onItemClick={handleItemClick}
-                          getFilteredItems={getFilteredItems}
-                          getCollectionIcon={getCollectionIcon}
-                        />
-                      )
-                    })}
-                  </div>
-                )}
-              </SpaceSection>
-            )
-          })}
-
-          {userSpaces.length > 0 && <Separator className="my-3" />}
-
-          {/* User Spaces */}
-          {userSpaces.map((space) => {
-            const spaceItems = getItemsForSpace(space.id)
-            const isSpaceExpanded = spaceExpansion[space.id]
-            
-            return (
-              <SpaceSection
-                key={space.id}
-                space={space}
-                isExpanded={isSpaceExpanded}
-                onToggle={() => toggleSpace(space.id)}
-              >
-                {space.collections && (
-                  <div className="mt-1 ml-6 space-y-0.5">
-                    {space.collections.map((collection) => {
-                      const isExpanded = collectionExpansion[collection.id]
-                      const isActive = activeCollectionId === collection.id
-                      
-                      return (
-                        <CollectionItem
-                          key={collection.id}
-                          collection={collection}
-                          space={space}
-                          items={spaceItems}
-                          isExpanded={isExpanded}
-                          isActive={isActive}
-                          onToggle={toggleCollection}
-                          onSelect={handleCollectionClick}
-                          onItemClick={handleItemClick}
-                          getFilteredItems={getFilteredItems}
-                          getCollectionIcon={getCollectionIcon}
-                        />
-                      )
-                    })}
-                    
-                    {/* Add new collection button */}
-                    <button
-                      className="w-full flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground hover:bg-hover-1 hover:text-foreground"
-                      onClick={(event) => {
-                        event.stopPropagation()
-                        handleNewCollection(space.id)
-                      }}
-                    >
-                      <Plus className="h-3 w-3" />
-                      <span>New Collection</span>
-                    </button>
-                  </div>
-                )}
-              </SpaceSection>
-            )
-          })}
-
-          {/* New Space Button */}
-          <button
-            onClick={handleNewSpace}
-            className="w-full flex items-center gap-2 rounded-md px-2 py-1.5 text-sm font-medium text-muted-foreground hover:bg-hover-2 hover:text-foreground mt-2"
-          >
-            <Plus className="h-4 w-4" />
-            <span>New Space</span>
-          </button>
-        </div>
-      </ScrollArea>
-
-      {/* User Menu - Fixed */}
-      <div className="p-3 border-t flex-shrink-0">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="w-full justify-start text-left">
-              <div className="flex items-center">
-                {user.avatarUrl ? (
-                  <Image
-                    src={user.avatarUrl}
-                    alt={user.name || user.email}
-                    width={24}
-                    height={24}
-                    className="h-6 w-6 rounded-full mr-2"
-                  />
-                ) : (
-                  <div className="h-6 w-6 rounded-full bg-muted flex items-center justify-center mr-2 text-xs font-bold">
-                    {getInitials(user.name, user.email)}
-                  </div>
-                )}
-                <div className="flex flex-col truncate">
-                  <span className="text-sm font-medium truncate">
-                    {user.name || user.email}
-                  </span>
-                  <span className="text-xs text-muted-foreground truncate">
-                    {user.email}
-                  </span>
-                </div>
-              </div>
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent className="w-56" align="end" forceMount>
-            <DropdownMenuItem>
-              <User className="mr-2 h-4 w-4" />
-              Profile
-            </DropdownMenuItem>
-            <DropdownMenuItem>
-              <Settings className="mr-2 h-4 w-4" />
-              Settings
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>
-              {theme === 'dark' ? (
-                <>
-                  <Sun className="mr-2 h-4 w-4" />
-                  Light Mode
-                </>
-              ) : (
-                <>
-                  <Moon className="mr-2 h-4 w-4" />
-                  Dark Mode
-                </>
-              )}
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={handleSignOut}>
-              <LogOut className="mr-2 h-4 w-4" />
-              <span>Log out</span>
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
-    </div>
+      {/* Drag Preview */}
+      <DragPreview item={dragDropHook.dragOverlay.item} />
+    </DndContext>
   )
 } 

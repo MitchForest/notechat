@@ -14,8 +14,7 @@ import TaskItem from '@tiptap/extension-task-item';
 import { Extension } from '@tiptap/core'
 import { InlineAI } from '@/features/ai/extensions/inline-ai';
 import { GhostText } from '@/features/ai/extensions/ghost-text'
-import { createBlockNodeView } from '../extensions/react-node-view'
-import { BlockDragPlugin } from '../extensions/block-drag-plugin'
+import { ReactNodeViewRenderer } from '@tiptap/react'
 import Paragraph from '@tiptap/extension-paragraph'
 import Heading from '@tiptap/extension-heading'
 import BulletList from '@tiptap/extension-bullet-list'
@@ -23,35 +22,36 @@ import OrderedList from '@tiptap/extension-ordered-list'
 import ListItem from '@tiptap/extension-list-item'
 import Blockquote from '@tiptap/extension-blockquote'
 import { BlockId } from '../extensions/block-id'
+import { createBlockDragDropPlugin } from '../plugins/block-drag-drop'
+
+// Import our block components
+import { ParagraphBlock } from '../blocks/paragraph-block'
+import { HeadingBlock } from '../blocks/heading-block'
+import { ListItemBlock } from '../blocks/list-item-block'
+import { CodeBlock } from '../blocks/code-block'
 
 const lowlight = createLowlight(common)
 
 export const getEditorExtensions = (
   errorRegistry: ErrorRegistry, 
-  container?: HTMLElement,
-  dragHandlers?: {
-    onDragStart?: (data: any) => void
-    onDragEnd?: () => void
-    onDrop?: (targetPos: number, position: 'before' | 'after') => void
-    onUpdateDropTarget?: (targetId: string | null, position: 'before' | 'after' | null) => void
-  }
+  container?: HTMLElement
 ) => {
   console.log('[Extensions] Loading editor extensions...', { container: !!container, containerClass: container?.className })
 
   const extensions = [
     // Configure StarterKit without the nodes we're customizing
     StarterKit.configure({
-      paragraph: false, // We'll add our own
-      heading: false, // We'll add our own with node view
-      bulletList: false, // We'll add our own with node view
-      orderedList: false, // We'll add our own with node view
-      listItem: false, // We'll add our own with node view
-      blockquote: false, // We'll add our own with node view
-      codeBlock: false, // We'll use CodeBlockLowlight
+      paragraph: false,
+      heading: false,
+      bulletList: false,
+      orderedList: false,
+      listItem: false,
+      blockquote: false,
+      codeBlock: false,
       history: {},
     }),
     
-    // Use native Tiptap implementations with block identification
+    // Paragraph with React node view
     Paragraph.extend({
       addAttributes() {
         return {
@@ -61,11 +61,12 @@ export const getEditorExtensions = (
           },
         }
       },
-      renderHTML({ HTMLAttributes }) {
-        return ['p', { ...HTMLAttributes, 'data-block-type': 'paragraph' }, 0]
+      addNodeView() {
+        return ReactNodeViewRenderer(ParagraphBlock)
       },
     }),
     
+    // Heading with React node view
     Heading.extend({
       addAttributes() {
         return {
@@ -75,12 +76,12 @@ export const getEditorExtensions = (
           },
         }
       },
-      renderHTML({ HTMLAttributes, node }) {
-        const level = node.attrs.level
-        return [`h${level}`, { ...HTMLAttributes, 'data-block-type': 'heading' }, 0]
+      addNodeView() {
+        return ReactNodeViewRenderer(HeadingBlock)
       },
     }),
     
+    // Lists - keep native rendering for the list containers
     BulletList.extend({
       renderHTML({ HTMLAttributes }) {
         return ['ul', { ...HTMLAttributes, 'data-block-type': 'bulletList' }, 0]
@@ -93,19 +94,23 @@ export const getEditorExtensions = (
       },
     }),
     
+    // List items with React node view
     ListItem.extend({
-      renderHTML({ HTMLAttributes }) {
-        return ['li', { ...HTMLAttributes, 'data-block-type': 'listItem' }, 0]
+      addAttributes() {
+        return {
+          ...this.parent?.(),
+          id: {
+            default: null,
+          },
+        }
+      },
+      addNodeView() {
+        return ReactNodeViewRenderer(ListItemBlock)
       },
     }),
     
+    // Blockquote - keep native for now
     Blockquote.extend({
-      renderHTML({ HTMLAttributes }) {
-        return ['blockquote', { ...HTMLAttributes, 'data-block-type': 'blockquote' }, 0]
-      },
-    }),
-    
-    CodeBlockLowlight.extend({
       addAttributes() {
         return {
           ...this.parent?.(),
@@ -115,7 +120,25 @@ export const getEditorExtensions = (
         }
       },
       renderHTML({ HTMLAttributes }) {
-        return ['pre', { ...HTMLAttributes, 'data-block-type': 'codeBlock' }, ['code', 0]]
+        return ['blockquote', { ...HTMLAttributes, 'data-block-type': 'blockquote' }, 0]
+      },
+    }),
+    
+    // Code block with React node view
+    CodeBlockLowlight.extend({
+      addAttributes() {
+        return {
+          ...this.parent?.(),
+          id: {
+            default: null,
+          },
+          language: {
+            default: 'plaintext',
+          },
+        }
+      },
+      addNodeView() {
+        return ReactNodeViewRenderer(CodeBlock)
       },
     }).configure({
       lowlight,
@@ -179,13 +202,16 @@ export const getEditorExtensions = (
       includeChildren: true, // Show in nested structures like lists
     }),
     
-    // Add BlockDragPlugin if drag handlers are provided
-    ...(dragHandlers ? [BlockDragPlugin.configure(dragHandlers)] : []),
-    
     // Add BlockId extension
-    BlockId.configure({
-      // Configure BlockId extension
-    })
+    BlockId,
+    
+    // Add drag & drop plugin
+    Extension.create({
+      name: 'blockDragDrop',
+      addProseMirrorPlugins() {
+        return [createBlockDragDropPlugin()]
+      },
+    }),
   ]
 
   console.log('[Extensions] Loaded', extensions.length, 'extensions')

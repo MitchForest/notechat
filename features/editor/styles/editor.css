@@ -2,6 +2,7 @@
 @import './block-system.css';
 @import './drag-drop.css';
 @import './ghost-text.css';
+@import './block-system-final.css';
 
 /* features/editor/styles/editor.css - Combined and fixed version */
 
@@ -142,61 +143,11 @@
 }
 
 /* ==========================================================================
-   6. NOTION BLOCK SYSTEM STYLES
+   6. LEGACY STYLES (TO BE REMOVED)
    ========================================================================== */
 
-/* Block Handle Styles - Notion-like subtle appearance */
-.block-handle-portal {
-  pointer-events: none; /* Let mouse events pass through the portal */
-}
-
-.block-handle {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  padding: 0;
-  background: transparent;
-  border: none;
-  border-radius: 4px;
-  pointer-events: none; /* Let mouse events pass through container */
-}
-
-.handle-button {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
-  border: none;
-  background: transparent;
-  color: hsl(var(--muted-foreground) / 0.4); /* Very subtle by default */
-  cursor: pointer;
-  border-radius: 3px;
-  transition: all 0.15s ease;
-  pointer-events: auto; /* Only buttons are clickable */
-}
-
-.handle-button:hover {
-  color: hsl(var(--muted-foreground) / 0.8); /* Still subtle on hover */
-  background: hsl(var(--muted) / 0.5);
-}
-
-.handle-button svg {
-  pointer-events: none; /* Make the decorative icon itself invisible to mouse events. */
-}
-
-.drag-handle {
-  cursor: grab;
-  user-select: none; /* Standard */
-  -webkit-user-select: none; /* Safari */
-  -moz-user-select: none; /* Firefox */
-  -ms-user-select: none; /* IE10+/Edge */
-}
-
-.drag-handle:active {
-  cursor: grabbing;
-}
+/* NOTE: Block handle styles have been moved to block-system-final.css */
+/* Keeping minimal legacy styles for backward compatibility during migration */
 
 /* The element that is currently being dragged */
 .dragging-block {
@@ -204,37 +155,7 @@
   background-color: hsl(var(--muted));
 }
 
-/* The custom, semi-transparent preview of the block that follows the cursor */
-.drag-preview {
-  background-color: hsl(var(--background) / 0.8);
-  backdrop-filter: blur(4px);
-  border: 1px solid hsl(var(--border));
-  border-radius: 0.5rem;
-  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1);
-  padding: 0.5rem 1rem;
-  pointer-events: none;
-  position: absolute;
-  top: 0;
-  left: 0;
-  z-index: 1000;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 400px;
-}
-
-/* Dropdown Menu Styles */
-.dropdown-content {
-  min-width: 220px;
-  background: white;
-  border: 1px solid hsl(var(--border));
-  border-radius: 8px;
-  padding: 4px;
-  box-shadow: 0 10px 38px -10px rgba(22, 23, 24, 0.35),
-    0 10px 20px -15px rgba(22, 23, 24, 0.2);
-  animation: slideDownAndFade 0.2s ease;
-}
-
+/* Dropdown Menu Styles - moved to block-system-final.css but kept for legacy */
 @keyframes slideDownAndFade {
   from {
     opacity: 0;
@@ -246,51 +167,6 @@
   }
 }
 
-.dropdown-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 6px 8px;
-  border-radius: 4px;
-  font-size: 14px;
-  line-height: 1;
-  color: hsl(var(--foreground));
-  cursor: pointer;
-  outline: none;
-  user-select: none;
-  transition: all 0.15s ease;
-}
-
-.dropdown-item:hover {
-  background: hsl(var(--accent));
-}
-
-.dropdown-item.active {
-  background: hsl(var(--accent));
-  font-weight: 500;
-}
-
-.dropdown-item-danger {
-  color: hsl(var(--destructive));
-}
-
-.dropdown-item-danger:hover {
-  background: hsl(var(--destructive) / 0.1);
-}
-
-.dropdown-separator {
-  height: 1px;
-  background: hsl(var(--border));
-  margin: 4px -4px;
-}
-
-.dropdown-label {
-  padding: 6px 8px;
-  font-size: 12px;
-  font-weight: 500;
-  color: hsl(var(--muted-foreground));
-}
-
 /* Dragging States */
 .ProseMirror.is-dragging {
   cursor: grabbing !important;
@@ -299,27 +175,6 @@
 .ProseMirror.is-dragging * {
   cursor: grabbing !important;
   user-select: none !important;
-}
-
-/* Drop indicator line with fallbacks */
-.drop-indicator {
-  position: absolute;
-  left: 0;
-  right: 0;
-  height: 4px;
-  background-color: #10B981; /* Fallback 1: Hard-coded hex */
-  background-color: hsl(var(--success) / 0.8); /* Fallback 2: HSL for older browsers */
-  background-color: oklch(var(--success) / 0.8); /* Modern standard */
-  border-radius: 2px;
-  pointer-events: none;
-  z-index: 100;
-  box-shadow: 0 0 10px #10B981; /* Matching fallback */
-  box-shadow: 0 0 10px hsl(var(--success) / 0.5);
-  box-shadow: 0 0 10px oklch(var(--success) / 0.5);
-}
-
-.drop-indicator::before {
-  display: none;
 }
 
 /* Use margin for spacing instead of a hacky dead zone */
@@ -349,15 +204,6 @@
 /* Hide the placeholder on the element that is being dragged */
 .ProseMirror.is-dragging .is-empty::before {
   display: none !important;
-}
-
-/* Prevent text selection during the small mouse movements before a drag is initiated */
-.drag-handle:active * {
-  pointer-events: none;
-  user-select: none;
-  -webkit-user-select: none;
-  -moz-user-select: none;
-  -ms-user-select: none;
 }
 
 /* Visual feedback for the entire editor during a drag operation */

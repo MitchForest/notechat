@@ -37,13 +37,7 @@ export class EditorService extends EventEmitter {
 
   constructor(
     container: HTMLElement, 
-    customExtensions: Extension[] = [],
-    dragHandlers?: {
-      onDragStart?: (data: any) => void
-      onDragEnd?: () => void
-      onDrop?: (targetPos: number, position: 'before' | 'after') => void
-      onUpdateDropTarget?: (targetId: string | null, position: 'before' | 'after' | null) => void
-    }
+    customExtensions: Extension[] = []
   ) {
     super();
     
@@ -89,7 +83,7 @@ export class EditorService extends EventEmitter {
       }
     }, 300);
 
-    const baseExtensions = getEditorExtensions(this.errorRegistry, container, dragHandlers);
+    const baseExtensions = getEditorExtensions(this.errorRegistry, container);
 
     this._editor = new TiptapEditor({
       extensions: [...baseExtensions, ...customExtensions],

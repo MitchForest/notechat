@@ -1,24 +1,21 @@
 "use client";
 
-import { useEffect, useState, useRef, useCallback, useMemo } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { Editor as TiptapEditor, EditorContent } from "@tiptap/react";
 import { EditorService } from "../services/EditorService";
 import { EditorBubbleMenu } from "./editor-bubble-menu";
 import { EditorErrorBoundary } from "./editor-error-boundary";
 import "../styles/editor.css";
-import "../styles/blocks.css";
 import { useStableEditor } from "../hooks/use-stable-editor";
-import { useBlockDragDrop } from "../hooks/use-block-drag-drop";
-import { DragProvider } from "../contexts/drag-context";
 import { GhostTextHandler } from "@/features/ai/components/ghost-text-handler";
-import { BlockHandleOverlay } from "./block-handle-overlay";
 
 // Import test utilities in development
 if (process.env.NODE_ENV === 'development') {
   import('../utils/test-block-ui');
   import('../utils/block-ui-debug');
   import('../utils/editor-debugger');
-  import('../utils/test-new-handles');
+  import('../utils/hover-debug');
+  import('../utils/test-hover-handles');
 }
 
 interface EditorProps {
@@ -43,34 +40,15 @@ export function Editor({ noteId, content = "", onChange }: EditorProps) {
     };
   }, [noteId]); // Re-run when noteId changes
   
-  // Initialize drag and drop hook with the editor instance
-  const {
-    dragState,
-    startDrag,
-    updateDropTarget,
-    completeDrop
-  } = useBlockDragDrop({ 
-    editor: editorInstance,
-    enabled: true 
-  });
-  
   // Memoize the onEditorReady callback to prevent infinite loops
   const onEditorReady = useCallback((service: EditorService) => {
     setEditorReady(true);
     setEditorInstance(service.editor);
   }, []);
 
-  // Memoize drag handlers to prevent recreation
-  const dragHandlers = useMemo(() => ({
-    onDragStart: startDrag,
-    onDrop: completeDrop,
-    onUpdateDropTarget: updateDropTarget
-  }), [startDrag, completeDrop, updateDropTarget]);
-
   const editorService = useStableEditor({ 
     elementRef: wrapperRef,
-    onEditorReady,
-    dragHandlers
+    onEditorReady
   });
   
   const editor = editorService?.editor;
@@ -118,22 +96,11 @@ export function Editor({ noteId, content = "", onChange }: EditorProps) {
         // Could send to error tracking service here
       }}
     >
-      <DragProvider value={{
-        dragState: {
-          isDragging: dragState.isDragging,
-          draggedBlockId: dragState.draggedBlockId,
-          dropTargetId: dragState.dropTargetId,
-          dropPosition: dragState.dropPosition
-        },
-        onDragStart: startDrag
-      }}>
-        <div ref={wrapperRef} className="editor-wrapper relative w-full h-full">
-          <EditorBubbleMenu editor={editor} />
-          <EditorContent editor={editor} />
-          <GhostTextHandler editor={editor} />
-          <BlockHandleOverlay editor={editor} container={wrapperRef.current} />
-        </div>
-      </DragProvider>
+      <div ref={wrapperRef} className="editor-wrapper relative w-full h-full">
+        <EditorBubbleMenu editor={editor} />
+        <EditorContent editor={editor} />
+        <GhostTextHandler editor={editor} />
+      </div>
     </EditorErrorBoundary>
   );
 } 

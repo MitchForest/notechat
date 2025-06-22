@@ -54,23 +54,43 @@ This plan details the implementation of a state-of-the-art AI chat system that r
   - [x] Tool confirmation UI component
   - [x] Update chat API route with tool support
   - [x] Install zod dependency
-- [ ] Extract to note feature
+- [x] Extract to note feature
+  - [x] Extract hook with AI-powered formatting
+  - [x] Note formatter utility for different content types
+  - [x] Extract dialog with preview and editing
+  - [x] Message actions integration
+  - [x] Selection mode for multiple messages
+  - [x] Chat command detection ("extract this conversation")
 
-### 📋 Remaining Work
+### ✅ Completed (Sprint 3)
 
-#### Sprint 3: Polish & Performance (Days 7-9)
-- [ ] Message actions menu
-- [ ] Virtual scrolling for long conversations
-- [ ] Keyboard shortcuts
-- [ ] Performance optimizations
-- [ ] Error boundaries and fallbacks
+#### Virtual Scrolling & Smooth Streaming (Days 7-9)
+- [x] Virtual scrolling for 10k+ messages
+  - [x] Created VirtualMessageList component with @tanstack/react-virtual
+  - [x] Dynamic height calculation with caching
+  - [x] Smooth auto-scroll behavior
+  - [x] Integrated into ChatInterface
+- [x] Smooth token streaming with buffering
+  - [x] Created useSmoothStreaming hook with adaptive buffering
+  - [x] 60fps token rendering with RAF
+  - [x] Performance metrics tracking
+- [x] Optimistic updates for instant feedback
+  - [x] Created useOptimisticChat hook
+  - [x] Updated chat store with optimistic methods
+  - [x] Instant message appearance with pending states
+- [x] Smart caching and predictive loading
+  - [x] Created MessageCache service with IndexedDB
+  - [x] LRU memory cache for 50 chats
+  - [x] Background sync with offline support
+  - [x] Predictive preloading
 
-#### Sprint 4: Final Polish & Launch (Days 10-12)
-- [ ] Analytics integration
-- [ ] User documentation
-- [ ] Testing suite
-- [ ] Accessibility audit
-- [ ] Launch preparation
+### 📋 Remaining Work - Performance & UX Focus
+
+#### Sprint 4: UI Polish & Micro-interactions (Days 10-12)
+- [ ] Smooth animations and transitions
+- [ ] Loading states and skeletons
+- [ ] Performance optimization and tuning
+- [ ] Final polish and edge cases
 
 ### 🚀 Future Enhancements (Post-Launch)
 
@@ -1592,206 +1612,27 @@ bun add diff react-diff-viewer-continued
   - [ ] Message actions menu
   - [ ] Testing & polish
 
-### Sprint 3: Polish & Performance (Days 7-9)
+### Sprint 3: Virtual Scrolling & Smooth Streaming (Days 7-9)
 
-#### Day 7: Advanced UI Features
+**Focus**: Create the smoothest, most performant chat experience with virtual scrolling and optimized streaming.
 
-**7.1 Create Message Actions Menu**
+#### Day 7: Virtual Scrolling Implementation
 
-File: `features/chat/components/message-actions.tsx`
-```typescript
-/**
- * Component: MessageActions
- * Purpose: Advanced actions for chat messages
- * Features:
- * - Copy in different formats
- * - Create note from message
- * - Continue conversation from point
- * - Branch conversation
- */
-
-import { useState } from 'react'
-import { Message } from 'ai'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import { Button } from '@/components/ui/button'
-import {
-  MoreHorizontal,
-  Copy,
-  FileText,
-  GitBranch,
-  MessageSquare,
-  Code,
-} from 'lucide-react'
-import { toast } from 'sonner'
-
-interface MessageActionsProps {
-  message: Message
-  onExtractToNote: () => void
-  onBranch: () => void
-  onContinueFrom: () => void
-}
-
-export function MessageActions({
-  message,
-  onExtractToNote,
-  onBranch,
-  onContinueFrom,
-}: MessageActionsProps) {
-  const [isOpen, setIsOpen] = useState(false)
-
-  const copyAsMarkdown = () => {
-    const markdown = `**${message.role}**: ${message.content}`
-    navigator.clipboard.writeText(markdown)
-    toast.success('Copied as Markdown')
-  }
-
-  const copyAsPlainText = () => {
-    navigator.clipboard.writeText(message.content)
-    toast.success('Copied as plain text')
-  }
-
-  const copyAsCode = () => {
-    const codeBlocks = message.content.match(/```[\s\S]*?```/g) || []
-    const code = codeBlocks.map(block => 
-      block.replace(/```\w*\n?/, '').replace(/```$/, '')
-    ).join('\n\n')
-    
-    if (code) {
-      navigator.clipboard.writeText(code)
-      toast.success('Copied code blocks')
-    } else {
-      toast.error('No code blocks found')
-    }
-  }
-
-  return (
-    <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
-      <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" className="h-7 w-7">
-          <MoreHorizontal className="h-4 w-4" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        <DropdownMenuItem onClick={copyAsPlainText}>
-          <Copy className="mr-2 h-4 w-4" />
-          Copy text
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={copyAsMarkdown}>
-          <Copy className="mr-2 h-4 w-4" />
-          Copy as Markdown
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={copyAsCode}>
-          <Code className="mr-2 h-4 w-4" />
-          Copy code blocks
-        </DropdownMenuItem>
-        
-        <DropdownMenuSeparator />
-        
-        <DropdownMenuItem onClick={onExtractToNote}>
-          <FileText className="mr-2 h-4 w-4" />
-          Create note
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={onContinueFrom}>
-          <MessageSquare className="mr-2 h-4 w-4" />
-          Continue from here
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={onBranch}>
-          <GitBranch className="mr-2 h-4 w-4" />
-          Branch conversation
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
-  )
-}
-```
-
-**7.2 Create Empty State Component**
-
-File: `features/chat/components/chat-empty-state.tsx`
-```typescript
-/**
- * Component: ChatEmptyState
- * Purpose: Engaging empty state with suggestions
- * Features:
- * - Context-aware suggestions
- * - Quick action buttons
- * - Beautiful illustrations
- */
-
-import { Button } from '@/components/ui/button'
-import { Sparkles, FileText, Lightbulb, HelpCircle } from 'lucide-react'
-
-interface ChatEmptyStateProps {
-  onSuggestionClick: (suggestion: string) => void
-  hasNoteContext?: boolean
-}
-
-export function ChatEmptyState({ onSuggestionClick, hasNoteContext }: ChatEmptyStateProps) {
-  const suggestions = hasNoteContext
-    ? [
-        { icon: FileText, text: 'Summarize this note', prompt: 'Can you summarize the main points of this note?' },
-        { icon: Lightbulb, text: 'Suggest improvements', prompt: 'How can I improve this note?' },
-        { icon: HelpCircle, text: 'Explain concepts', prompt: 'Can you explain the key concepts in this note?' },
-      ]
-    : [
-        { icon: Lightbulb, text: 'Brainstorm ideas', prompt: 'Help me brainstorm ideas for a new project' },
-        { icon: FileText, text: 'Write content', prompt: 'Help me write an introduction for my blog post' },
-        { icon: HelpCircle, text: 'Answer questions', prompt: 'What are best practices for note-taking?' },
-      ]
-
-  return (
-    <div className="flex flex-col items-center justify-center h-full p-8">
-      <div className="w-16 h-16 rounded-full bg-gradient-to-br from-violet-500 to-pink-500 flex items-center justify-center mb-6">
-        <Sparkles className="w-8 h-8 text-white" />
-      </div>
-      
-      <h2 className="text-2xl font-semibold mb-2">Start a conversation</h2>
-      <p className="text-muted-foreground text-center mb-8 max-w-md">
-        {hasNoteContext
-          ? "I can help you understand, improve, or expand on your note."
-          : "Ask me anything or try one of these suggestions to get started."}
-      </p>
-      
-      <div className="grid gap-3 w-full max-w-md">
-        {suggestions.map((suggestion, index) => (
-          <Button
-            key={index}
-            variant="outline"
-            className="justify-start h-auto py-3 px-4"
-            onClick={() => onSuggestionClick(suggestion.prompt)}
-          >
-            <suggestion.icon className="mr-3 h-5 w-5 text-muted-foreground" />
-            <span className="text-left">{suggestion.text}</span>
-          </Button>
-        ))}
-      </div>
-    </div>
-  )
-}
-```
-
-#### Day 8: Performance Optimizations
-
-**8.1 Create Virtual Message List**
+**7.1 Advanced Virtual Message List**
 
 File: `features/chat/components/virtual-message-list.tsx`
 ```typescript
 /**
  * Component: VirtualMessageList
- * Purpose: Virtualized scrolling for long conversations
+ * Purpose: Handle 10,000+ messages smoothly with <16ms render time
  * Features:
- * - Renders only visible messages
- * - Smooth scrolling
- * - Dynamic height calculation
+ * - Dynamic height virtualization
+ * - Smooth auto-scroll behavior
+ * - Instant message rendering
+ * - Memory efficient
  */
 
-import { useRef, useEffect, useState } from 'react'
+import { useRef, useEffect, useState, useCallback } from 'react'
 import { Message } from 'ai'
 import { ChatMessage } from './chat-message'
 import { useVirtualizer } from '@tanstack/react-virtual'
@@ -1809,38 +1650,63 @@ export function VirtualMessageList({
 }: VirtualMessageListProps) {
   const parentRef = useRef<HTMLDivElement>(null)
   const [autoScroll, setAutoScroll] = useState(true)
+  const heightCache = useRef(new Map<string, number>())
 
   const rowVirtualizer = useVirtualizer({
     count: messages.length,
     getScrollElement: () => parentRef.current,
-    estimateSize: () => 150, // Estimated message height
-    overscan: 5,
+    estimateSize: useCallback((index) => {
+      // Use cached height or estimate
+      return heightCache.current.get(messages[index].id) || 120
+    }, [messages]),
+    overscan: 3,
+    measureElement: (element) => {
+      // Cache actual heights for smooth scrolling
+      if (element?.dataset.messageId) {
+        const height = element.getBoundingClientRect().height
+        heightCache.current.set(element.dataset.messageId, height)
+        return height
+      }
+      return 120
+    },
   })
 
-  // Auto-scroll to bottom on new messages
+  // Smooth auto-scroll with RAF
   useEffect(() => {
     if (autoScroll && parentRef.current) {
-      parentRef.current.scrollTop = parentRef.current.scrollHeight
+      requestAnimationFrame(() => {
+        parentRef.current?.scrollTo({
+          top: parentRef.current.scrollHeight,
+          behavior: 'smooth'
+        })
+      })
     }
   }, [messages, autoScroll])
 
-  // Detect manual scroll
+  // Detect manual scroll with debouncing
   useEffect(() => {
     const scrollElement = parentRef.current
     if (!scrollElement) return
 
+    let scrollTimeout: NodeJS.Timeout
     const handleScroll = () => {
-      const { scrollTop, scrollHeight, clientHeight } = scrollElement
-      const isAtBottom = scrollHeight - scrollTop - clientHeight < 100
-      setAutoScroll(isAtBottom)
+      clearTimeout(scrollTimeout)
+      scrollTimeout = setTimeout(() => {
+        const { scrollTop, scrollHeight, clientHeight } = scrollElement
+        const isAtBottom = scrollHeight - scrollTop - clientHeight < 100
+        setAutoScroll(isAtBottom)
+      }, 150)
     }
 
-    scrollElement.addEventListener('scroll', handleScroll)
-    return () => scrollElement.removeEventListener('scroll', handleScroll)
+    scrollElement.addEventListener('scroll', handleScroll, { passive: true })
+    return () => {
+      scrollElement.removeEventListener('scroll', handleScroll)
+      clearTimeout(scrollTimeout)
+    }
   }, [])
 
   return (
-    <div ref={parentRef} className="flex-1 overflow-y-auto">
+    <div ref={parentRef} className="flex-1 overflow-y-auto scroll-smooth">
       <div
         style={{
           height: `${rowVirtualizer.getTotalSize()}px`,
@@ -1855,6 +1721,7 @@ export function VirtualMessageList({
           return (
             <div
               key={virtualItem.key}
+              data-message-id={message.id}
               style={{
                 position: 'absolute',
                 top: 0,
@@ -1863,6 +1730,7 @@ export function VirtualMessageList({
                 height: `${virtualItem.size}px`,
                 transform: `translateY(${virtualItem.start}px)`,
               }}
+              className="message-container"
             >
               <ChatMessage
                 message={message}
@@ -1878,529 +1746,501 @@ export function VirtualMessageList({
 }
 ```
 
-**8.2 Create Optimized Streaming Handler**
+#### Day 8: Smooth Streaming Experience
 
-File: `features/chat/hooks/use-optimized-chat.ts`
+**8.1 Optimized Token Streaming**
+
+File: `features/chat/hooks/use-smooth-streaming.ts`
 ```typescript
 /**
- * Hook: useOptimizedChat
- * Purpose: Performance-optimized chat with buffering
+ * Hook: useSmoothStreaming
+ * Purpose: Butter-smooth token rendering at 60fps
  * Features:
- * - Token buffering for smooth rendering
- * - Request deduplication
- * - Automatic retries
+ * - Smart token buffering (16-32ms)
+ * - Progressive word/line rendering
+ * - Performance monitoring
+ * - Adaptive quality
  */
 
-import { useChat } from 'ai/react'
-import { useRef, useCallback } from 'react'
-import { Message } from 'ai'
+import { useRef, useCallback, useEffect } from 'react'
 
-interface UseOptimizedChatProps {
-  chatId: string
-  onError?: (error: Error) => void
+interface StreamConfig {
+  onTokensReady: (tokens: string) => void
+  adaptiveBuffering?: boolean
+  targetFPS?: number
 }
 
-export function useOptimizedChat({ chatId, onError }: UseOptimizedChatProps) {
-  const bufferRef = useRef<string>('')
-  const flushTimeoutRef = useRef<NodeJS.Timeout>()
-  const requestIdRef = useRef<string>()
-
-  const chat = useChat({
-    id: chatId,
-    api: '/api/chat',
-    onResponse: (response) => {
-      // Generate request ID for deduplication
-      requestIdRef.current = response.headers.get('x-request-id') || ''
-    },
-    onFinish: () => {
-      // Flush any remaining buffer
-      if (bufferRef.current) {
-        flushBuffer()
-      }
-    },
-    onError: (error) => {
-      console.error('Chat error:', error)
-      onError?.(error)
-      
-      // Automatic retry for transient errors
-      if (error.message.includes('network')) {
-        setTimeout(() => chat.reload(), 1000)
-      }
-    },
+export function useSmoothStreaming({ 
+  onTokensReady, 
+  adaptiveBuffering = true,
+  targetFPS = 60 
+}: StreamConfig) {
+  const bufferRef = useRef('')
+  const frameRef = useRef<number>()
+  const metricsRef = useRef({
+    tokensPerSecond: 0,
+    lastFlush: Date.now(),
+    tokenCount: 0,
   })
+  
+  // Adaptive buffer timing based on performance
+  const bufferTimeRef = useRef(16) // Start with 1 frame
 
-  const flushBuffer = useCallback(() => {
-    if (bufferRef.current && chat.messages.length > 0) {
-      const lastMessage = chat.messages[chat.messages.length - 1]
-      if (lastMessage.role === 'assistant') {
-        // Update message with buffered content
-        const updatedMessage = {
-          ...lastMessage,
-          content: lastMessage.content + bufferRef.current,
+  const flush = useCallback(() => {
+    if (bufferRef.current) {
+      const now = Date.now()
+      const timeDelta = now - metricsRef.current.lastFlush
+      
+      // Calculate performance metrics
+      if (timeDelta > 0) {
+        const tps = (metricsRef.current.tokenCount / timeDelta) * 1000
+        metricsRef.current.tokensPerSecond = tps
+        
+        // Adapt buffer time based on stream speed
+        if (adaptiveBuffering) {
+          if (tps > 50) {
+            bufferTimeRef.current = 32 // 2 frames for fast streams
+          } else if (tps < 20) {
+            bufferTimeRef.current = 8 // Half frame for slow streams
+          } else {
+            bufferTimeRef.current = 16 // 1 frame default
+          }
         }
-        chat.setMessages([
-          ...chat.messages.slice(0, -1),
-          updatedMessage,
-        ])
       }
+      
+      onTokensReady(bufferRef.current)
       bufferRef.current = ''
+      metricsRef.current.lastFlush = now
+      metricsRef.current.tokenCount = 0
     }
-  }, [chat])
+  }, [onTokensReady, adaptiveBuffering])
 
-  // Override append to add request deduplication
-  const optimizedAppend = useCallback(async (message: Message) => {
-    // Prevent duplicate requests
-    const messageHash = JSON.stringify(message)
-    if (requestIdRef.current === messageHash) {
-      console.warn('Duplicate request prevented')
-      return
-    }
-    requestIdRef.current = messageHash
+  const addToken = useCallback((token: string) => {
+    bufferRef.current += token
+    metricsRef.current.tokenCount++
     
-    return chat.append(message)
-  }, [chat])
+    // Cancel previous frame
+    if (frameRef.current) {
+      cancelAnimationFrame(frameRef.current)
+    }
+    
+    // Schedule flush with adaptive timing
+    const scheduleFlush = () => {
+      frameRef.current = requestAnimationFrame(() => {
+        flush()
+      })
+    }
+    
+    // Use setTimeout for precise timing control
+    setTimeout(scheduleFlush, bufferTimeRef.current)
+  }, [flush])
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (frameRef.current) {
+        cancelAnimationFrame(frameRef.current)
+      }
+      flush() // Flush any remaining tokens
+    }
+  }, [flush])
 
   return {
-    ...chat,
-    append: optimizedAppend,
+    addToken,
+    flush,
+    metrics: {
+      tokensPerSecond: metricsRef.current.tokensPerSecond,
+      bufferTime: bufferTimeRef.current,
+    }
   }
 }
 ```
 
-#### Day 9: Testing & Integration
+**8.2 Optimistic Updates System**
 
-**9.1 Create Chat Tests**
-
-File: `features/chat/__tests__/chat-interface.test.tsx`
-```typescript
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
-import { ChatInterface } from '../components/chat-interface'
-import { useChat } from 'ai/react'
-
-// Mock the useChat hook
-jest.mock('ai/react', () => ({
-  useChat: jest.fn(),
-}))
-
-describe('ChatInterface', () => {
-  const mockUseChat = {
-    messages: [],
-    input: '',
-    handleInputChange: jest.fn(),
-    handleSubmit: jest.fn(),
-    isLoading: false,
-    error: null,
-    reload: jest.fn(),
-    stop: jest.fn(),
-    append: jest.fn(),
-    setMessages: jest.fn(),
-  }
-
-  beforeEach(() => {
-    (useChat as jest.Mock).mockReturnValue(mockUseChat)
-  })
-
-  it('renders empty state when no messages', () => {
-    render(<ChatInterface chatId="test-chat" />)
-    expect(screen.getByText('Start a conversation')).toBeInTheDocument()
-  })
-
-  it('renders messages when provided', () => {
-    const messages = [
-      { id: '1', role: 'user', content: 'Hello' },
-      { id: '2', role: 'assistant', content: 'Hi there!' },
-    ]
-    
-    (useChat as jest.Mock).mockReturnValue({
-      ...mockUseChat,
-      messages,
-    })
-
-    render(<ChatInterface chatId="test-chat" />)
-    expect(screen.getByText('Hello')).toBeInTheDocument()
-    expect(screen.getByText('Hi there!')).toBeInTheDocument()
-  })
-
-  it('handles message submission', async () => {
-    const handleSubmit = jest.fn((e) => e.preventDefault())
-    
-    (useChat as jest.Mock).mockReturnValue({
-      ...mockUseChat,
-      input: 'Test message',
-      handleSubmit,
-    })
-
-    render(<ChatInterface chatId="test-chat" />)
-    
-    const form = screen.getByRole('form')
-    fireEvent.submit(form)
-    
-    await waitFor(() => {
-      expect(handleSubmit).toHaveBeenCalled()
-    })
-  })
-
-  it('shows loading state', () => {
-    (useChat as jest.Mock).mockReturnValue({
-      ...mockUseChat,
-      isLoading: true,
-      messages: [{ id: '1', role: 'user', content: 'Hello' }],
-    })
-
-    render(<ChatInterface chatId="test-chat" />)
-    expect(screen.getByText('Thinking...')).toBeInTheDocument()
-  })
-
-  it('displays error state', () => {
-    const error = new Error('Test error')
-    
-    (useChat as jest.Mock).mockReturnValue({
-      ...mockUseChat,
-      error,
-    })
-
-    render(<ChatInterface chatId="test-chat" />)
-    expect(screen.getByText('Test error')).toBeInTheDocument()
-    expect(screen.getByText('Try again')).toBeInTheDocument()
-  })
-})
-```
-
-**9.2 Integration with Existing Features**
-
-File: `features/editor/components/editor-with-chat.tsx`
+File: `features/chat/hooks/use-optimistic-chat.ts`
 ```typescript
 /**
- * Component: EditorWithChat
- * Purpose: Integrate chat with the editor
+ * Hook: useOptimisticChat
+ * Purpose: Zero-latency feel with instant feedback
  * Features:
- * - Send selected text to chat
- * - Reference current note
- * - Side-by-side view
+ * - Optimistic message sending
+ * - Smart caching
+ * - Background persistence
+ * - Instant retry on failure
  */
 
-import { useState } from 'react'
-import { Editor } from './editor'
-import { ChatInterface } from '@/features/chat/components/chat-interface'
-import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable'
-import { Button } from '@/components/ui/button'
-import { MessageSquare, X } from 'lucide-react'
-import { Note } from '@/lib/db/schema'
+import { useCallback, useRef } from 'react'
+import { Message } from 'ai'
+import { useChatStore } from '../stores/chat-store'
 
-interface EditorWithChatProps {
-  note: Note
-  content: string
-  onChange: (content: string) => void
+export function useOptimisticChat(chatId: string) {
+  const { addOptimisticMessage, confirmMessage, markMessageFailed } = useChatStore()
+  const pendingRef = useRef(new Map<string, AbortController>())
+
+  const sendOptimisticMessage = useCallback(async (content: string) => {
+    // Generate temporary ID
+    const tempId = `temp-${Date.now()}-${Math.random()}`
+    
+    // Add to UI immediately with pending state
+    const optimisticMessage: Message = {
+      id: tempId,
+      role: 'user',
+      content,
+      createdAt: new Date(),
+      metadata: { status: 'pending' }
+    }
+    
+    addOptimisticMessage(chatId, optimisticMessage)
+    
+    // Create abort controller for this request
+    const abortController = new AbortController()
+    pendingRef.current.set(tempId, abortController)
+    
+    try {
+      // Send to server
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          chatId, 
+          message: content,
+          tempId 
+        }),
+        signal: abortController.signal
+      })
+      
+      if (!response.ok) throw new Error('Failed to send message')
+      
+      const realMessage = await response.json()
+      
+      // Replace with real message
+      confirmMessage(chatId, tempId, realMessage)
+      
+    } catch (error) {
+      if (error.name !== 'AbortError') {
+        // Mark as failed for retry
+        markMessageFailed(chatId, tempId)
+      }
+    } finally {
+      pendingRef.current.delete(tempId)
+    }
+  }, [chatId, addOptimisticMessage, confirmMessage, markMessageFailed])
+
+  const cancelPending = useCallback((tempId: string) => {
+    const controller = pendingRef.current.get(tempId)
+    if (controller) {
+      controller.abort()
+      pendingRef.current.delete(tempId)
+    }
+  }, [])
+
+  return {
+    sendOptimisticMessage,
+    cancelPending,
+  }
+}
+```
+
+#### Day 9: Performance Optimization & Caching
+
+**9.1 Smart Message Cache**
+
+File: `features/chat/services/message-cache.ts`
+```typescript
+/**
+ * Service: MessageCache
+ * Purpose: Instant chat switching with smart caching
+ * Features:
+ * - LRU cache for messages
+ * - Background sync
+ * - Offline support
+ * - Predictive loading
+ */
+
+class MessageCache {
+  private cache = new Map<string, CachedChat>()
+  private maxSize = 50 // Cache up to 50 chats
+  private syncQueue = new Set<string>()
+
+  async getChatMessages(chatId: string): Promise<Message[]> {
+    // Check memory cache first
+    const cached = this.cache.get(chatId)
+    if (cached && Date.now() - cached.timestamp < 5 * 60 * 1000) {
+      return cached.messages
+    }
+
+    // Check IndexedDB for offline support
+    const stored = await this.getFromIndexedDB(chatId)
+    if (stored) {
+      this.cache.set(chatId, stored)
+      this.scheduleBgSync(chatId)
+      return stored.messages
+    }
+
+    // Fetch from server
+    return this.fetchFromServer(chatId)
+  }
+
+  async preloadChat(chatId: string) {
+    if (!this.cache.has(chatId)) {
+      // Load in background without blocking
+      requestIdleCallback(() => {
+        this.getChatMessages(chatId)
+      })
+    }
+  }
+
+  private scheduleBgSync(chatId: string) {
+    this.syncQueue.add(chatId)
+    
+    // Sync when idle
+    requestIdleCallback(() => {
+      this.performBackgroundSync()
+    })
+  }
+
+  private async performBackgroundSync() {
+    for (const chatId of this.syncQueue) {
+      try {
+        const messages = await this.fetchFromServer(chatId)
+        await this.saveToIndexedDB(chatId, messages)
+        this.syncQueue.delete(chatId)
+      } catch (error) {
+        // Keep in queue for retry
+        console.error(`Failed to sync chat ${chatId}:`, error)
+      }
+    }
+  }
 }
 
-export function EditorWithChat({ note, content, onChange }: EditorWithChatProps) {
-  const [showChat, setShowChat] = useState(false)
-  const [chatId, setChatId] = useState<string>()
+export const messageCache = new MessageCache()
+```
 
-  const handleOpenChat = async () => {
-    // Create a new chat for this note
-    const response = await fetch('/api/chats', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        title: `Chat: ${note.title}`,
-        noteId: note.id,
-      }),
-    })
-    const chat = await response.json()
-    setChatId(chat.id)
-    setShowChat(true)
+### Sprint 4: UI Polish & Micro-interactions (Days 10-12)
+
+#### Day 10: Smooth Animations & Transitions
+
+**10.1 Message Animation System**
+
+File: `features/chat/styles/animations.css`
+```css
+/* Smooth message appearance */
+@keyframes messageSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
   }
-
-  if (!showChat) {
-    return (
-      <div className="relative h-full">
-        <Editor content={content} onChange={onChange} />
-        <Button
-          onClick={handleOpenChat}
-          className="absolute bottom-4 right-4"
-          size="lg"
-        >
-          <MessageSquare className="mr-2 h-4 w-4" />
-          Open AI Chat
-        </Button>
-      </div>
-    )
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
+}
 
+.message-enter {
+  animation: messageSlideIn 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  animation-fill-mode: both;
+}
+
+/* Stagger animation for multiple messages */
+.message-container {
+  --stagger: 0;
+  animation-delay: calc(var(--stagger) * 50ms);
+}
+
+/* Smooth hover states */
+.message-actions {
+  opacity: 0;
+  transform: translateX(-4px);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.message:hover .message-actions {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+/* Streaming text animation */
+@keyframes streamingPulse {
+  0%, 100% { 
+    opacity: 1;
+  }
+  50% { 
+    opacity: 0.7;
+  }
+}
+
+.streaming-indicator {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  background: currentColor;
+  border-radius: 50%;
+  animation: streamingPulse 1.4s ease-in-out infinite;
+}
+
+/* Smooth focus transitions */
+.chat-input {
+  transition: box-shadow 0.2s ease-out;
+}
+
+.chat-input:focus-within {
+  box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.1);
+}
+
+/* Button interactions */
+.interactive-button {
+  transition: all 0.15s ease-out;
+}
+
+.interactive-button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.interactive-button:active {
+  transform: translateY(0);
+  transition-duration: 0.05s;
+}
+```
+
+**10.2 Loading States & Skeletons**
+
+File: `features/chat/components/chat-skeleton.tsx`
+```typescript
+/**
+ * Component: ChatSkeleton
+ * Purpose: Beautiful loading states
+ * Features:
+ * - Skeleton messages
+ * - Shimmer animation
+ * - Smooth transitions
+ */
+
+export function ChatSkeleton() {
   return (
-    <ResizablePanelGroup direction="horizontal">
-      <ResizablePanel defaultSize={60} minSize={30}>
-        <Editor content={content} onChange={onChange} />
-      </ResizablePanel>
-      
-      <ResizableHandle />
-      
-      <ResizablePanel defaultSize={40} minSize={30}>
-        <div className="relative h-full">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setShowChat(false)}
-            className="absolute top-2 right-2 z-10"
-          >
-            <X className="h-4 w-4" />
-          </Button>
-          
-          {chatId && (
-            <ChatInterface
-              chatId={chatId}
-              noteContext={{
-                id: note.id,
-                title: note.title,
-                content: content,
-              }}
-            />
-          )}
+    <div className="space-y-4 p-4">
+      {[...Array(3)].map((_, i) => (
+        <div key={i} className="flex gap-3">
+          <div className="skeleton-avatar w-8 h-8 rounded-full" />
+          <div className="flex-1 space-y-2">
+            <div className="skeleton-text h-4 w-3/4 rounded" />
+            <div className="skeleton-text h-4 w-1/2 rounded" />
+          </div>
         </div>
-      </ResizablePanel>
-    </ResizablePanelGroup>
+      ))}
+      
+      <style jsx>{`
+        @keyframes shimmer {
+          0% {
+            background-position: -200% 0;
+          }
+          100% {
+            background-position: 200% 0;
+          }
+        }
+        
+        .skeleton-avatar,
+        .skeleton-text {
+          background: linear-gradient(
+            90deg,
+            rgba(0, 0, 0, 0.06) 25%,
+            rgba(0, 0, 0, 0.03) 50%,
+            rgba(0, 0, 0, 0.06) 75%
+          );
+          background-size: 200% 100%;
+          animation: shimmer 1.5s infinite;
+        }
+        
+        .dark .skeleton-avatar,
+        .dark .skeleton-text {
+          background: linear-gradient(
+            90deg,
+            rgba(255, 255, 255, 0.06) 25%,
+            rgba(255, 255, 255, 0.03) 50%,
+            rgba(255, 255, 255, 0.06) 75%
+          );
+          background-size: 200% 100%;
+        }
+      `}</style>
+    </div>
   )
 }
 ```
 
-### Sprint 4: Final Polish & Launch (Days 10-12)
+#### Day 11: Performance Tuning
 
-#### Day 10: Keyboard Shortcuts & Accessibility
+**11.1 Performance Monitoring**
 
-**10.1 Create Keyboard Shortcuts**
-
-File: `features/chat/hooks/use-chat-shortcuts.ts`
+File: `features/chat/hooks/use-performance-monitor.ts`
 ```typescript
 /**
- * Hook: useChatShortcuts
- * Purpose: Keyboard shortcuts for power users
+ * Hook: usePerformanceMonitor
+ * Purpose: Track and optimize performance metrics
  * Features:
- * - Cmd+K: New chat
- * - Cmd+/: Focus input
- * - Cmd+Enter: Send message
- * - Cmd+.: Stop generation
+ * - FPS monitoring
+ * - Render time tracking
+ * - Memory usage
+ * - Automatic quality adjustment
  */
 
-import { useEffect } from 'react'
-import { useHotkeys } from 'react-hotkeys-hook'
-
-interface UseChatShortcutsProps {
-  onNewChat: () => void
-  onFocusInput: () => void
-  onSend: () => void
-  onStop: () => void
-  isLoading: boolean
-}
-
-export function useChatShortcuts({
-  onNewChat,
-  onFocusInput,
-  onSend,
-  onStop,
-  isLoading,
-}: UseChatShortcutsProps) {
-  // New chat
-  useHotkeys('cmd+k, ctrl+k', (e) => {
-    e.preventDefault()
-    onNewChat()
+export function usePerformanceMonitor() {
+  const metricsRef = useRef({
+    fps: 60,
+    renderTime: 0,
+    memoryUsage: 0,
+    messageCount: 0,
   })
 
-  // Focus input
-  useHotkeys('cmd+/, ctrl+/', (e) => {
-    e.preventDefault()
-    onFocusInput()
-  })
+  useEffect(() => {
+    let frameCount = 0
+    let lastTime = performance.now()
 
-  // Send message
-  useHotkeys('cmd+enter, ctrl+enter', (e) => {
-    e.preventDefault()
-    if (!isLoading) {
-      onSend()
+    const measureFPS = () => {
+      frameCount++
+      const currentTime = performance.now()
+      
+      if (currentTime >= lastTime + 1000) {
+        metricsRef.current.fps = Math.round(frameCount * 1000 / (currentTime - lastTime))
+        frameCount = 0
+        lastTime = currentTime
+        
+        // Adjust quality based on performance
+        if (metricsRef.current.fps < 30) {
+          console.warn('Low FPS detected:', metricsRef.current.fps)
+          // Reduce animation complexity
+        }
+      }
+      
+      requestAnimationFrame(measureFPS)
     }
-  })
 
-  // Stop generation
-  useHotkeys('cmd+., ctrl+.', (e) => {
-    e.preventDefault()
-    if (isLoading) {
-      onStop()
-    }
-  })
+    measureFPS()
+  }, [])
 
-  // Escape to unfocus
-  useHotkeys('escape', (e) => {
-    const target = e.target as HTMLElement
-    if (target.tagName === 'TEXTAREA' || target.tagName === 'INPUT') {
-      target.blur()
-    }
-  })
+  return metricsRef.current
 }
 ```
 
-#### Day 11: Analytics & Monitoring
+#### Day 12: Final Polish
 
-**11.1 Create Analytics Tracker**
+**12.1 Edge Case Handling**
 
-File: `features/chat/services/chat-analytics.ts`
-```typescript
-/**
- * Service: ChatAnalytics
- * Purpose: Track chat usage and performance
- * Features:
- * - Message metrics
- * - Performance tracking
- * - Error monitoring
- */
+- Handle rapid message sending
+- Graceful degradation for slow devices
+- Network interruption recovery
+- Large message handling
+- Memory leak prevention
 
-interface ChatEvent {
-  event: string
-  properties?: Record<string, any>
-  timestamp: Date
-}
+**12.2 Performance Checklist**
 
-class ChatAnalytics {
-  private events: ChatEvent[] = []
-
-  track(event: string, properties?: Record<string, any>) {
-    this.events.push({
-      event,
-      properties,
-      timestamp: new Date(),
-    })
-
-    // Send to analytics service
-    if (typeof window !== 'undefined' && window.analytics) {
-      window.analytics.track(event, properties)
-    }
-  }
-
-  // Track chat lifecycle
-  chatCreated(chatId: string, source: 'sidebar' | 'note' | 'command') {
-    this.track('chat_created', { chatId, source })
-  }
-
-  messageSent(chatId: string, messageLength: number, hasContext: boolean) {
-    this.track('message_sent', { chatId, messageLength, hasContext })
-  }
-
-  responseReceived(chatId: string, responseTime: number, tokenCount: number) {
-    this.track('response_received', { chatId, responseTime, tokenCount })
-  }
-
-  errorOccurred(chatId: string, error: string, recoverable: boolean) {
-    this.track('chat_error', { chatId, error, recoverable })
-  }
-
-  // Performance metrics
-  measureStreamingPerformance(chatId: string, tokensPerSecond: number) {
-    this.track('streaming_performance', { chatId, tokensPerSecond })
-  }
-
-  // Feature usage
-  featureUsed(feature: 'extract_note' | 'branch' | 'regenerate' | 'tools') {
-    this.track('feature_used', { feature })
-  }
-
-  // Get analytics summary
-  getSummary() {
-    const now = new Date()
-    const hourAgo = new Date(now.getTime() - 60 * 60 * 1000)
-    
-    const recentEvents = this.events.filter(e => e.timestamp > hourAgo)
-    
-    return {
-      totalEvents: this.events.length,
-      recentEvents: recentEvents.length,
-      messagesSent: this.events.filter(e => e.event === 'message_sent').length,
-      errors: this.events.filter(e => e.event === 'chat_error').length,
-    }
-  }
-}
-
-export const chatAnalytics = new ChatAnalytics()
-```
-
-#### Day 12: Documentation & Launch Prep
-
-**12.1 Create User Guide**
-
-File: `features/chat/docs/user-guide.md`
-```markdown
-# AI Chat User Guide
-
-## Getting Started
-
-### Creating a New Chat
-1. Click the "New Chat" button in the sidebar
-2. Or use the keyboard shortcut: `Cmd+K` (Mac) / `Ctrl+K` (Windows)
-
-### Sending Messages
-- Type your message in the input field
-- Press Enter to send (Shift+Enter for new line)
-- Or click the Send button
-
-### Using with Notes
-When viewing a note, the AI automatically has context about your current note:
-- Ask questions about the note content
-- Request summaries or explanations
-- Get suggestions for improvements
-
-## Features
-
-### Note References
-Reference any note in your chat by typing `@` followed by the note name:
-```
-@Project Plan what are the key milestones?
-```
-
-### Extracting to Notes
-Convert any AI response into a note:
-1. Hover over the message
-2. Click "Create Note"
-3. Edit the title and content if needed
-4. Choose a collection (optional)
-5. Click "Save"
-
-### Message Actions
-- **Copy**: Copy message as plain text
-- **Copy as Markdown**: Preserve formatting
-- **Regenerate**: Get a new response
-- **Branch**: Start a new conversation from this point
-
-### Keyboard Shortcuts
-- `Cmd/Ctrl + K`: New chat
-- `Cmd/Ctrl + /`: Focus chat input
-- `Cmd/Ctrl + Enter`: Send message
-- `Cmd/Ctrl + .`: Stop generation
-- `Escape`: Unfocus input
-
-## Tips
-
-### Getting Better Responses
-1. Be specific in your questions
-2. Provide context when needed
-3. Use follow-up questions to dig deeper
-4. Reference your notes for contextual answers
-
-### Managing Conversations
-- Star important chats to prevent auto-deletion
-- Use descriptive chat titles
-- Delete old chats to keep organized
-- Search chats by title or content
-
-## Troubleshooting
-
-### If responses are slow
-- Check your internet connection
-- Try refreshing the page
-- Use a simpler query
-
-### If you get errors
-- The AI will automatically retry
-- Click "Try again" if needed
-- Report persistent issues
-```
+- [ ] 60fps scrolling with 10k messages
+- [ ] <16ms render per message
+- [ ] Smooth streaming at 50+ tokens/sec
+- [ ] <500ms time to interactive
+- [ ] <100MB memory for 1k messages
+- [ ] Instant message sending feedback
+- [ ] No jank during animations
 
 ## Implementation Checklist
 

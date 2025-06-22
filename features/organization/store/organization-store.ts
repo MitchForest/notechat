@@ -56,7 +56,7 @@ type OrganizationActions = {
   createSpace: (name: string, emoji: string) => Promise<void>
   createCollection: (name: string, spaceId: string) => Promise<void>
   createNote: (title: string, collectionId: string | null, id?: string) => Promise<Note | null>
-  createChat: (title: string, collectionId: string, id?: string) => Promise<Chat | null>
+  createChat: (title: string, collectionId: string | null, id?: string) => Promise<Chat | null>
   updateNote: (noteId: string, data: Partial<Note>) => Promise<void>
   updateChat: (chatId: string, data: Partial<Chat>) => Promise<void>
   deleteNote: (noteId: string) => Promise<void>
@@ -262,7 +262,7 @@ const useOrganizationStore = create<OrganizationStore>((set, get) => ({
     }
   },
 
-  createChat: async (title: string, collectionId: string, id?: string) => {
+  createChat: async (title: string, collectionId: string | null, id?: string) => {
     try {
       const chatData: any = { title, collectionId }
       if (id) chatData.id = id

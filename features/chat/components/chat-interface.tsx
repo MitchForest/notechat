@@ -8,10 +8,13 @@
  * - Auto-scrolling message list
  * - Responsive layout
  * - Loading states
+ * - Extract to note functionality
  * 
  * Created: December 2024
+ * Updated: December 2024 - Added extract to note
  */
 
+import '../styles/animations.css'
 import { useChat } from 'ai/react'
 import { useEffect, useRef, useState } from 'react'
 import { cn } from '@/lib/utils'
@@ -20,12 +23,18 @@ import { PanelHeader } from '@/components/shared/panel-header'
 import { ConfirmationDialog } from '@/components/shared/confirmation-dialog'
 import { ChatMessage } from './chat-message'
 import { ChatInput } from './chat-input'
+import { ChatHeader } from './chat-header'
 import { ChatEmptyState } from './chat-empty-state'
+import { ExtractToNoteDialog } from './extract-to-note-dialog'
+import { VirtualMessageList } from './virtual-message-list'
+import { ChatSkeleton, TypingIndicator } from './chat-skeleton'
 import { useChatPersistence } from '../hooks/use-chat-persistence'
 import useOrganizationStore from '@/features/organization/store/organization-store'
 import { useNoteContext } from '../stores/note-context-store'
 import { toast } from 'sonner'
-import { FileText } from 'lucide-react'
+import { FileText, MousePointer } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Message } from 'ai'
 
 interface ChatInterfaceProps {
   chatId: string
@@ -51,10 +60,16 @@ export function ChatInterface({ chatId, className, onClose, noteContext }: ChatI
   const [chatTitle, setChatTitle] = useState(chat?.title || 'AI Chat')
   const [isTemporary, setIsTemporary] = useState(true)
   const [hasBeenPersisted, setHasBeenPersisted] = useState(false)
+  const [isInitialLoading, setIsInitialLoading] = useState(true)
   
   // Dialog states
   const [showClearDialog, setShowClearDialog] = useState(false)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const [showExtractDialog, setShowExtractDialog] = useState(false)
+  
+  // Selection mode for extracting multiple messages
+  const [isSelectionMode, setIsSelectionMode] = useState(false)
+  const [selectedMessages, setSelectedMessages] = useState<Set<string>>(new Set())
 
   // Check if this chat exists in the store (i.e., has been persisted)
   useEffect(() => {
@@ -69,12 +84,32 @@ export function ChatInterface({ chatId, className, onClose, noteContext }: ChatI
   const handleCustomSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     
+    // Check if user is asking to extract conversation
+    const extractPattern = /extract\s+(this\s+)?conversation|create\s+a?\s+note\s+from\s+this/i
+    if (extractPattern.test(input)) {
+      // Extract all messages
+      setShowExtractDialog(true)
+      handleInputChange({ target: { value: '' } } as React.ChangeEvent<HTMLTextAreaElement>)
+      return
+    }
+    
     // If this is the first message and chat is temporary, persist it first
     if (isTemporary && !hasBeenPersisted && input.trim()) {
       try {
         // Get the active collection from the organization store or default to null
         const { activeCollectionId } = useOrganizationStore.getState()
-        const createdChat = await createChat(chatTitle, activeCollectionId || 'chats-all', chatId)
+        
+        // Check if it's a virtual collection (permanent collections)
+        const virtualCollectionIds = [
+          'notes-all', 'notes-recent', 'notes-saved', 'notes-uncategorized',
+          'chats-all', 'chats-recent', 'chats-saved', 'chats-uncategorized'
+        ];
+        
+        const collectionId = virtualCollectionIds.includes(activeCollectionId || '') 
+          ? null 
+          : activeCollectionId;
+        
+        const createdChat = await createChat(chatTitle, collectionId, chatId)
         if (createdChat) {
           setIsTemporary(false)
           setHasBeenPersisted(true)
@@ -146,6 +181,13 @@ export function ChatInterface({ chatId, className, onClose, noteContext }: ChatI
     }
   }, [messages])
 
+  // Set initial loading to false once messages are loaded
+  useEffect(() => {
+    if (messages.length > 0 || error) {
+      setIsInitialLoading(false)
+    }
+  }, [messages, error])
+
   const handleTitleChange = async (newTitle: string) => {
     setChatTitle(newTitle)
     
@@ -201,6 +243,28 @@ export function ChatInterface({ chatId, className, onClose, noteContext }: ChatI
     }
   }
 
+  const toggleMessageSelection = (messageId: string) => {
+    const newSelected = new Set(selectedMessages)
+    if (newSelected.has(messageId)) {
+      newSelected.delete(messageId)
+    } else {
+      newSelected.add(messageId)
+    }
+    setSelectedMessages(newSelected)
+  }
+
+  const handleExtractSelected = () => {
+    const messagesToExtract = messages.filter(m => selectedMessages.has(m.id))
+    if (messagesToExtract.length > 0) {
+      setShowExtractDialog(true)
+    }
+  }
+
+  const exitSelectionMode = () => {
+    setIsSelectionMode(false)
+    setSelectedMessages(new Set())
+  }
+
   return (
     <>
       <Card className={cn('h-full flex flex-col', className)}>
@@ -222,43 +286,69 @@ export function ChatInterface({ chatId, className, onClose, noteContext }: ChatI
             </div>
           )}
           
+          {/* Selection mode toolbar */}
+          {isSelectionMode && (
+            <div className="px-4 py-2 border-b bg-primary/10 flex items-center justify-between">
+              <span className="text-sm font-medium">
+                {selectedMessages.size} message{selectedMessages.size !== 1 ? 's' : ''} selected
+              </span>
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={exitSelectionMode}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={handleExtractSelected}
+                  disabled={selectedMessages.size === 0}
+                >
+                  <FileText className="w-4 h-4 mr-1" />
+                  Extract
+                </Button>
+              </div>
+            </div>
+          )}
+          
           <div 
             ref={scrollRef}
             className="flex-1 overflow-y-auto scroll-smooth"
           >
-            {messages.length === 0 ? (
+            {isInitialLoading ? (
+              <ChatSkeleton messageCount={3} />
+            ) : messages.length === 0 ? (
               <ChatEmptyState 
-                onSuggestionClick={(suggestion) => append({ role: 'user', content: suggestion })}
+                onSuggestionClick={(suggestion: string) => append({ role: 'user', content: suggestion })}
                 hasNoteContext={hasContext}
               />
             ) : (
-              <div className="px-4 py-6 space-y-6 max-w-3xl mx-auto">
-                {messages.map((message, index) => (
-                  <ChatMessage
-                    key={message.id}
-                    message={message}
-                    isStreaming={isLoading && index === messages.length - 1}
-                    onRegenerate={() => reload()}
-                    onEdit={(content) => {
-                      const updatedMessages = [...messages]
-                      updatedMessages[index] = { ...message, content }
-                      setMessages(updatedMessages)
-                    }}
-                  />
-                ))}
+              <>
+                <VirtualMessageList
+                  messages={messages}
+                  isLoading={isLoading}
+                  onRegenerate={() => reload()}
+                />
+                
+                {isLoading && messages[messages.length - 1]?.role === 'user' && (
+                  <TypingIndicator />
+                )}
                 
                 {error && (
-                  <div className="bg-destructive/10 text-destructive px-4 py-3 rounded-lg">
-                    <p className="text-sm">{error.message}</p>
-                    <button
-                      onClick={() => reload()}
-                      className="text-sm underline mt-1"
-                    >
-                      Try again
-                    </button>
+                  <div className="px-4 pb-4 max-w-3xl mx-auto">
+                    <div className="bg-destructive/10 text-destructive px-4 py-3 rounded-lg">
+                      <p className="text-sm">{error.message}</p>
+                      <button
+                        onClick={() => reload()}
+                        className="text-sm underline mt-1"
+                      >
+                        Try again
+                      </button>
+                    </div>
                   </div>
                 )}
-              </div>
+              </>
             )}
           </div>
           
@@ -272,6 +362,19 @@ export function ChatInterface({ chatId, className, onClose, noteContext }: ChatI
           />
         </CardContent>
       </Card>
+
+      {/* Extract action button */}
+      {messages.length > 0 && !isSelectionMode && (
+        <Button
+          className="fixed bottom-20 right-8 shadow-lg"
+          size="sm"
+          variant="outline"
+          onClick={() => setIsSelectionMode(true)}
+        >
+          <MousePointer className="w-4 h-4 mr-1" />
+          Select Messages
+        </Button>
+      )}
 
       <ConfirmationDialog
         open={showClearDialog}
@@ -292,6 +395,22 @@ export function ChatInterface({ chatId, className, onClose, noteContext }: ChatI
         onConfirm={handleDelete}
         isDestructive
       />
+
+      {showExtractDialog && (
+        <ExtractToNoteDialog
+          open={showExtractDialog}
+          onOpenChange={(open) => {
+            setShowExtractDialog(open)
+            if (!open) exitSelectionMode()
+          }}
+          extractOptions={{
+            source: selectedMessages.size > 0 ? 'selection' : 'chat',
+            content: selectedMessages.size > 0 
+              ? messages.filter(m => selectedMessages.has(m.id))
+              : messages,
+          }}
+        />
+      )}
     </>
   )
 } 

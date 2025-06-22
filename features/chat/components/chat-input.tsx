@@ -21,6 +21,7 @@ import { Send, Square } from 'lucide-react'
 import { NoteMentionDropdown } from './note-mention-dropdown'
 import { Note } from '@/lib/db/schema'
 import { useNoteContextStore } from '@/features/chat/stores/note-context-store'
+import '../styles/animations.css'
 
 interface ChatInputProps {
   input: string
@@ -204,57 +205,55 @@ export function ChatInput({
   }
 
   return (
-    <>
-      <div className="border-t bg-background">
-        <form onSubmit={onSubmit} className="relative max-w-3xl mx-auto">
-          <div className="flex items-end gap-2 p-4">
-            <div className="flex-1 relative">
-              <textarea
-                ref={textareaRef}
-                value={input}
-                onChange={handleInputChange}
-                onKeyDown={handleKeyDown}
-                placeholder={placeholder}
-                disabled={isLoading}
-                maxLength={maxLength}
-                rows={1}
-                className={cn(
-                  'w-full resize-none rounded-lg border bg-background px-4 py-3',
-                  'placeholder:text-muted-foreground',
-                  'focus:outline-none focus:ring-2 focus:ring-ring',
-                  'disabled:cursor-not-allowed disabled:opacity-50',
-                  'min-h-[52px] max-h-[200px]',
-                  'pr-12' // Space for character count
-                )}
-              />
-              
-              {input.length > maxLength * 0.8 && (
-                <div className="absolute bottom-3 right-3 text-xs text-muted-foreground">
-                  {input.length}/{maxLength}
-                </div>
+    <div className="border-t bg-background">
+      <form onSubmit={onSubmit} className="relative max-w-3xl mx-auto">
+        <div className="flex items-end gap-2 p-4">
+          <div className="flex-1 relative chat-input">
+            <textarea
+              ref={textareaRef}
+              value={input}
+              onChange={handleInputChange}
+              onKeyDown={handleKeyDown}
+              placeholder={placeholder}
+              disabled={isLoading}
+              maxLength={maxLength}
+              rows={1}
+              className={cn(
+                'w-full resize-none rounded-lg border bg-background px-4 py-3',
+                'placeholder:text-muted-foreground',
+                'focus:outline-none focus:ring-2 focus:ring-ring',
+                'disabled:cursor-not-allowed disabled:opacity-50',
+                'min-h-[52px] max-h-[200px]',
+                'pr-12' // Space for character count
               )}
-            </div>
+            />
             
-            <Button
-              type={isLoading ? 'button' : 'submit'}
-              size="icon"
-              disabled={!input.trim() && !isLoading}
-              onClick={isLoading ? onStop : undefined}
-              className="h-[52px] w-[52px]"
-            >
-              {isLoading ? (
-                <Square className="h-4 w-4" />
-              ) : (
-                <Send className="h-4 w-4" />
-              )}
-            </Button>
+            {input.length > maxLength * 0.8 && (
+              <div className="absolute bottom-3 right-3 text-xs text-muted-foreground">
+                {input.length}/{maxLength}
+              </div>
+            )}
           </div>
           
-          <div className="px-4 pb-2 text-xs text-muted-foreground">
-            {isLoading ? 'Stop generation' : 'Enter to send, Shift + Enter for new line, @ to mention notes'}
-          </div>
-        </form>
-      </div>
+          <Button
+            type={isLoading ? 'button' : 'submit'}
+            size="icon"
+            disabled={!input.trim() && !isLoading}
+            onClick={isLoading ? onStop : undefined}
+            className="h-[52px] w-[52px]"
+          >
+            {isLoading ? (
+              <Square className="h-4 w-4" />
+            ) : (
+              <Send className="h-4 w-4" />
+            )}
+          </Button>
+        </div>
+        
+        <div className="px-4 pb-2 text-xs text-muted-foreground">
+          {isLoading ? 'Stop generation' : 'Enter to send, Shift + Enter for new line, @ to mention notes'}
+        </div>
+      </form>
 
       {showMentionDropdown && (
         <NoteMentionDropdown
@@ -264,6 +263,6 @@ export function ChatInput({
           onClose={() => setShowMentionDropdown(false)}
         />
       )}
-    </>
+    </div>
   )
 } 

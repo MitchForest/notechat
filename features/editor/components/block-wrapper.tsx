@@ -16,8 +16,6 @@ import { Editor } from '@tiptap/core'
 import { BlockHandle } from './block-handle'
 import { generateBlockId } from '../utils/block-id'
 import { cn } from '@/lib/utils'
-import { blockDebugger } from '../utils/block-debug'
-import { useDragContext } from '../contexts/drag-context'
 
 interface BlockWrapperProps {
   node: Node
@@ -30,6 +28,9 @@ interface BlockWrapperProps {
   className?: string
 }
 
+// Debug flag - set to true to enable hover debugging
+const DEBUG_HOVER = process.env.NODE_ENV === 'development' && typeof window !== 'undefined' && (window as any).debugHover
+
 export const BlockWrapper = React.memo(({ 
   node, 
   updateAttributes, 
@@ -40,22 +41,43 @@ export const BlockWrapper = React.memo(({
   children,
   className = ''
 }: BlockWrapperProps) => {
-  const { dragState, onDragStart } = useDragContext()
   const [isHovering, setIsHovering] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
-  const [isMenuOpen, setIsMenuOpen] = useState(false)
   const blockId = node.attrs.id || generateBlockId()
 
-  // Ensure block has ID
+  // Ensure block has ID - defer to avoid flushSync error
   useEffect(() => {
     if (!node.attrs.id) {
-      updateAttributes({ id: blockId })
+      // Use setTimeout to defer the update outside of React's render phase
+      const timeoutId = setTimeout(() => {
+        updateAttributes({ id: blockId })
+      }, 0)
+      
+      return () => clearTimeout(timeoutId)
     }
-  }, [])
+  }, [node.attrs.id, blockId, updateAttributes])
 
-  // Check if this block is a drop target
-  const isDropTarget = dragState?.dropTargetId === blockId
-  const dropPosition = isDropTarget ? dragState?.dropPosition : null
+  // Debug hover state changes
+  useEffect(() => {
+    if (DEBUG_HOVER) {
+      console.log(`[BlockWrapper ${blockId}] Hover state:`, isHovering)
+    }
+  }, [isHovering, blockId])
+
+  // Hover handlers with debugging
+  const handleMouseEnter = useCallback(() => {
+    if (DEBUG_HOVER) {
+      console.log(`[BlockWrapper ${blockId}] Mouse enter`)
+    }
+    setIsHovering(true)
+  }, [blockId])
+
+  const handleMouseLeave = useCallback(() => {
+    if (DEBUG_HOVER) {
+      console.log(`[BlockWrapper ${blockId}] Mouse leave`)
+    }
+    setIsHovering(false)
+  }, [blockId])
 
   // Drag handlers with focus management
   const handleDragStart = useCallback((e: React.DragEvent) => {
@@ -101,15 +123,11 @@ export const BlockWrapper = React.memo(({
       data-block-id={blockId}
       data-block-type={node.type.name}
     >
-      {/* Drop zone indicator - before */}
-      {dropPosition === 'before' && (
-        <div className="drop-zone drop-zone-before" />
-      )}
       {/* Invisible hover target extending into margins */}
       <div 
         className="hover-target"
-        onMouseEnter={() => setIsHovering(true)}
-        onMouseLeave={() => setIsHovering(false)}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
       />
       
       {/* Block handle - only visible on hover */}
@@ -127,11 +145,6 @@ export const BlockWrapper = React.memo(({
       <div className="block-content">
         {children || <NodeViewContent />}
       </div>
-      
-      {/* Drop zone indicator - after */}
-      {dropPosition === 'after' && (
-        <div className="drop-zone drop-zone-after" />
-      )}
     </NodeViewWrapper>
   )
 }, (prevProps, nextProps) => {

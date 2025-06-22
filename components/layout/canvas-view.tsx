@@ -50,11 +50,13 @@ function NoteComponent({
   const { updateNote, deleteNote, createNote, notes } = useOrganizationStore();
   const { setCurrentNote } = useNoteContextStore();
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const realNoteIdRef = useRef<string | null>(null); // Track the real UUID
 
   // Check if this note exists in the store (i.e., has been persisted)
   useEffect(() => {
-    const existingNote = notes.find(n => n.id === note.id);
+    const existingNote = notes.find(n => n.id === note.id || n.id === realNoteIdRef.current);
     if (existingNote) {
+      realNoteIdRef.current = existingNote.id;
       setIsTemporary(false);
       setHasEverHadContent(true);
       setContent(existingNote.content as string || '');
@@ -75,8 +77,8 @@ function NoteComponent({
 
   // Update note context when content or title changes
   useEffect(() => {
-    if (!isTemporary) {
-      const existingNote = notes.find(n => n.id === note.id);
+    if (!isTemporary && realNoteIdRef.current) {
+      const existingNote = notes.find(n => n.id === realNoteIdRef.current);
       if (existingNote) {
         setCurrentNote({
           id: existingNote.id,
@@ -89,7 +91,7 @@ function NoteComponent({
         });
       }
     }
-  }, [content, noteTitle, isTemporary, note.id, notes, setCurrentNote]);
+  }, [content, noteTitle, isTemporary, notes, setCurrentNote]);
 
   // Clear current note on unmount
   useEffect(() => {
@@ -156,30 +158,42 @@ function NoteComponent({
         // Create the note in the database
         // Get the active collection from the organization store or default to null (uncategorized)
         const { activeCollectionId } = useOrganizationStore.getState();
-        const createdNote = await createNote(noteTitle, activeCollectionId, note.id);
+        
+        // Check if it's a virtual collection (permanent collections)
+        const virtualCollectionIds = [
+          'notes-all', 'notes-recent', 'notes-saved', 'notes-uncategorized',
+          'chats-all', 'chats-recent', 'chats-saved', 'chats-uncategorized'
+        ];
+        
+        const collectionId = virtualCollectionIds.includes(activeCollectionId || '') 
+          ? null 
+          : activeCollectionId;
+        
+        const createdNote = await createNote(noteTitle, collectionId);
         if (createdNote) {
+          realNoteIdRef.current = createdNote.id; // Store the real UUID
           setIsTemporary(false);
           toast.success('Note created');
           
-          // Now save the content
-          debouncedSave(note.id, newContent);
+          // Now save the content using the created note's ID
+          debouncedSave(createdNote.id, newContent);
         }
       } catch {
         toast.error('Failed to create note');
       }
-    } else if (!isTemporary) {
-      // Update existing note content with debounce
-      debouncedSave(note.id, newContent);
+    } else if (!isTemporary && realNoteIdRef.current) {
+      // For existing notes, use the real UUID
+      debouncedSave(realNoteIdRef.current, newContent);
     }
-  }, [isTemporary, hasEverHadContent, noteTitle, createNote, note.id, debouncedSave]);
+  }, [isTemporary, hasEverHadContent, noteTitle, createNote, debouncedSave]);
 
   const handleTitleChange = async (newTitle: string) => {
     setNoteTitle(newTitle);
     
     // Only update in database if note is not temporary
-    if (!isTemporary) {
+    if (!isTemporary && realNoteIdRef.current) {
       try {
-        await updateNote(note.id, { title: newTitle });
+        await updateNote(realNoteIdRef.current, { title: newTitle });
         toast.success('Note renamed');
       } catch {
         toast.error('Failed to rename note');
@@ -216,9 +230,9 @@ function NoteComponent({
     }
 
     // If note exists but has no content, delete it
-    if (!isTemporary && content.trim().length === 0) {
+    if (!isTemporary && content.trim().length === 0 && realNoteIdRef.current) {
       try {
-        await deleteNote(note.id);
+        await deleteNote(realNoteIdRef.current);
         toast.success('Empty note deleted');
       } catch {
         toast.error('Failed to delete empty note');
@@ -230,8 +244,8 @@ function NoteComponent({
 
   const handleDelete = async () => {
     try {
-      if (!isTemporary) {
-        await deleteNote(note.id);
+      if (!isTemporary && realNoteIdRef.current) {
+        await deleteNote(realNoteIdRef.current);
         toast.success('Note deleted');
       }
       onClose?.();
