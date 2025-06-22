@@ -215,6 +215,16 @@
     font-family: var(--font-family-mono);
     font-feature-settings: "liga", "calt";
   }
+  
+  /* Smooth scrolling for landing page */
+  html {
+    scroll-behavior: smooth;
+  }
+  
+  /* Prevent layout shift from scrollbar */
+  html {
+    overflow-y: scroll;
+  }
 }
 
 /* Custom utilities that extend Tailwind */
@@ -243,6 +253,16 @@
     background: oklch(var(--border) / 0.5);
   }
   
+  /* Hide scrollbar utility */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+  
   /* Editor-specific styles */
   .editor-container {
     background: oklch(var(--editor-background));
@@ -251,13 +271,6 @@
   /* Chat container */
   .chat-container {
     background: oklch(var(--background));
-  }
-  
-  /* Glass morphism effect */
-  .glass {
-    background: oklch(var(--background) / 0.8);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
   }
   
   /* Spell and grammar check underlines */
@@ -395,4 +408,25 @@
 /* Remove slow transitions globally for snappy feel */
 * {
   transition: none !important;
+}
+
+/* Re-enable specific transitions where needed */
+.transition-colors {
+  transition: color 150ms ease-out, background-color 150ms ease-out !important;
+}
+
+.transition-opacity {
+  transition: opacity 150ms ease-out !important;
+}
+
+.transition-transform {
+  transition: transform 200ms ease-out !important;
+}
+
+.transition-all {
+  transition: all 200ms ease-out !important;
+}
+
+.transition-shadow {
+  transition: box-shadow 200ms ease-out !important;
 }

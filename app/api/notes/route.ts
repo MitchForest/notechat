@@ -2,12 +2,13 @@ import { NextResponse } from 'next/server'
 import { getCurrentUser } from '@/lib/auth/session'
 import { db } from '@/lib/db'
 import { notes } from '@/lib/db/schema'
-import { and, eq, desc, gte, SQL, isNull } from 'drizzle-orm'
+import { and, eq, desc, gte, SQL, isNull, ilike, or } from 'drizzle-orm'
 import { z } from 'zod'
 
 const getNotesSchema = z.object({
   collectionId: z.string().uuid().optional(),
   filter: z.enum(['all', 'all_starred', 'all_recent', 'uncategorized']).optional(),
+  search: z.string().optional(),
 })
 
 export async function GET(request: Request) {
@@ -24,10 +25,21 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: validation.error.errors }, { status: 400 })
   }
   
-  const { collectionId, filter } = validation.data
+  const { collectionId, filter, search } = validation.data
 
   try {
     const conditions: SQL[] = [eq(notes.userId, user.id)];
+
+    // Apply search filter
+    if (search) {
+      conditions.push(
+        or(
+          ilike(notes.title, `%${search}%`),
+          // Note: searching in JSONB content requires special handling
+          // For now, we'll just search in titles
+        )!
+      );
+    }
 
     // Apply filters
     if (filter) {
@@ -57,8 +69,16 @@ export async function GET(request: Request) {
       
     return NextResponse.json(results)
   } catch (error) {
-    console.error('Failed to fetch notes:', error)
-    return NextResponse.json({ error: 'Failed to fetch notes' }, { status: 500 })
+    console.error('Failed to fetch notes - Details:', {
+      error,
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+      params: { collectionId, filter, search }
+    })
+    return NextResponse.json({ 
+      error: 'Failed to fetch notes',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    }, { status: 500 })
   }
 }
 
@@ -69,15 +89,29 @@ export async function POST(request: Request) {
   }
 
   try {
-    const { title, collectionId } = await request.json()
+    const { title, collectionId, id } = await request.json()
+
+    const values: {
+      userId: string
+      collectionId: string | null
+      title: string
+      isStarred: boolean
+      id?: string
+    } = {
+      userId: user.id,
+      collectionId: collectionId || null,
+      title: title || 'Untitled Note',
+      isStarred: false, // Ensure default value
+    }
+    
+    // Allow specifying an ID for temporary notes
+    if (id) {
+      values.id = id
+    }
 
     const [newNote] = await db
       .insert(notes)
-      .values({
-        userId: user.id,
-        collectionId: collectionId || null, // Can be null for uncategorized
-        title: title || 'Untitled Note',
-      })
+      .values(values)
       .returning()
 
     return NextResponse.json(newNote, { status: 201 })

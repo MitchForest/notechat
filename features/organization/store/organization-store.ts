@@ -97,12 +97,12 @@ const useOrganizationStore = create<OrganizationStore>((set, get) => ({
       if (!response.ok) throw new Error('Failed to fetch spaces')
       const spaces: Space[] = await response.json()
 
-      // The first space will be active by default (should be permanent-notes)
-      const activeSpaceId = spaces[0]?.id || null
+      // Set permanent-notes as the default active space
+      const activeSpaceId = 'permanent-notes'
       let collections: Collection[] = []
-      if (activeSpaceId) {
-        // Collections are eager-loaded with spaces
-        collections = spaces.find((s: Space) => s.id === activeSpaceId)?.collections || []
+      const notesSpace = spaces.find((s: Space) => s.id === 'permanent-notes')
+      if (notesSpace) {
+        collections = notesSpace.collections || []
       }
       
       set({ spaces, collections, activeSpaceId, loading: false })
@@ -173,12 +173,36 @@ const useOrganizationStore = create<OrganizationStore>((set, get) => ({
     } else {
       // Regular collection - could contain either notes or chats
       // For now, assume notes in user spaces
-      url = `/api/notes?collectionId=${collectionId}`
+      const collection = get().collections.find(c => c.id === collectionId)
+      if (collection) {
+        if (collection.name === 'All') {
+          // For "All" collections in user spaces, fetch all notes
+          url = '/api/notes?filter=all'
+        } else if (collection.name === 'Recent') {
+          // For "Recent" collections in user spaces, fetch recent notes
+          url = '/api/notes?filter=all_recent'
+        } else if (collection.name === 'Saved') {
+          // For "Saved" collections in user spaces, fetch starred notes
+          url = '/api/notes?filter=all_starred'
+        } else if (collection.name === 'Uncategorized') {
+          // For "Uncategorized" collections in user spaces
+          url = '/api/notes?filter=uncategorized'
+        } else {
+          // Regular user collection
+          url = `/api/notes?collectionId=${collectionId}`
+        }
+      } else {
+        // If collection not found, default to fetching all notes
+        url = '/api/notes?filter=all'
+      }
     }
 
     try {
       const response = await fetch(url)
-      if (!response.ok) throw new Error(`Failed to fetch ${isChatsSpace ? 'chats' : 'notes'}`)
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.details || `Failed to fetch ${isChatsSpace ? 'chats' : 'notes'}`)
+      }
       const data = await response.json()
       
       if (isChatsSpace) {
@@ -187,7 +211,13 @@ const useOrganizationStore = create<OrganizationStore>((set, get) => ({
         set({ notes: data, chats: [], loading: false })
       }
     } catch (error) {
-      set({ error: (error as Error).message, loading: false })
+      console.error('Failed to fetch items:', error)
+      set({ 
+        error: (error as Error).message, 
+        loading: false,
+        // Don't clear existing data on error
+      })
+      toast.error(`Failed to load ${isChatsSpace ? 'chats' : 'notes'}`)
     }
   },
 

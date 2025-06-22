@@ -9,7 +9,7 @@
  * Created: 2024-01-01
  */
 
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { NodeViewWrapper, NodeViewContent } from '@tiptap/react'
 import { Node } from '@tiptap/pm/model'
 import { Editor } from '@tiptap/core'
@@ -42,8 +42,10 @@ export const BlockWrapper = React.memo(({
   className = ''
 }: BlockWrapperProps) => {
   const [isHovering, setIsHovering] = useState(false)
+  const [isHoveringHandle, setIsHoveringHandle] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
   const blockId = node.attrs.id || generateBlockId()
+  const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   // Ensure block has ID - defer to avoid flushSync error
   useEffect(() => {
@@ -60,23 +62,66 @@ export const BlockWrapper = React.memo(({
   // Debug hover state changes
   useEffect(() => {
     if (DEBUG_HOVER) {
-      console.log(`[BlockWrapper ${blockId}] Hover state:`, isHovering)
+      console.log(`[BlockWrapper ${blockId}] Hover state:`, isHovering, 'Handle hover:', isHoveringHandle)
     }
-  }, [isHovering, blockId])
+  }, [isHovering, isHoveringHandle, blockId])
 
-  // Hover handlers with debugging
-  const handleMouseEnter = useCallback(() => {
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (hoverTimeoutRef.current) {
+        clearTimeout(hoverTimeoutRef.current)
+      }
+    }
+  }, [])
+
+  // Hover handlers for the entire block wrapper
+  const handleWrapperMouseEnter = useCallback(() => {
     if (DEBUG_HOVER) {
-      console.log(`[BlockWrapper ${blockId}] Mouse enter`)
+      console.log(`[BlockWrapper ${blockId}] Wrapper mouse enter`)
+    }
+    // Clear any pending hide timeout
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current)
     }
     setIsHovering(true)
   }, [blockId])
 
-  const handleMouseLeave = useCallback(() => {
+  const handleWrapperMouseLeave = useCallback((e: React.MouseEvent) => {
     if (DEBUG_HOVER) {
-      console.log(`[BlockWrapper ${blockId}] Mouse leave`)
+      console.log(`[BlockWrapper ${blockId}] Wrapper mouse leave`)
     }
-    setIsHovering(false)
+    // Only hide if we're not moving to the handle
+    // Use a small timeout to allow for moving between wrapper and handle
+    hoverTimeoutRef.current = setTimeout(() => {
+      if (!isHoveringHandle) {
+        setIsHovering(false)
+      }
+    }, 100)
+  }, [blockId, isHoveringHandle])
+
+  // Handle hover handlers
+  const handleHandleMouseEnter = useCallback(() => {
+    if (DEBUG_HOVER) {
+      console.log(`[BlockWrapper ${blockId}] Handle mouse enter`)
+    }
+    setIsHoveringHandle(true)
+    setIsHovering(true) // Ensure wrapper stays in hover state
+    // Clear any pending hide timeout
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current)
+    }
+  }, [blockId])
+
+  const handleHandleMouseLeave = useCallback(() => {
+    if (DEBUG_HOVER) {
+      console.log(`[BlockWrapper ${blockId}] Handle mouse leave`)
+    }
+    setIsHoveringHandle(false)
+    // Small delay before hiding in case mouse is moving back to wrapper
+    hoverTimeoutRef.current = setTimeout(() => {
+      setIsHovering(false)
+    }, 100)
   }, [blockId])
 
   // Drag handlers with focus management
@@ -112,34 +157,38 @@ export const BlockWrapper = React.memo(({
     editor.view.dom.classList.remove('is-dragging')
   }, [editor])
 
+  // Show handle when hovering over wrapper OR handle
+  const showHandle = (isHovering || isHoveringHandle) && !isDragging
+
   return (
     <NodeViewWrapper 
       className={cn(
         'block-wrapper',
         className,
         selected && 'is-selected',
-        isDragging && 'is-dragging'
+        isDragging && 'is-dragging',
+        isHovering && 'is-hovering'
       )}
       data-block-id={blockId}
       data-block-type={node.type.name}
+      onMouseEnter={handleWrapperMouseEnter}
+      onMouseLeave={handleWrapperMouseLeave}
     >
-      {/* Invisible hover target extending into margins */}
-      <div 
-        className="hover-target"
-        onMouseEnter={handleMouseEnter}
-        onMouseLeave={handleMouseLeave}
-      />
-      
       {/* Block handle - only visible on hover */}
-      <BlockHandle
-        visible={isHovering && !isDragging}
-        editor={editor}
-        node={node}
-        pos={getPos()}
-        onDelete={deleteNode}
-        onDragStart={handleDragStart}
-        onDragEnd={handleDragEnd}
-      />
+      <div
+        onMouseEnter={handleHandleMouseEnter}
+        onMouseLeave={handleHandleMouseLeave}
+      >
+        <BlockHandle
+          visible={showHandle}
+          editor={editor}
+          node={node}
+          pos={getPos()}
+          onDelete={deleteNode}
+          onDragStart={handleDragStart}
+          onDragEnd={handleDragEnd}
+        />
+      </div>
       
       {/* Block content */}
       <div className="block-content">

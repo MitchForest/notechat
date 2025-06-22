@@ -13,12 +13,13 @@ import { NextResponse } from 'next/server'
 import { getCurrentUser } from '@/lib/auth/session'
 import { db } from '@/lib/db'
 import { chats } from '@/lib/db/schema'
-import { and, eq, desc, gte, SQL, isNull } from 'drizzle-orm'
+import { and, eq, desc, gte, SQL, isNull, ilike, or } from 'drizzle-orm'
 import { z } from 'zod'
 
 const getChatsSchema = z.object({
   collectionId: z.string().uuid().optional(),
   filter: z.enum(['all', 'all_starred', 'all_recent', 'uncategorized']).optional(),
+  search: z.string().optional(),
 })
 
 export async function GET(request: Request) {
@@ -35,37 +36,47 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: validation.error.errors }, { status: 400 })
   }
   
-  const { collectionId, filter } = validation.data
+  const { collectionId, filter, search } = validation.data
 
   try {
-    const conditions: SQL[] = [eq(chats.userId, user.id)]
+    const conditions: SQL[] = [eq(chats.userId, user.id)];
+
+    // Apply search filter
+    if (search) {
+      conditions.push(
+        or(
+          ilike(chats.title, `%${search}%`),
+          // Note: searching in JSONB content requires special handling
+          // For now, we'll just search in titles
+        )!
+      );
+    }
 
     // Apply filters
     if (filter) {
       switch (filter) {
         case 'all_starred':
-          conditions.push(eq(chats.isStarred, true))
-          break
+          conditions.push(eq(chats.isStarred, true));
+          break;
         case 'all_recent':
-          const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
-          conditions.push(gte(chats.updatedAt, sevenDaysAgo))
-          break
+          const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+          conditions.push(gte(chats.updatedAt, sevenDaysAgo));
+          break;
         case 'uncategorized':
-          conditions.push(isNull(chats.collectionId))
-          break
+          conditions.push(isNull(chats.collectionId));
+          break;
         // 'all' requires no additional conditions
       }
     } else if (collectionId) {
       // Filter by specific collection
-      conditions.push(eq(chats.collectionId, collectionId))
+      conditions.push(eq(chats.collectionId, collectionId));
     }
     
     const results = await db
       .select()
       .from(chats)
       .where(and(...conditions))
-      .orderBy(desc(chats.updatedAt))
-      .limit(100) // Reasonable limit to prevent huge responses
+      .orderBy(desc(chats.updatedAt));
       
     return NextResponse.json(results)
   } catch (error) {
@@ -81,17 +92,27 @@ export async function POST(request: Request) {
   }
 
   try {
-    const body = await request.json()
-    const { title, collectionId } = body
+    const { title, collectionId, id } = await request.json()
+
+    const values: {
+      userId: string
+      collectionId: string | null
+      title: string
+      id?: string
+    } = {
+      userId: user.id,
+      collectionId: collectionId || null,
+      title: title || 'Untitled Chat',
+    }
+    
+    // Allow specifying an ID for temporary chats
+    if (id) {
+      values.id = id
+    }
 
     const [newChat] = await db
       .insert(chats)
-      .values({
-        userId: user.id,
-        collectionId: collectionId || null, // Can be null for uncategorized
-        title: title || 'Untitled Chat',
-        content: null, // Initialize with empty content
-      })
+      .values(values)
       .returning()
 
     return NextResponse.json(newChat, { status: 201 })

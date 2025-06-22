@@ -167,9 +167,7 @@ const CollectionItem = React.memo(({
         onClick={(event) => {
           event.stopPropagation();
           onSelect(collection.id, space.id);
-          if (itemCount > 0) {
-            onToggle(collection.id);
-          }
+          onToggle(collection.id);
         }}
       >
         <div className="flex items-center gap-2">
@@ -187,52 +185,58 @@ const CollectionItem = React.memo(({
       </button>
       
       {/* Items under collection */}
-      {isExpanded && itemCount > 0 && (
+      {isExpanded && (
         <div className="mt-0.5 ml-5 space-y-0.5">
-          <SortableContext
-            items={filteredItems.map(item => item.id)}
-            strategy={verticalListSortingStrategy}
-          >
-            {filteredItems.map((item) => {
-              const itemType = space.id === 'permanent-chats' ? 'chat' : 'note'
-              const dragData = dragDropHook.createDragData({
-                id: item.id,
-                type: itemType,
-                title: item.title,
-                collectionId: item.collectionId,
-                isStarred: item.isStarred ?? false,
-              });
-              
-              return (
-                <DraggableItem
-                  key={item.id}
-                  id={item.id}
-                  data={dragData}
-                >
-                  <ItemContextMenu
-                    item={item}
-                    itemType={itemType}
-                    onAction={onItemAction}
+          {itemCount === 0 ? (
+            <div className="text-xs text-muted-foreground px-2 py-1">
+              No items in this collection
+            </div>
+          ) : (
+            <SortableContext
+              items={filteredItems.map(item => item.id)}
+              strategy={verticalListSortingStrategy}
+            >
+              {filteredItems.map((item) => {
+                const itemType = space.id === 'permanent-chats' ? 'chat' : 'note'
+                const dragData = dragDropHook.createDragData({
+                  id: item.id,
+                  type: itemType,
+                  title: item.title,
+                  collectionId: item.collectionId,
+                  isStarred: item.isStarred ?? false,
+                });
+                
+                return (
+                  <DraggableItem
+                    key={item.id}
+                    id={item.id}
+                    data={dragData}
                   >
-                    <button
-                      className={cn(
-                        "w-full flex items-center gap-2 rounded-md px-2 py-1 text-sm text-left",
-                        "hover:bg-hover-1",
-                        "text-muted-foreground hover:text-foreground"
-                      )}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        onItemClick(item, itemType);
-                      }}
+                    <ItemContextMenu
+                      item={item}
+                      itemType={itemType}
+                      onAction={onItemAction}
                     >
-                      {item.isStarred && <Star className="h-3 w-3 fill-current" />}
-                      <span className="truncate">{item.title}</span>
-                    </button>
-                  </ItemContextMenu>
-                </DraggableItem>
-              )
-            })}
-          </SortableContext>
+                      <button
+                        className={cn(
+                          "w-full flex items-center gap-2 rounded-md px-2 py-1 text-sm text-left",
+                          "hover:bg-hover-1",
+                          "text-muted-foreground hover:text-foreground"
+                        )}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onItemClick(item, itemType);
+                        }}
+                      >
+                        {item.isStarred && <Star className="h-3 w-3 fill-current" />}
+                        <span className="truncate">{item.title}</span>
+                      </button>
+                    </ItemContextMenu>
+                  </DraggableItem>
+                )
+              })}
+            </SortableContext>
+          )}
         </div>
       )}
     </DroppableCollection>
@@ -367,7 +371,15 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
 
     switch (collection.name) {
       case 'All':
-        return items
+        // For permanent spaces, show all items
+        // For user spaces, show all items that belong to any collection in this space
+        if (spaceId === 'permanent-notes' || spaceId === 'permanent-chats') {
+          return items
+        } else {
+          // For user spaces, show all notes (since user spaces contain notes)
+          // In the future, this might need to filter by space assignment
+          return items
+        }
       case 'Recent':
         return items.filter(item => new Date(item.updatedAt) > sevenDaysAgo)
       case 'Saved':
@@ -759,7 +771,7 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
       onDragEnd={dragDropHook.onDragEnd}
       onDragCancel={dragDropHook.onDragCancel}
     >
-      <div className={cn("h-full bg-card border-r flex flex-col overflow-hidden relative", className)}>
+      <div className={cn("h-full bg-card border-r flex flex-col overflow-hidden", className)}>
         {/* Header - Fixed */}
         <div className="p-4 border-b flex-shrink-0">
           <div className="flex items-center justify-between">
@@ -820,79 +832,33 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
           </div>
         </div>
 
-        {/* Search Results Overlay */}
-        {searchQuery && (
-          <SearchResults
-            searchQuery={searchQuery}
-            isSearching={isSearching}
-            results={searchResults}
-            onItemClick={(item, type) => {
-              handleItemClick(item, type)
-              setSearchQuery('')
-            }}
-            onClear={() => setSearchQuery('')}
-          />
-        )}
+        {/* Main content area - this needs to be relative for search overlay */}
+        <div className="flex-1 relative overflow-hidden">
+          {/* Search Results Overlay - absolute within the content area */}
+          {searchQuery && (
+            <SearchResults
+              searchQuery={searchQuery}
+              isSearching={isSearching}
+              results={searchResults}
+              onItemClick={(item, type) => {
+                handleItemClick(item, type)
+                setSearchQuery('')
+              }}
+              onClear={() => setSearchQuery('')}
+            />
+          )}
 
-        {/* Main navigation - Scrollable */}
-        <ScrollArea className="flex-1 scrollbar-minimal">
-          <div className="px-2 pb-2">
-            {/* Permanent Spaces */}
-            {permanentSpaces.map((space) => {
-              const spaceItems = getItemsForSpace(space.id)
-              const isSpaceExpanded = spaceExpansion[space.id]
-              
-              return (
-                <SpaceSection
-                  key={space.id}
-                  space={space}
-                  isExpanded={isSpaceExpanded}
-                  onToggle={() => toggleSpace(space.id)}
-                >
-                  {space.collections && (
-                    <div className="mt-1 ml-6 space-y-0.5">
-                      {space.collections.map((collection) => {
-                        const isExpanded = collectionExpansion[collection.id]
-                        const isActive = activeCollectionId === collection.id
-                        
-                        return (
-                          <CollectionItem
-                            key={collection.id}
-                            collection={collection}
-                            space={space}
-                            items={spaceItems}
-                            isExpanded={isExpanded}
-                            isActive={isActive}
-                            onToggle={toggleCollection}
-                            onSelect={handleCollectionClick}
-                            onItemClick={handleItemClick}
-                            onItemAction={handleItemAction}
-                            getFilteredItems={getFilteredItems}
-                            getCollectionIcon={getCollectionIcon}
-                            dragDropHook={dragDropHook}
-                          />
-                        )
-                      })}
-                    </div>
-                  )}
-                </SpaceSection>
-              )
-            })}
-
-            {userSpaces.length > 0 && <Separator className="my-3" />}
-
-            {/* User Spaces */}
-            {userSpaces.map((space) => {
-              const spaceItems = getItemsForSpace(space.id)
-              const isSpaceExpanded = spaceExpansion[space.id]
-              
-              return (
-                <SpaceContextMenu
-                  key={space.id}
-                  space={space}
-                  onAction={handleSpaceAction}
-                >
+          {/* Main navigation - Scrollable */}
+          <ScrollArea className="h-full">
+            <div className="px-2 pb-2">
+              {/* Permanent Spaces */}
+              {permanentSpaces.map((space) => {
+                const spaceItems = getItemsForSpace(space.id)
+                const isSpaceExpanded = spaceExpansion[space.id]
+                
+                return (
                   <SpaceSection
+                    key={space.id}
                     space={space}
                     isExpanded={isSpaceExpanded}
                     onToggle={() => toggleSpace(space.id)}
@@ -904,57 +870,106 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
                           const isActive = activeCollectionId === collection.id
                           
                           return (
-                            <CollectionContextMenu
+                            <CollectionItem
                               key={collection.id}
                               collection={collection}
-                              onAction={handleCollectionAction}
-                            >
-                              <CollectionItem
-                                collection={collection}
-                                space={space}
-                                items={spaceItems}
-                                isExpanded={isExpanded}
-                                isActive={isActive}
-                                onToggle={toggleCollection}
-                                onSelect={handleCollectionClick}
-                                onItemClick={handleItemClick}
-                                onItemAction={handleItemAction}
-                                getFilteredItems={getFilteredItems}
-                                getCollectionIcon={getCollectionIcon}
-                                dragDropHook={dragDropHook}
-                              />
-                            </CollectionContextMenu>
+                              space={space}
+                              items={spaceItems}
+                              isExpanded={isExpanded}
+                              isActive={isActive}
+                              onToggle={toggleCollection}
+                              onSelect={handleCollectionClick}
+                              onItemClick={handleItemClick}
+                              onItemAction={handleItemAction}
+                              getFilteredItems={getFilteredItems}
+                              getCollectionIcon={getCollectionIcon}
+                              dragDropHook={dragDropHook}
+                            />
                           )
                         })}
-                        
-                        {/* Add new collection button */}
-                        <button
-                          className="w-full flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground hover:bg-hover-1 hover:text-foreground"
-                          onClick={(event) => {
-                            event.stopPropagation()
-                            handleNewCollection(space.id)
-                          }}
-                        >
-                          <Plus className="h-3 w-3" />
-                          <span>New Collection</span>
-                        </button>
                       </div>
                     )}
                   </SpaceSection>
-                </SpaceContextMenu>
-              )
-            })}
+                )
+              })}
 
-            {/* New Space Button */}
-            <button
-              onClick={handleNewSpace}
-              className="w-full flex items-center gap-2 rounded-md px-2 py-1.5 text-sm font-medium text-muted-foreground hover:bg-hover-2 hover:text-foreground mt-2"
-            >
-              <Plus className="h-4 w-4" />
-              <span>New Space</span>
-            </button>
-          </div>
-        </ScrollArea>
+              {userSpaces.length > 0 && <Separator className="my-3" />}
+
+              {/* User Spaces */}
+              {userSpaces.map((space) => {
+                const spaceItems = getItemsForSpace(space.id)
+                const isSpaceExpanded = spaceExpansion[space.id]
+                
+                return (
+                  <SpaceContextMenu
+                    key={space.id}
+                    space={space}
+                    onAction={handleSpaceAction}
+                  >
+                    <SpaceSection
+                      space={space}
+                      isExpanded={isSpaceExpanded}
+                      onToggle={() => toggleSpace(space.id)}
+                    >
+                      {space.collections && (
+                        <div className="mt-1 ml-6 space-y-0.5">
+                          {space.collections.map((collection) => {
+                            const isExpanded = collectionExpansion[collection.id]
+                            const isActive = activeCollectionId === collection.id
+                            
+                            return (
+                              <CollectionContextMenu
+                                key={collection.id}
+                                collection={collection}
+                                onAction={handleCollectionAction}
+                              >
+                                <CollectionItem
+                                  collection={collection}
+                                  space={space}
+                                  items={spaceItems}
+                                  isExpanded={isExpanded}
+                                  isActive={isActive}
+                                  onToggle={toggleCollection}
+                                  onSelect={handleCollectionClick}
+                                  onItemClick={handleItemClick}
+                                  onItemAction={handleItemAction}
+                                  getFilteredItems={getFilteredItems}
+                                  getCollectionIcon={getCollectionIcon}
+                                  dragDropHook={dragDropHook}
+                                />
+                              </CollectionContextMenu>
+                            )
+                          })}
+                          
+                          {/* Add new collection button */}
+                          <button
+                            className="w-full flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground hover:bg-hover-1 hover:text-foreground"
+                            onClick={(event) => {
+                              event.stopPropagation()
+                              handleNewCollection(space.id)
+                            }}
+                          >
+                            <Plus className="h-3 w-3" />
+                            <span>New Collection</span>
+                          </button>
+                        </div>
+                      )}
+                    </SpaceSection>
+                  </SpaceContextMenu>
+                )
+              })}
+
+              {/* New Space Button */}
+              <button
+                onClick={handleNewSpace}
+                className="w-full flex items-center gap-2 rounded-md px-2 py-1.5 text-sm font-medium text-muted-foreground hover:bg-hover-2 hover:text-foreground mt-2"
+              >
+                <Plus className="h-4 w-4" />
+                <span>New Space</span>
+              </button>
+            </div>
+          </ScrollArea>
+        </div>
 
         {/* User Menu - Fixed */}
         <div className="p-3 border-t flex-shrink-0">

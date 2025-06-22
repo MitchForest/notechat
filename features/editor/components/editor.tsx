@@ -8,6 +8,7 @@ import { EditorErrorBoundary } from "./editor-error-boundary";
 import "../styles/editor.css";
 import { useStableEditor } from "../hooks/use-stable-editor";
 import { GhostTextHandler } from "@/features/ai/components/ghost-text-handler";
+import "../utils/test-hover-debug";
 
 // Import test utilities in development
 if (process.env.NODE_ENV === 'development') {
