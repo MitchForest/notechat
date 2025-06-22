@@ -131,12 +131,12 @@ export function AIInlineInterface({ editor, node, getPos }: NodeViewProps) {
               <Button variant="ghost" size="sm" onClick={() => triggerCompletion(input)}>
                 <RefreshCw className="h-4 w-4 mr-1.5" /> Try Again
               </Button>
-              <Button size="sm" onClick={handleAccept}>
+              <Button variant="primary" size="sm" onClick={handleAccept}>
                 <Check className="h-4 w-4 mr-1.5" /> Accept
               </Button>
             </>
           ) : (
-            <Button size="sm" type="submit" onClick={handleSubmit} disabled={!input.trim()}>
+            <Button variant="primary" size="sm" type="submit" onClick={handleSubmit} disabled={!input.trim()}>
               <CornerDownLeft className="h-4 w-4 mr-1.5" />
               Generate
             </Button>

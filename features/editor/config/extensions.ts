@@ -51,48 +51,15 @@ export const getEditorExtensions = (
       history: {},
     }),
     
-    // Block nodes with React node views
-    Paragraph.extend({
-      addNodeView() {
-        return createBlockNodeView('paragraph')
-      }
-    }),
+    // Temporarily use native Tiptap implementations to fix editing
+    Paragraph,
+    Heading,
+    BulletList,
+    OrderedList,
+    ListItem,
+    Blockquote,
     
-    Heading.extend({
-      addNodeView() {
-        return createBlockNodeView('heading')
-      }
-    }),
-    
-    BulletList.extend({
-      addNodeView() {
-        return createBlockNodeView('bulletList')
-      }
-    }),
-    
-    OrderedList.extend({
-      addNodeView() {
-        return createBlockNodeView('orderedList')
-      }
-    }),
-    
-    ListItem.extend({
-      addNodeView() {
-        return createBlockNodeView('listItem')
-      }
-    }),
-    
-    Blockquote.extend({
-      addNodeView() {
-        return createBlockNodeView('blockquote')
-      }
-    }),
-    
-    CodeBlockLowlight.extend({
-      addNodeView() {
-        return createBlockNodeView('codeBlock')
-      }
-    }).configure({
+    CodeBlockLowlight.configure({
       lowlight,
       languageClassPrefix: 'language-',
       defaultLanguage: 'plaintext',
@@ -107,11 +74,7 @@ export const getEditorExtensions = (
     Color,
     Underline,
     TaskList,
-    TaskItem.extend({
-      addNodeView() {
-        return createBlockNodeView('taskItem')
-      }
-    }),
+    TaskItem,
     
     // Enhanced placeholder with support for all block types
     Placeholder.configure({

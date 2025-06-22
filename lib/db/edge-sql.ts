@@ -33,7 +33,7 @@ export async function getChatsSQL(userId: string) {
 }
 
 // Example: Save message with raw SQL
-export async function saveMessageSQL(chatId: string, message: any) {
+export async function saveMessageSQL(chatId: string, message: { role: string; content: string }) {
   const [result] = await sql`
     INSERT INTO messages (chat_id, role, content)
     VALUES (${chatId}, ${message.role}, ${message.content})

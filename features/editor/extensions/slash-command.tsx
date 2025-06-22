@@ -136,8 +136,8 @@ export const SlashCommand = Extension.create({
         ...this.options.suggestion,
         items: getSuggestionItems,
         render: () => {
-          let component: ReactRenderer<CommandListRef>
-          let popup: Instance<Props>[]
+          let component: ReactRenderer<CommandListRef> | null = null
+          let popup: Instance<Props>[] | null = null
           const defaultRect = new DOMRect()
 
           return {
@@ -162,27 +162,31 @@ export const SlashCommand = Extension.create({
               })
             },
             onUpdate: (props) => {
-              component.updateProps(props)
+              component?.updateProps(props)
 
               if (!props.clientRect) {
                 return
               }
 
-              popup[0].setProps({
+              popup?.[0]?.setProps({
                 getReferenceClientRect: () => props.clientRect?.() ?? defaultRect,
               })
             },
             onKeyDown: (props) => {
               if (props.event.key === 'Escape') {
-                popup[0].hide()
+                popup?.[0]?.hide()
                 return true
               }
 
-              return component.ref?.onKeyDown(props) ?? false
+              return component?.ref?.onKeyDown(props) ?? false
             },
             onExit: () => {
-              popup[0].destroy()
-              component.destroy()
+              if (popup && popup[0]) {
+                popup[0].destroy()
+              }
+              if (component) {
+                component.destroy()
+              }
             },
           }
         },

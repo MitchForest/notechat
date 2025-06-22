@@ -2,9 +2,9 @@ import { streamText } from 'ai'
 import { openai } from '@ai-sdk/openai'
 import { NextRequest } from 'next/server'
 import { getCurrentUser } from '@/lib/auth/session'
-import { sql } from '@/lib/db/edge-sql' // Use edge-compatible SQL client
-
-export const runtime = 'edge' // Enable Edge Runtime!
+import { db } from '@/lib/db'
+import { chats } from '@/lib/db/schema'
+import { eq } from 'drizzle-orm'
 
 export async function POST(req: NextRequest) {
   try {
@@ -18,12 +18,11 @@ export async function POST(req: NextRequest) {
     // Validate chat exists and belongs to user
     const chatId = req.headers.get('x-chat-id')
     if (chatId) {
-      const chats = await sql`
-        SELECT * FROM chats 
-        WHERE id = ${chatId} 
-        LIMIT 1
-      `
-      const chat = chats[0]
+      const [chat] = await db
+        .select()
+        .from(chats)
+        .where(eq(chats.id, chatId))
+        .limit(1)
 
       if (!chat || chat.userId !== user.id) {
         return new Response('Chat not found', { status: 404 })

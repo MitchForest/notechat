@@ -4,10 +4,10 @@
  */
 
 import { createClient } from '@supabase/supabase-js'
-import type { Database } from './database.types' // You'll need to generate this
+// import type { Database } from './database.types' // You'll need to generate this
 
 // Create a Supabase client for Edge Runtime
-export const supabase = createClient<Database>(
+export const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!, // Use service role for server-side
   {
@@ -31,7 +31,7 @@ export async function getChats(userId: string) {
 }
 
 // Helper function to save a message
-export async function saveMessage(chatId: string, message: any) {
+export async function saveMessage(chatId: string, message: { role: string; content: string }) {
   const { data, error } = await supabase
     .from('messages')
     .insert({
