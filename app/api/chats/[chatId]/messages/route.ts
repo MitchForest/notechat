@@ -6,6 +6,12 @@ import { getCurrentUser } from '@/lib/auth/session'
 
 const MESSAGES_PER_PAGE = 50
 
+// Simple UUID v4 validation
+function isValidUUID(uuid: string): boolean {
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+  return uuidRegex.test(uuid)
+}
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ chatId: string }> }
@@ -17,6 +23,16 @@ export async function GET(
     }
 
     const { chatId } = await params
+    
+    // If chatId is not a valid UUID (temporary chat), return empty messages
+    if (!isValidUUID(chatId)) {
+      return NextResponse.json({
+        messages: [],
+        hasMore: false,
+        nextCursor: null
+      })
+    }
+    
     const { searchParams } = new URL(request.url)
     const cursor = searchParams.get('cursor') // Message ID to start from
     const limit = parseInt(searchParams.get('limit') || String(MESSAGES_PER_PAGE))
@@ -76,6 +92,19 @@ export async function POST(
     }
 
     const { chatId } = await params
+    
+    // Don't save messages for temporary chats
+    if (!isValidUUID(chatId)) {
+      return NextResponse.json({
+        id: `temp-${Date.now()}`,
+        chatId: chatId,
+        role: 'system',
+        content: 'Message not persisted (temporary chat)',
+        metadata: null,
+        createdAt: new Date()
+      })
+    }
+    
     const body = await request.json()
     const { message } = body
 

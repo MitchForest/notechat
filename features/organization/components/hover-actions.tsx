@@ -161,14 +161,7 @@ export function HoverActions({
               </DropdownMenuItem>
             )}
             
-            {onMove && (
-              <DropdownMenuItem onClick={onMove}>
-                <FolderOpen className="mr-2 h-4 w-4" />
-                Move to Space...
-              </DropdownMenuItem>
-            )}
-            
-            {(onRename || onChangeIcon || onMove) && onDelete && (
+            {(onRename || onChangeIcon) && onDelete && (
               <DropdownMenuSeparator />
             )}
           </>

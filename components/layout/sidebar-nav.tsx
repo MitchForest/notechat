@@ -191,6 +191,9 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
 
   // Helper function to filter items based on collection type
   const getFilteredItems = useCallback((collection: Collection) => {
+    console.log('getFilteredItems called for collection:', collection)
+    console.log('All notes:', notes.length, 'All chats:', chats.length)
+    
     const now = new Date()
     const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
 
@@ -230,6 +233,7 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
       default:
         // Regular user collection - filter by collection ID
         filteredItems = allItems.filter(item => item.collectionId === collection.id)
+        console.log(`Filtering for collection ${collection.id}:`, filteredItems.length, 'items')
         break
     }
     
@@ -395,6 +399,10 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
         if (confirm(`Delete collection "${collection.name}"? All items will be moved to the space root.`)) {
           useCollectionStore.getState().deleteCollection(collectionId)
         }
+        break
+      case 'changeIcon':
+        // TODO: Implement change icon dialog
+        console.log('Change collection icon:', collectionId)
         break
       case 'moveToSpace':
         // TODO: Implement move to space dialog

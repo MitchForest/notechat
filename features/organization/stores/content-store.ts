@@ -74,6 +74,7 @@ export const useContentStore = create<ContentStore>((set, get) => ({
   
   // Fetch content based on smart collection filters
   fetchSmartCollectionContent: async (smartCollection) => {
+    console.log('fetchSmartCollectionContent called with:', smartCollection)
     const filterConfig = smartCollection.filterConfig as FilterConfig
     
     // Build query parameters from filter config
@@ -129,13 +130,25 @@ export const useContentStore = create<ContentStore>((set, get) => ({
       
       if (!filterConfig.type || filterConfig.type === 'all' || filterConfig.type === 'note') {
         const notesResponse = await fetch(`/api/notes?${params}`)
-        if (!notesResponse.ok) throw new Error('Failed to fetch notes')
+        console.log('Notes API request:', `/api/notes?${params}`)
+        console.log('Notes API response status:', notesResponse.status)
+        if (!notesResponse.ok) {
+          const errorText = await notesResponse.text()
+          console.error('Notes API error:', errorText)
+          throw new Error(`Failed to fetch notes: ${notesResponse.status} - ${errorText}`)
+        }
         notesData = await notesResponse.json()
       }
       
       if (!filterConfig.type || filterConfig.type === 'all' || filterConfig.type === 'chat') {
         const chatsResponse = await fetch(`/api/chats?${params}`)
-        if (!chatsResponse.ok) throw new Error('Failed to fetch chats')
+        console.log('Chats API request:', `/api/chats?${params}`)
+        console.log('Chats API response status:', chatsResponse.status)
+        if (!chatsResponse.ok) {
+          const errorText = await chatsResponse.text()
+          console.error('Chats API error:', errorText)
+          throw new Error(`Failed to fetch chats: ${chatsResponse.status} - ${errorText}`)
+        }
         chatsData = await chatsResponse.json()
         
         // Filter out soft-deleted chats
@@ -490,4 +503,4 @@ export const useContentStore = create<ContentStore>((set, get) => ({
   // Cache management
   invalidateCache: () => set({ isCacheValid: false, lastFetchedCollection: null }),
   setCacheValid: (collectionId) => set({ isCacheValid: true, lastFetchedCollection: collectionId }),
-})) 
+}))

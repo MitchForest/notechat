@@ -93,11 +93,10 @@ export const SidebarCollectionItem = React.memo(({
             )}
           </div>
           <div className="flex items-center gap-1">
-            {itemCount > 0 && (
-              isExpanded ? 
-                <ChevronDown className="h-3 w-3" /> : 
-                <ChevronRight className="h-3 w-3" />
-            )}
+            {isExpanded ? 
+              <ChevronDown className="h-3 w-3" /> : 
+              <ChevronRight className="h-3 w-3" />
+            }
           </div>
         </button>
         
@@ -107,7 +106,7 @@ export const SidebarCollectionItem = React.memo(({
             variant="collection"
             onRename={() => onCollectionAction('rename', collection.id)}
             onDelete={() => onCollectionAction('delete', collection.id)}
-            onMove={() => onCollectionAction('moveToSpace', collection.id)}
+            onChangeIcon={() => onCollectionAction('changeIcon', collection.id)}
             className="absolute right-7"
           />
         )}
