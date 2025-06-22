@@ -75,8 +75,8 @@ export function ExtractToNoteDialog({
       const noteId = `note-${Date.now()}`
       const { activeSpaceId } = useSpaceStore.getState()
       
-      // Don't use permanent space IDs - they're virtual
-      const spaceId = activeSpaceId?.startsWith('permanent-') ? null : activeSpaceId
+      // Use the active space ID directly
+      const spaceId = activeSpaceId
       
       const createdNote = await createNote(
         extracted.title,

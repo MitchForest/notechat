@@ -363,3 +363,58 @@ Instead of using the React BubbleMenu component, we:
 - Verify drag handle appears and functions correctly
 - Verify bubble menu appears on text selection
 - Check for any remaining console errors
+
+---
+
+## UPDATE: December 21, 2024 - Drag Handle Hover Zone Fix
+
+### Problem Discovered
+The drag handle was disappearing when hovering over it because:
+- The hover detection zone was limited to the editor content area
+- The handle was positioned in the left padding (outside the detection zone)
+- Moving the mouse from content to handle triggered mouseleave
+
+### Solution Implemented: Two-Part Fix
+
+1. **Made Tippy Interactive**:
+   - Added `interactive: true` to allow mouse movement to the handle
+   - Added `interactiveBorder: 30` for a transition zone
+   - Changed `appendTo: () => document.body` for proper z-index
+
+2. **Extended Hover Zone with CSS**:
+   - Added pseudo-elements to all block elements (p, h1-h6, li, blockquote, pre)
+   - Pseudo-elements extend 60px into the left margin
+   - Pointer events activate only on hover to prevent interference
+
+### Technical Details
+```typescript
+// Tippy configuration
+tippyOptions: {
+  interactive: true,
+  interactiveBorder: 30,
+  appendTo: () => document.body,
+  // ... other options
+}
+```
+
+```css
+/* Hover zone extension */
+.ProseMirror p::before {
+  content: '';
+  position: absolute;
+  left: -60px;
+  width: 60px;
+  pointer-events: none;
+}
+.ProseMirror p:hover::before {
+  pointer-events: all;
+}
+```
+
+### Results
+- ✅ Drag handle stays visible when moving mouse to it
+- ✅ Natural hover detection from any direction
+- ✅ Seamless interaction experience
+- ✅ Build passes successfully
+
+This creates a robust drag-and-drop experience where users can naturally move their mouse to the drag handle without it disappearing.

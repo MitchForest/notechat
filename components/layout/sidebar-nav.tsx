@@ -5,10 +5,10 @@
  */
 "use client"
 
-import React, { useEffect, useState, useMemo, useCallback } from 'react'
+import React, { useEffect, useState, useCallback } from 'react'
 import { Plus } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import type { User as UserType, Note, Chat, Collection, Space, SmartCollection } from '@/lib/db/schema'
+import type { User as UserType, Note, Chat, Collection, SmartCollection } from '@/lib/db/schema'
 import { 
   useSpaceStore, 
   useCollectionStore, 
@@ -404,16 +404,9 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
     }
   }, [notes, chats, handleItemClick, toggleNoteStar, toggleChatStar, deleteNote, deleteChat])
 
-  // Separate permanent and user spaces
-  const permanentSpaces = spaces.filter(s => s.type === 'system')
+  // Separate system and user spaces
+  const systemSpaces = spaces.filter(s => s.type === 'system')
   const userSpaces = spaces.filter(s => s.type === 'user' || s.type === 'seeded')
-
-  // Memoize permanent collections to prevent recreation on every render
-  const permanentInboxCollections = useMemo(() => {
-    const space = spaces.find((s: Space) => s.type === 'system' && s.name === 'Inbox')
-    if (!space) return []
-    return space.collections || []
-  }, [spaces])
 
   if (sidebarCollapsed) {
     // Collapsed sidebar - icon only view
@@ -426,8 +419,8 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
           {/* Spaces Icons - Scrollable */}
           <ScrollArea className="flex-1">
             <div className="p-2 space-y-2">
-              {/* Permanent spaces */}
-              {permanentSpaces.map((space) => (
+              {/* System spaces */}
+              {systemSpaces.map((space) => (
                 <Tooltip key={space.id}>
                   <TooltipTrigger asChild>
                     <Button
@@ -511,13 +504,11 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
           {/* Main navigation - Scrollable */}
           <ScrollArea className="h-full">
             <div className="px-2 pb-2">
-              {/* Permanent Spaces */}
-              {permanentSpaces.map((space) => {
+              {/* System spaces */}
+              {systemSpaces.map((space) => {
                 const spaceItems = getItemsForSpace(space.id)
                 const isSpaceExpanded = spaceExpansion[space.id]
-                const spaceCollections: Collection[] = 
-                  space.id === 'permanent-inbox' ? permanentInboxCollections :
-                  collections.filter(c => c.spaceId === space.id)
+                const spaceCollections: Collection[] = collections.filter(c => c.spaceId === space.id)
                 const spaceSmartCollections = space.smartCollections || []
                 
                 return (
@@ -545,7 +536,10 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
                               }}
                               onContextMenu={(e) => {
                                 e.preventDefault()
-                                // Smart collections in permanent spaces are always protected
+                                if (!smartCollection.isProtected) {
+                                  // TODO: Handle smart collection context menu
+                                  // For now, protected collections cannot be edited
+                                }
                               }}
                             />
                           ))}
@@ -614,7 +608,8 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
                               onContextMenu={(e) => {
                                 e.preventDefault()
                                 if (!smartCollection.isProtected) {
-                                  // Handle smart collection context menu
+                                  // TODO: Handle smart collection context menu
+                                  // For now, protected collections cannot be edited
                                 }
                               }}
                             />

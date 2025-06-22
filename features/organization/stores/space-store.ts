@@ -54,9 +54,11 @@ export const useSpaceStore = create<SpaceStore>((set, get) => ({
       const allCollections = spaces.flatMap(space => space.collections || [])
       useCollectionStore.getState().setCollections(allCollections)
       
-      // Set permanent-inbox as the default active space if none is set
+      // Find the first available space or Inbox as fallback
+      const inboxSpace = spaces.find(s => s.type === 'system' && s.name === 'Inbox')
+      const firstSpace = spaces[0]
       const currentActiveId = get().activeSpaceId
-      const activeSpaceId = currentActiveId || 'permanent-inbox'
+      const activeSpaceId = currentActiveId || inboxSpace?.id || firstSpace?.id || null
       
       set({ spaces, activeSpaceId, loading: false })
     } catch (error) {
@@ -155,12 +157,19 @@ export const useSpaceStore = create<SpaceStore>((set, get) => ({
   // Delete space
   deleteSpace: async (spaceId) => {
     const originalSpaces = get().spaces
+    const remainingSpaces = originalSpaces.filter(s => s.id !== spaceId)
+    
+    // Find inbox space as fallback
+    const inboxSpace = remainingSpaces.find(s => s.type === 'system' && s.name === 'Inbox')
+    const firstSpace = remainingSpaces[0]
     
     // Optimistic update
     set(state => ({
       spaces: state.spaces.filter(s => s.id !== spaceId),
-      // If we're deleting the active space, switch to permanent-inbox
-      activeSpaceId: state.activeSpaceId === spaceId ? 'permanent-inbox' : state.activeSpaceId
+      // If we're deleting the active space, switch to Inbox or first available space
+      activeSpaceId: state.activeSpaceId === spaceId 
+        ? (inboxSpace?.id || firstSpace?.id || null) 
+        : state.activeSpaceId
     }))
     
     try {

@@ -177,8 +177,8 @@ function NoteComponent({
           ? null 
           : activeCollectionId;
         
-        // Don't use permanent space IDs - they're virtual
-        const spaceId = activeSpaceId?.startsWith('permanent-') ? null : activeSpaceId;
+        // Use the active space ID directly
+        const spaceId = activeSpaceId;
         
         const createdNote = await createNote(noteTitle, spaceId, collectionId);
         if (createdNote) {

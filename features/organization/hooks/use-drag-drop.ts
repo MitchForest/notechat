@@ -139,19 +139,8 @@ export function useDragDrop() {
       return
     }
     
-    // Special handling for permanent space "All" collections
-    let targetCollectionId: string | null = dropData.id
-    
-    // If dropping on a permanent "All" collection, find the default collection
-    if (dropData.id === 'notes-all' || dropData.id === 'chats-all') {
-      // For permanent spaces, items go to the first user collection or uncategorized
-      const space = useSpaceStore.getState().spaces.find(s => s.id === dropData.spaceId)
-      const firstUserCollection = space?.collections.find(c => c.type === 'user')
-      targetCollectionId = firstUserCollection?.id || null
-    }
-    
     // Perform the move
-    await moveItem(dragData.id, dragData.type, targetCollectionId)
+    await moveItem(dragData.id, dragData.type, dropData.id)
   }, [moveItem])
   
   // Handle drag cancel

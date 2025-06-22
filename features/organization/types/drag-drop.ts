@@ -61,15 +61,6 @@ export function isDropTarget(data: unknown): data is DropTarget {
 
 // Determine if a collection can accept a specific item type
 export function canAcceptDrop(target: DropTarget, item: DragItem): boolean {
-  // Static collections in permanent spaces cannot accept drops
-  if (target.collectionType === 'static') {
-    // Exception: "All" collections in permanent spaces can accept items
-    if (target.id === 'notes-all' || target.id === 'chats-all') {
-      return target.acceptsType === item.type || target.acceptsType === 'both'
-    }
-    return false
-  }
-  
   // Check if the collection accepts this item type
   return target.acceptsType === item.type || target.acceptsType === 'both'
 } 

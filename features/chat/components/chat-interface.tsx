@@ -37,7 +37,7 @@ import { NoteContextPills } from './note-context-pills'
 import { ChatDropZone } from './chat-drop-zone'
 import { useChatPersistence } from '../hooks/use-chat-persistence'
 import { useTextSelection } from '../hooks/use-text-selection'
-import { useContentStore, useCollectionStore, useUIStore } from '@/features/organization/stores'
+import { useContentStore, useCollectionStore, useUIStore, useSpaceStore } from '@/features/organization/stores'
 import { useNoteContext } from '../stores/note-context-store'
 import { useMultiNoteContext } from '../stores/multi-note-context'
 import { useHighlightContext } from '../stores/highlight-context-store'
@@ -49,6 +49,7 @@ import { Button } from '@/components/ui/button'
 import { Message } from 'ai'
 import { useRouter } from 'next/navigation'
 import { markdownToTiptapHTML } from '@/features/ai/utils/content-parser'
+import { useSmartCollectionStore } from '@/features/organization/stores/smart-collection-store'
 
 interface ChatInterfaceProps {
   chatId: string
@@ -215,7 +216,9 @@ export function ChatInterface({ chatId, className, onClose, noteContext }: ChatI
   const handleSaveNote = async (title: string, content: string, collectionId: string | null) => {
     try {
       const noteId = `note-${Date.now()}`
-      const createdNote = await createNote(title, collectionId, noteId)
+      const { activeSpaceId } = useSpaceStore.getState()
+      const spaceId = activeSpaceId
+      const createdNote = await createNote(title, spaceId, collectionId, noteId)
       
       if (createdNote) {
         // Save content
@@ -260,18 +263,17 @@ export function ChatInterface({ chatId, className, onClose, noteContext }: ChatI
       try {
         // Get the active collection from the organization store or default to null
         const { activeCollectionId } = useCollectionStore.getState()
+        const { activeSpaceId } = useSpaceStore.getState()
         
-        // Check if it's a virtual collection (permanent collections)
-        const virtualCollectionIds = [
-          'notes-all', 'notes-recent', 'notes-saved', 'notes-uncategorized',
-          'chats-all', 'chats-recent', 'chats-saved', 'chats-uncategorized'
-        ];
-        
-        const collectionId = virtualCollectionIds.includes(activeCollectionId || '') 
+        // Check if the active collection is a smart collection
+        const { smartCollections } = useSmartCollectionStore.getState()
+        const collectionId = activeCollectionId && smartCollections.some(sc => sc.id === activeCollectionId) 
           ? null 
           : activeCollectionId;
         
-        const createdChat = await createChat(chatTitle, collectionId, chatId)
+        const spaceId = activeSpaceId
+        
+        const createdChat = await createChat(chatTitle, spaceId, collectionId, chatId)
         if (createdChat) {
           setIsTemporary(false)
           setHasBeenPersisted(true)
@@ -464,7 +466,9 @@ export function ChatInterface({ chatId, className, onClose, noteContext }: ChatI
       
       if (toolName === 'create_note') {
         const noteId = `note-${Date.now()}`
-        const createdNote = await createNote(args.title, args.collection_id || null, noteId)
+        const { activeSpaceId } = useSpaceStore.getState()
+        const spaceId = activeSpaceId
+        const createdNote = await createNote(args.title, spaceId, args.collection_id || null, noteId)
         
         if (createdNote) {
           // Process content based on type

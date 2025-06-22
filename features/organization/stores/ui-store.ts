@@ -41,10 +41,7 @@ type UIStore = UIState & UIActions
 
 export const useUIStore = create<UIStore>((set, get) => ({
   // Initial state
-  spaceExpansion: {
-    'permanent-notes': true,
-    'permanent-chats': true,
-  },
+  spaceExpansion: {},
   collectionExpansion: {},
   activeNoteId: null,
   activeChatId: null,
