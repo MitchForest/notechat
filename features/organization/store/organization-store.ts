@@ -1,33 +1,9 @@
 import { create } from 'zustand'
 import { Space as DbSpace, Collection, Note, Chat } from '@/lib/db/schema'
 import { toast } from 'sonner'
+import { PERMANENT_SPACES_DATA } from '@/features/organization/lib/permanent-space-config'
 
 export type Space = DbSpace & { collections: Collection[] }
-
-// Duplicating this from sidebar-nav to avoid circular dependency.
-// TODO: Move to a shared location.
-const PERMANENT_SPACES_DATA = [
-    { 
-      id: 'all_notes', 
-      name: 'All Notes', 
-      emoji: '📝', 
-      collections: [
-        { id: 'all_notes_all', name: 'All' },
-        { id: 'all_notes_recent', name: 'Recent' },
-        { id: 'all_notes_saved', name: 'Saved' },
-      ]
-    },
-    { 
-      id: 'chats', 
-      name: 'Chats', 
-      emoji: '💬', 
-      collections: [
-        { id: 'chats_all', name: 'All' },
-        { id: 'chats_recent', name: 'Recent' },
-        { id: 'chats_saved', name: 'Saved' },
-      ]
-    },
-]
 
 type OrganizationState = {
   spaces: Space[]
@@ -127,97 +103,60 @@ const useOrganizationStore = create<OrganizationStore>((set, get) => ({
   },
 
   setActiveCollection: async (collectionId: string, spaceId: string) => {
-    set({ loading: true, error: null, activeCollectionId: collectionId })
-    
-    // Determine if we're fetching notes or chats based on space
-    const isChatsSpace = spaceId === 'permanent-chats'
-    
-    // Build the appropriate URL
-    let url = ''
-    
-    // Handle permanent space collections
-    if (spaceId === 'permanent-notes') {
-      switch (collectionId) {
-        case 'notes-all':
-          url = '/api/notes?filter=all'
-          break
-        case 'notes-recent':
-          url = '/api/notes?filter=all_recent'
-          break
-        case 'notes-saved':
-          url = '/api/notes?filter=all_starred'
-          break
-        case 'notes-uncategorized':
-          url = '/api/notes?filter=uncategorized'
-          break
-        default:
-          url = `/api/notes?collectionId=${collectionId}`
+    set({ loading: true, error: null, activeCollectionId: collectionId });
+
+    let url = '';
+    let isChatsApi = false;
+
+    // Find the collection in either permanent data or user-created spaces
+    let collectionToFetch: any = null;
+
+    for (const space of PERMANENT_SPACES_DATA) {
+      const foundCollection = space.collections.find(c => c.id === collectionId);
+      if (foundCollection) {
+        collectionToFetch = foundCollection;
+        break;
       }
-    } else if (spaceId === 'permanent-chats') {
-      switch (collectionId) {
-        case 'chats-all':
-          url = '/api/chats?filter=all'
-          break
-        case 'chats-recent':
-          url = '/api/chats?filter=all_recent'
-          break
-        case 'chats-saved':
-          url = '/api/chats?filter=all_starred'
-          break
-        case 'chats-uncategorized':
-          url = '/api/chats?filter=uncategorized'
-          break
-        default:
-          url = `/api/chats?collectionId=${collectionId}`
-      }
+    }
+
+    if (collectionToFetch && collectionToFetch.fetchConfig) {
+      const { api, filter } = collectionToFetch.fetchConfig;
+      url = `/api/${api}?filter=${filter}`;
+      isChatsApi = api === 'chats';
     } else {
-      // Regular collection - could contain either notes or chats
-      // For now, assume notes in user spaces
-      const collection = get().collections.find(c => c.id === collectionId)
-      if (collection) {
-        if (collection.name === 'All') {
-          // For "All" collections in user spaces, fetch all notes
-          url = '/api/notes?filter=all'
-        } else if (collection.name === 'Recent') {
-          // For "Recent" collections in user spaces, fetch recent notes
-          url = '/api/notes?filter=all_recent'
-        } else if (collection.name === 'Saved') {
-          // For "Saved" collections in user spaces, fetch starred notes
-          url = '/api/notes?filter=all_starred'
-        } else if (collection.name === 'Uncategorized') {
-          // For "Uncategorized" collections in user spaces
-          url = '/api/notes?filter=uncategorized'
-        } else {
-          // Regular user collection
-          url = `/api/notes?collectionId=${collectionId}`
-        }
+      const allUserCollections = get().spaces.flatMap(s => s.collections);
+      const userOrDBCollection = allUserCollections.find(c => c.id === collectionId);
+      if (userOrDBCollection) {
+        // For now, all user collections are assumed to be notes
+        url = `/api/notes?collectionId=${collectionId}`;
+        isChatsApi = false;
       } else {
-        // If collection not found, default to fetching all notes
-        url = '/api/notes?filter=all'
+        console.warn(`Collection with id ${collectionId} not found.`);
+        url = '/api/notes?filter=all'; // A safe fallback
+        isChatsApi = false;
       }
     }
 
     try {
-      const response = await fetch(url)
+      const response = await fetch(url);
       if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.details || `Failed to fetch ${isChatsSpace ? 'chats' : 'notes'}`)
+        const errorData = await response.json();
+        throw new Error(errorData.details || `Failed to fetch items`);
       }
-      const data = await response.json()
-      
-      if (isChatsSpace) {
-        set({ chats: data, notes: [], loading: false })
+      const data = await response.json();
+
+      if (isChatsApi) {
+        set({ chats: data, notes: [], loading: false });
       } else {
-        set({ notes: data, chats: [], loading: false })
+        set({ notes: data, chats: [], loading: false });
       }
     } catch (error) {
-      console.error('Failed to fetch items:', error)
-      set({ 
-        error: (error as Error).message, 
+      console.error('Failed to fetch items:', error);
+      set({
+        error: (error as Error).message,
         loading: false,
-        // Don't clear existing data on error
-      })
-      toast.error(`Failed to load ${isChatsSpace ? 'chats' : 'notes'}`)
+      });
+      toast.error(`Failed to load items`);
     }
   },
 

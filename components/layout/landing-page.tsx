@@ -3,6 +3,8 @@
 import { LandingHeader } from '@/components/landing/header/landing-header'
 import { HeroWrapper } from '@/components/landing/sections/hero-wrapper'
 import { FeaturesSection } from '@/components/landing/sections/features-section'
+import { HowItWorksSection } from '@/components/landing/sections/how-it-works-section'
+import { TestimonialsSection } from '@/components/landing/sections/testimonials-section'
 
 export default function LandingPage() {
   return (
@@ -11,9 +13,9 @@ export default function LandingPage() {
       <main>
         <HeroWrapper />
         <FeaturesSection />
+        <HowItWorksSection />
+        <TestimonialsSection />
         {/* TODO: Add more sections in future sprints */}
-        {/* <HowItWorksSection /> */}
-        {/* <TestimonialsSection /> */}
         {/* <PricingSection /> */}
         {/* <FAQSection /> */}
         {/* <CTASection /> */}

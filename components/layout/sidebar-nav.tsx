@@ -74,6 +74,7 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
 import { useDragDrop } from '@/features/organization/hooks/use-drag-drop'
+import { PERMANENT_SPACES_DATA } from '@/features/organization/lib/permanent-space-config'
 
 interface SidebarNavProps {
   className?: string
@@ -369,25 +370,29 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
     const now = new Date()
     const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
 
-    switch (collection.name) {
-      case 'All':
-        // For permanent spaces, show all items
-        // For user spaces, show all items that belong to any collection in this space
-        if (spaceId === 'permanent-notes' || spaceId === 'permanent-chats') {
-          return items
-        } else {
-          // For user spaces, show all notes (since user spaces contain notes)
-          // In the future, this might need to filter by space assignment
-          return items
-        }
-      case 'Recent':
+    let permanentCollection: any = null;
+    for (const space of PERMANENT_SPACES_DATA) {
+      const foundCollection = space.collections.find(c => c.id === collection.id);
+      if (foundCollection) {
+        permanentCollection = foundCollection;
+        break;
+      }
+    }
+      
+    const collectionType = permanentCollection ? permanentCollection.type : 'user'
+
+    switch (collectionType) {
+      case 'static-all':
+        return items
+      case 'static-recent':
         return items.filter(item => new Date(item.updatedAt) > sevenDaysAgo)
-      case 'Saved':
+      case 'static-starred':
         return items.filter(item => item.isStarred)
-      case 'Uncategorized':
+      case 'static-uncategorized':
         return items.filter(item => !item.collectionId)
+      case 'user':
       default:
-        // Regular collection - filter by collection ID
+        // Regular user collection - filter by collection ID
         return items.filter(item => item.collectionId === collection.id)
     }
   }, [])

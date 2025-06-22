@@ -97,6 +97,8 @@
     "sonner": "^2.0.5",
     "tailwind-merge": "^3.3.1",
     "tippy.js": "^6.3.7",
+    "tiptap-extension-auto-joiner": "^0.1.3",
+    "tiptap-extension-global-drag-handle": "^0.1.18",
     "to-vfile": "^8.0.0",
     "typo-js": "^1.2.5",
     "unified": "^11.0.5",
