@@ -278,7 +278,6 @@ function NoteComponent({
         <CardContent className="flex-1 p-0 overflow-y-auto">
           <Editor 
             noteId={note.id}
-            noteTitle={noteTitle}
             onChange={handleUpdate}
             content={content}
           />

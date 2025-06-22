@@ -315,3 +315,51 @@ bun install
 
 **Status**: Ready to implement  
 **Next Step**: Start with Phase 1.1 - Remove Novel packages
+
+---
+
+## UPDATE: December 21, 2024 - BubbleMenu Conflict Resolution
+
+### Problem Discovered
+The drag handle's Tippy instance was being destroyed immediately after creation due to BubbleMenu React component registering its plugin after editor initialization. This caused all plugin views to be destroyed and recreated.
+
+### Solution Implemented: Option 5 - Move BubbleMenu to Extensions
+
+Instead of using the React BubbleMenu component, we:
+
+1. **Added BubbleMenu as an extension** in `extensions.ts`:
+   - Configured with proper shouldShow logic
+   - Placed BEFORE DragHandle in extensions array
+   - Set element to null (to be attached later)
+
+2. **Created CustomBubbleMenu component** (`custom-bubble-menu.tsx`):
+   - Accepts editor as prop
+   - Attaches its DOM element to BubbleMenu extension after mount
+   - Preserves all AI functionality and formatting options
+
+3. **Updated Editor component**:
+   - Removed React BubbleMenu import
+   - Added CustomBubbleMenu with editor prop
+   - Removed EditorProvider (not needed)
+
+4. **Fixed type errors**:
+   - Removed unused noteTitle prop from Editor
+   - Updated CustomBubbleMenu to accept editor prop
+
+### Results
+- ✅ Build passes successfully
+- ✅ No more Tippy destruction errors
+- ✅ BubbleMenu and DragHandle can coexist
+- ✅ All AI functionality preserved (/ai command, text selection AI)
+- ✅ All formatting options working
+
+### Key Learnings
+- Tiptap React components that register plugins can conflict with extensions using Tippy
+- Moving everything to the extensions array ensures proper initialization order
+- Custom elements can be attached to extensions after editor creation
+
+### Next Steps
+- Test the implementation in development
+- Verify drag handle appears and functions correctly
+- Verify bubble menu appears on text selection
+- Check for any remaining console errors

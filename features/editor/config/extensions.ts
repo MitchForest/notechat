@@ -16,8 +16,10 @@ import { InlineAI } from '@/features/ai/extensions/inline-ai';
 import { GhostText } from '@/features/ai/extensions/ghost-text'
 import { BlockId } from '../extensions/block-id'
 
-// Import official Tiptap drag handle
+// Import official Tiptap drag handle and bubble menu
 import { DragHandle } from '@tiptap/extension-drag-handle'
+import { Dropcursor } from '@tiptap/extension-dropcursor'
+import { BubbleMenu } from '@tiptap/extension-bubble-menu'
 
 const lowlight = createLowlight(common)
 
@@ -25,15 +27,17 @@ export const getEditorExtensions = (
   errorRegistry: ErrorRegistry, 
   container?: HTMLElement
 ) => {
+  console.log('[Extensions] Getting editor extensions, container:', !!container)
+  
   const extensions = [
     // Configure StarterKit with all default nodes enabled
     StarterKit.configure({
       history: {},
-      dropcursor: {
-        color: 'oklch(var(--primary))',
-        width: 2,
-      },
+      dropcursor: false, // Disable because we add our own
       codeBlock: false, // Disable because we use CodeBlockLowlight
+      heading: {
+        levels: [1, 2, 3],
+      },
     }),
     
     // Code block with syntax highlighting
@@ -43,16 +47,32 @@ export const getEditorExtensions = (
       defaultLanguage: 'plaintext',
     }),
     
-    // Other extensions
-    InlineAI,
-    SlashCommand,
-    TrailingNode,
-    GhostText,
+    // Text formatting
     TextStyle,
     Color,
     Underline,
-    TaskList,
-    TaskItem,
+    
+    // Lists
+    TaskList.configure({
+      HTMLAttributes: {
+        class: 'task-list',
+      },
+    }),
+    TaskItem.configure({
+      nested: true,
+      HTMLAttributes: {
+        class: 'task-item',
+      },
+    }),
+    
+    // AI extensions
+    InlineAI,
+    GhostText,
+    
+    // Commands and utilities
+    SlashCommand,
+    BlockId,
+    TrailingNode,
     
     // Enhanced placeholder with support for all block types
     Placeholder.configure({
@@ -95,8 +115,30 @@ export const getEditorExtensions = (
       includeChildren: true, // Show in nested structures like lists
     }),
     
-    // Add BlockId extension
-    BlockId,
+    // Add BubbleMenu BEFORE DragHandle to ensure proper initialization
+    BubbleMenu.configure({
+      element: null, // We'll attach this later via custom component
+      pluginKey: 'bubbleMenu',
+      tippyOptions: {
+        duration: 100,
+        placement: 'top',
+        zIndex: 99,
+      },
+      shouldShow: ({ editor, view, state, from, to }) => {
+        console.log('[BubbleMenu] shouldShow check:', { from, to, hasSelection: from !== to })
+        // Only show when there's a text selection
+        const hasSelection = from !== to
+        // Don't show if we're in a code block
+        const isCodeBlock = editor.isActive('codeBlock')
+        return hasSelection && !isCodeBlock
+      },
+    }),
+    
+    // Dropcursor for drag and drop
+    Dropcursor.configure({
+      color: 'hsl(var(--primary))',
+      width: 2,
+    }),
     
     // Add drag handle - using official Tiptap extension
     DragHandle.configure({
@@ -158,5 +200,6 @@ export const getEditorExtensions = (
     )
   }
 
+  console.log('[Extensions] Total extensions:', extensions.length)
   return extensions
 }

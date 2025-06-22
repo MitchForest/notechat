@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import { Editor as TiptapEditor, EditorContent } from "@tiptap/react";
 import { EditorService } from "../services/EditorService";
-import { EditorBubbleMenu } from "./editor-bubble-menu";
+import { CustomBubbleMenu } from "./custom-bubble-menu";
 import { EditorErrorBoundary } from "./editor-error-boundary";
 import "../styles/editor.css";
 import { useStableEditor } from "../hooks/use-stable-editor";
@@ -11,16 +11,14 @@ import { GhostTextHandler } from "@/features/ai/components/ghost-text-handler";
 
 interface EditorProps {
   noteId?: string;
-  noteTitle?: string;
   content: string;
   onChange: (richText: string) => void;
 }
 
-export function Editor({ noteId, noteTitle, content = "", onChange }: EditorProps) {
+export function Editor({ noteId, content = "", onChange }: EditorProps) {
   const wrapperRef = useRef<HTMLDivElement>(null!);
   const [editorReady, setEditorReady] = useState(false);
   const [editorInstance, setEditorInstance] = useState<TiptapEditor | null>(null);
-  const [showBubbleMenu, setShowBubbleMenu] = useState(false);
   
   // Force cleanup when noteId changes
   useEffect(() => {
@@ -29,7 +27,6 @@ export function Editor({ noteId, noteTitle, content = "", onChange }: EditorProp
         editorInstance.destroy();
         setEditorInstance(null);
         setEditorReady(false);
-        setShowBubbleMenu(false);
       }
     };
   }, [noteId]); // Re-run when noteId changes
@@ -49,10 +46,9 @@ export function Editor({ noteId, noteTitle, content = "", onChange }: EditorProp
       console.log('[Editor] Drag handle config:', (dragHandle as any).options)
     }
     
-    // Delay BubbleMenu mounting to prevent it from destroying drag handle's Tippy
-    setTimeout(() => {
-      setShowBubbleMenu(true);
-    }, 100);
+    // Debug: Check for bubble menu extension
+    const bubbleMenu = extensions.find(ext => ext.name === 'bubbleMenu')
+    console.log('[Editor] BubbleMenu extension found:', !!bubbleMenu)
     
     // Debug: Check DOM after a delay
     setTimeout(() => {
@@ -145,7 +141,7 @@ export function Editor({ noteId, noteTitle, content = "", onChange }: EditorProp
       }}
     >
       <div ref={wrapperRef} className="editor-wrapper relative w-full h-full" id="tiptap-editor-wrapper">
-        {showBubbleMenu && <EditorBubbleMenu editor={editor} noteId={noteId} noteTitle={noteTitle} />}
+        <CustomBubbleMenu editor={editor} />
         <EditorContent editor={editor} />
         <GhostTextHandler editor={editor} />
       </div>
