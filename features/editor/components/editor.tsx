@@ -6,27 +6,42 @@ import { EditorService } from "../services/EditorService";
 import { EditorBubbleMenu } from "./editor-bubble-menu";
 import { EditorErrorBoundary } from "./editor-error-boundary";
 import "../styles/editor.css";
+import "../styles/blocks.css";
 import { useStableEditor } from "../hooks/use-stable-editor";
 import { useBlockDragDrop } from "../hooks/use-block-drag-drop";
 import { DragProvider } from "../contexts/drag-context";
 import { GhostTextHandler } from "@/features/ai/components/ghost-text-handler";
+import { BlockHandleOverlay } from "./block-handle-overlay";
 
-// Import test utility in development
+// Import test utilities in development
 if (process.env.NODE_ENV === 'development') {
   import('../utils/test-block-ui');
+  import('../utils/block-ui-debug');
+  import('../utils/editor-debugger');
+  import('../utils/test-new-handles');
 }
 
 interface EditorProps {
+  noteId?: string;
   content: string;
   onChange: (richText: string) => void;
 }
 
-
-
-export function Editor({ content = "", onChange }: EditorProps) {
+export function Editor({ noteId, content = "", onChange }: EditorProps) {
   const wrapperRef = useRef<HTMLDivElement>(null!);
   const [editorReady, setEditorReady] = useState(false);
   const [editorInstance, setEditorInstance] = useState<TiptapEditor | null>(null);
+  
+  // Force cleanup when noteId changes
+  useEffect(() => {
+    return () => {
+      if (editorInstance) {
+        editorInstance.destroy();
+        setEditorInstance(null);
+        setEditorReady(false);
+      }
+    };
+  }, [noteId]); // Re-run when noteId changes
   
   // Initialize drag and drop hook with the editor instance
   const {
@@ -116,6 +131,7 @@ export function Editor({ content = "", onChange }: EditorProps) {
           <EditorBubbleMenu editor={editor} />
           <EditorContent editor={editor} />
           <GhostTextHandler editor={editor} />
+          <BlockHandleOverlay editor={editor} container={wrapperRef.current} />
         </div>
       </DragProvider>
     </EditorErrorBoundary>

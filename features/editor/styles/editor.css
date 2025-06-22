@@ -1,6 +1,7 @@
 @import './spellcheck.css';
 @import './block-system.css';
 @import './drag-drop.css';
+@import './ghost-text.css';
 
 /* features/editor/styles/editor.css - Combined and fixed version */
 
@@ -144,38 +145,41 @@
    6. NOTION BLOCK SYSTEM STYLES
    ========================================================================== */
 
-/* Block Handle Styles */
+/* Block Handle Styles - Notion-like subtle appearance */
+.block-handle-portal {
+  pointer-events: none; /* Let mouse events pass through the portal */
+}
+
 .block-handle {
   position: relative;
   display: flex;
   align-items: center;
-  gap: 2px; /* Reduced gap */
-  padding: 2px;
-  background: white;
-  border: 1px solid hsl(var(--border));
-  border-radius: 6px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  pointer-events: auto;
+  gap: 2px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  pointer-events: none; /* Let mouse events pass through container */
 }
 
 .handle-button {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 24px; /* Reduced size */
-  height: 24px; /* Reduced size */
+  width: 20px;
+  height: 20px;
   border: none;
   background: transparent;
-  color: hsl(var(--muted-foreground));
+  color: hsl(var(--muted-foreground) / 0.4); /* Very subtle by default */
   cursor: pointer;
-  border-radius: 4px;
+  border-radius: 3px;
   transition: all 0.15s ease;
-  pointer-events: auto; /* Buttons should be clickable */
+  pointer-events: auto; /* Only buttons are clickable */
 }
 
 .handle-button:hover {
-  color: hsl(var(--foreground));
-  background: hsl(var(--accent));
+  color: hsl(var(--muted-foreground) / 0.8); /* Still subtle on hover */
+  background: hsl(var(--muted) / 0.5);
 }
 
 .handle-button svg {

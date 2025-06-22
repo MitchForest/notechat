@@ -39,9 +39,21 @@ This plan details the implementation of a state-of-the-art AI chat system that r
 ### 🚧 In Progress (Sprint 2)
 
 #### Note Integration & Context (Days 4-6)
-- [ ] Note Context Provider
-- [ ] Note mention system (@note)
-- [ ] Tool calling for note operations
+- [x] Note Context System
+  - [x] Create Zustand store for note context
+  - [x] Integrate with chat interface
+  - [x] Update API route with context handling
+  - [x] Integrate with canvas view (NoteComponent)
+- [x] Note mention system (@note)
+  - [x] Note mention dropdown component with progressive search
+  - [x] Enhanced chat input with @ detection
+  - [x] Insert note references in chat
+  - [x] Track referenced notes in context store
+- [x] Tool calling for note operations
+  - [x] Create note tools (search, read, create, update)
+  - [x] Tool confirmation UI component
+  - [x] Update chat API route with tool support
+  - [x] Install zod dependency
 - [ ] Extract to note feature
 
 ### 📋 Remaining Work
@@ -1003,638 +1015,501 @@ export function ChatList({ currentChatId, onNewChat }: ChatListProps) {
 2. **Progressive Search**: Show recent/starred notes first in @mentions
 3. **Safe Tool Usage**: Read operations immediate, modifications require confirmation
 4. **Smart Extraction**: AI formats based on content type (code, Q&A, brainstorming)
+5. **State Management**: Use Zustand for consistency with existing sidebar implementation
+6. **Flexible Extraction**: Support both highlight → extract and chat command → extract
 
 #### Day 4: Note Context System
 
-**4.1 Create Note Context Provider**
+**4.1 Create Note Context Store (Zustand)**
 
-**Purpose**: Foundation for all note-aware features. Tracks current note, recent notes, and referenced notes.
+**Purpose**: Foundation for all note-aware features using Zustand for consistency.
 
 **Implementation Details**:
-- Global context provider wrapping the app
-- Tracks current active note from editor
-- Maintains list of last 5 viewed notes
-- Manages referenced notes from @mentions
-- Provides formatted context for AI prompts
-- Smart truncation to prevent token overflow
-
-File: `features/chat/providers/note-context-provider.tsx`
 ```typescript
-/**
- * Provider: NoteContextProvider
- * Purpose: Manage note context for chat conversations
- * Features:
- * - Auto-inject current note into chat
- * - Note mention support (@note)
- * - Context summarization for long notes
- */
+// features/chat/stores/note-context-store.ts
+import { create } from 'zustand'
+import { persist } from 'zustand/middleware'
 
-import { createContext, useContext, useState, useCallback, ReactNode } from 'react'
-import { Note } from '@/lib/db/schema'
-
-interface NoteContextType {
+interface NoteContextStore {
+  // State
   currentNote: Note | null
-  referencedNotes: Note[]
+  recentNotes: Note[] // Last 5 viewed
+  referencedNotes: Note[] // From @mentions
+  
+  // Actions
   setCurrentNote: (note: Note | null) => void
+  addRecentNote: (note: Note) => void
   addReferencedNote: (note: Note) => void
   removeReferencedNote: (noteId: string) => void
   getContextForChat: () => string
+  clearContext: () => void
 }
 
-const NoteContext = createContext<NoteContextType | undefined>(undefined)
-
-export function NoteContextProvider({ children }: { children: ReactNode }) {
-  const [currentNote, setCurrentNote] = useState<Note | null>(null)
-  const [referencedNotes, setReferencedNotes] = useState<Note[]>([])
-
-  const addReferencedNote = useCallback((note: Note) => {
-    setReferencedNotes((prev) => {
-      if (prev.find((n) => n.id === note.id)) return prev
-      return [...prev, note].slice(-5) // Max 5 references
-    })
-  }, [])
-
-  const removeReferencedNote = useCallback((noteId: string) => {
-    setReferencedNotes((prev) => prev.filter((n) => n.id !== noteId))
-  }, [])
-
-  const getContextForChat = useCallback(() => {
-    let context = ''
-    
-    if (currentNote) {
-      context += `Current Note: "${currentNote.title}"\n`
-      context += `Content: ${currentNote.content?.slice(0, 1000)}...\n\n`
+export const useNoteContextStore = create<NoteContextStore>()(
+  persist(
+    (set, get) => ({
+      currentNote: null,
+      recentNotes: [],
+      referencedNotes: [],
+      
+      setCurrentNote: (note) => {
+        set({ currentNote: note })
+        if (note) get().addRecentNote(note)
+      },
+      
+      addRecentNote: (note) => {
+        set((state) => ({
+          recentNotes: [note, ...state.recentNotes.filter(n => n.id !== note.id)].slice(0, 5)
+        }))
+      },
+      
+      addReferencedNote: (note) => {
+        set((state) => ({
+          referencedNotes: [...state.referencedNotes.filter(n => n.id !== note.id), note].slice(-5)
+        }))
+      },
+      
+      removeReferencedNote: (noteId) => {
+        set((state) => ({
+          referencedNotes: state.referencedNotes.filter(n => n.id !== noteId)
+        }))
+      },
+      
+      getContextForChat: () => {
+        const { currentNote, referencedNotes } = get()
+        let context = ''
+        
+        if (currentNote) {
+          context += `Current Note: "${currentNote.title}"\n`
+          context += `Content: ${currentNote.content?.slice(0, 1500)}...\n\n`
+        }
+        
+        if (referencedNotes.length > 0) {
+          context += 'Referenced Notes:\n'
+          referencedNotes.forEach((note) => {
+            context += `- "${note.title}": ${note.content?.slice(0, 300)}...\n`
+          })
+        }
+        
+        return context
+      },
+      
+      clearContext: () => {
+        set({ referencedNotes: [] })
+      }
+    }),
+    {
+      name: 'note-context',
+      partialize: (state) => ({
+        recentNotes: state.recentNotes,
+      }),
     }
-    
-    if (referencedNotes.length > 0) {
-      context += 'Referenced Notes:\n'
-      referencedNotes.forEach((note) => {
-        context += `- "${note.title}": ${note.content?.slice(0, 200)}...\n`
-      })
-    }
-    
-    return context
-  }, [currentNote, referencedNotes])
-
-  return (
-    <NoteContext.Provider
-      value={{
-        currentNote,
-        referencedNotes,
-        setCurrentNote,
-        addReferencedNote,
-        removeReferencedNote,
-        getContextForChat,
-      }}
-    >
-      {children}
-    </NoteContext.Provider>
   )
-}
-
-export const useNoteContext = () => {
-  const context = useContext(NoteContext)
-  if (!context) {
-    throw new Error('useNoteContext must be used within NoteContextProvider')
-  }
-  return context
-}
+)
 ```
 
-**4.2 Create Note Mention Component**
+**4.2 Integrate Context into Editor**
 
-**Purpose**: Enable @note mentions with intelligent search and progressive disclosure.
-
-**Implementation Details**:
-- Trigger on "@" character in chat input
-- Progressive search order:
-  1. Current note (if applicable)
-  2. Recent notes (last 5 viewed)
-  3. Starred notes
-  4. All notes (with "Search all..." option)
-- Keyboard navigation (arrows, enter, escape)
-- Show note title + first line preview + last modified
-- Visual indicators for starred/recent status
-- Insert as special token that expands on send
-
-**User Flow**:
-1. User types "@" → Dropdown appears instantly
-2. Shows smart defaults (recent/starred) first
-3. Can search all notes if needed
-4. Select with keyboard or mouse
-5. Note reference added to context
-
-File: `features/chat/components/note-mention.tsx`
 ```typescript
-/**
- * Component: NoteMention
- * Purpose: @mention notes in chat input
- * Features:
- * - Fuzzy search notes
- * - Keyboard navigation
- * - Visual preview
- */
+// features/editor/components/editor.tsx
+import { useNoteContextStore } from '@/features/chat/stores/note-context-store'
 
-import { useState, useEffect, useRef } from 'react'
-import { Command, CommandInput, CommandList, CommandItem } from '@/components/ui/command'
-import { Note } from '@/lib/db/schema'
-import { FileText } from 'lucide-react'
-
-interface NoteMentionProps {
-  search: string
-  onSelect: (note: Note) => void
-  onClose: () => void
-  position: { top: number; left: number }
-}
-
-export function NoteMention({ search, onSelect, onClose, position }: NoteMentionProps) {
-  const [notes, setNotes] = useState<Note[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const commandRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    searchNotes(search)
-  }, [search])
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (commandRef.current && !commandRef.current.contains(event.target as Node)) {
-        onClose()
-      }
-    }
-
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [onClose])
-
-  const searchNotes = async (query: string) => {
-    setIsLoading(true)
-    try {
-      const response = await fetch(`/api/notes?search=${encodeURIComponent(query)}`)
-      const data = await response.json()
-      setNotes(data.slice(0, 5)) // Show max 5 results
-    } catch (error) {
-      console.error('Failed to search notes:', error)
-    } finally {
-      setIsLoading(false)
-    }
+// In editor component
+useEffect(() => {
+  if (note) {
+    useNoteContextStore.getState().setCurrentNote(note)
   }
+}, [note])
+```
 
-  return (
-    <div
-      ref={commandRef}
-      className="absolute z-50 w-80 bg-popover border rounded-lg shadow-lg"
-      style={{ top: position.top, left: position.left }}
-    >
-      <Command>
-        <CommandInput
-          placeholder="Search notes..."
-          value={search}
-          className="border-0"
-        />
-        <CommandList>
-          {isLoading ? (
-            <div className="p-4 text-sm text-muted-foreground">Searching...</div>
-          ) : notes.length === 0 ? (
-            <div className="p-4 text-sm text-muted-foreground">No notes found</div>
-          ) : (
-            notes.map((note) => (
-              <CommandItem
-                key={note.id}
-                onSelect={() => {
-                  onSelect(note)
-                  onClose()
-                }}
-              >
-                <FileText className="w-4 h-4 mr-2" />
-                <div className="flex-1">
-                  <p className="font-medium">{note.title}</p>
-                  {note.content && (
-                    <p className="text-xs text-muted-foreground truncate">
-                      {note.content.slice(0, 100)}
-                    </p>
-                  )}
-                </div>
-              </CommandItem>
-            ))
-          )}
-        </CommandList>
-      </Command>
-    </div>
-  )
-}
+**4.3 Update Chat Interface with Context**
+
+```typescript
+// features/chat/components/chat-interface.tsx
+const { currentNote, referencedNotes, getContextForChat } = useNoteContextStore()
+
+// Pass context to useChat
+const { messages, ... } = useChat({
+  body: {
+    noteContext: getContextForChat(),
+  },
+})
+
+// Show context indicator
+{currentNote && (
+  <div className="px-4 py-2 border-b bg-muted/50">
+    <span className="text-sm text-muted-foreground">
+      Chatting about: <span className="font-medium">{currentNote.title}</span>
+    </span>
+  </div>
+)}
 ```
 
 #### Day 5: Enhanced Chat Features
 
-**5.1 Create Tool Calling Support**
+**5.1 @Mention System Implementation**
 
-**Purpose**: Enable AI to perform actions on notes with appropriate safety measures.
+**Purpose**: Enable @note mentions with intelligent search and progressive disclosure.
 
-**Tool Permissions Strategy**:
-- **Search/Read**: No confirmation needed (safe operations)
-- **Create**: Show preview with one-click confirm (low risk)
-- **Update/Append**: Always show diff preview + require confirmation (high risk)
-- **Delete**: Not available as a tool (too dangerous)
+**Key Components**:
 
-**Available Tools**:
-1. **search_notes**: Find notes by content, title, or tags
-   - Returns: Note ID, title, preview (200 chars)
-   - No confirmation required
-   
-2. **create_note**: Generate new notes from conversation
-   - Shows preview before creation
-   - One-click confirmation
-   - Auto-suggests collection based on content
-   
-3. **update_note**: Modify existing note content
-   - Shows diff view (before/after)
-   - Requires explicit confirmation
-   - Maintains version history
-
-4. **append_to_note**: Add content to existing note
-   - Shows what will be added
-   - Preserves existing content
-   - Requires confirmation
-
-**UI Feedback**:
-- Show inline loading states when tools execute
-- Display tool results in chat (e.g., "Found 3 notes about React")
-- Error handling with retry options
-- Success confirmations with links to affected notes
-
-File: `features/chat/tools/chat-tools.ts`
 ```typescript
-/**
- * Chat Tools
- * Purpose: Define tools/functions the AI can call
- * Features:
- * - Search notes
- * - Create notes
- * - Update notes
- */
+// features/chat/components/note-mention-dropdown.tsx
+interface NoteMentionDropdownProps {
+  search: string
+  position: { top: number; left: number }
+  onSelect: (note: Note) => void
+  onClose: () => void
+}
 
-import { z } from 'zod'
-import { Tool } from 'ai'
+export function NoteMentionDropdown({ search, position, onSelect, onClose }: NoteMentionDropdownProps) {
+  const { currentNote, recentNotes } = useNoteContextStore()
+  const [searchResults, setSearchResults] = useState<Note[]>([])
+  
+  // Progressive search implementation
+  const getFilteredNotes = async () => {
+    // 1. Current note (if matches)
+    // 2. Recent notes (if match)
+    // 3. Starred notes (if match)
+    // 4. Full search if needed
+  }
+  
+  return (
+    <Command className="absolute z-50" style={{ top: position.top, left: position.left }}>
+      <CommandInput value={search} />
+      <CommandList>
+        {currentNote && matches(currentNote, search) && (
+          <CommandItem onSelect={() => onSelect(currentNote)}>
+            <Badge variant="secondary">Current</Badge>
+            {currentNote.title}
+          </CommandItem>
+        )}
+        
+        <CommandGroup heading="Recent Notes">
+          {recentNotes.filter(n => matches(n, search)).map(note => (
+            <CommandItem key={note.id} onSelect={() => onSelect(note)}>
+              {note.title}
+            </CommandItem>
+          ))}
+        </CommandGroup>
+        
+        {searchResults.length > 0 && (
+          <CommandGroup heading="All Notes">
+            {searchResults.map(note => (
+              <CommandItem key={note.id} onSelect={() => onSelect(note)}>
+                {note.title}
+              </CommandItem>
+            ))}
+          </CommandGroup>
+        )}
+      </CommandList>
+    </Command>
+  )
+}
+```
 
-export const chatTools: Record<string, Tool> = {
-  searchNotes: {
+**5.2 Enhanced Chat Input with Mentions**
+
+```typescript
+// features/chat/components/chat-input.tsx
+const [showMentionDropdown, setShowMentionDropdown] = useState(false)
+const [mentionSearch, setMentionSearch] = useState('')
+const [mentionPosition, setMentionPosition] = useState({ top: 0, left: 0 })
+
+const handleInputChange = (e: ChangeEvent<HTMLTextAreaElement>) => {
+  const value = e.target.value
+  const cursorPosition = e.target.selectionStart
+  
+  // Detect @ symbol
+  const lastAtSymbol = value.lastIndexOf('@', cursorPosition - 1)
+  if (lastAtSymbol !== -1 && cursorPosition - lastAtSymbol <= 20) {
+    const search = value.slice(lastAtSymbol + 1, cursorPosition)
+    setMentionSearch(search)
+    setShowMentionDropdown(true)
+    // Calculate dropdown position based on cursor
+  } else {
+    setShowMentionDropdown(false)
+  }
+  
+  onChange(e)
+}
+```
+
+**5.3 Tool Calling Implementation**
+
+**Available Tools with Permissions**:
+
+```typescript
+// features/chat/tools/note-tools.ts
+export const noteTools: Record<string, Tool> = {
+  search_notes: {
     description: 'Search through user notes',
     parameters: z.object({
-      query: z.string().describe('Search query'),
-      limit: z.number().optional().default(5).describe('Maximum results'),
+      query: z.string(),
+      limit: z.number().optional().default(5),
     }),
+    requiresConfirmation: false, // Safe operation
     execute: async ({ query, limit }) => {
-      const response = await fetch(`/api/notes?search=${encodeURIComponent(query)}&limit=${limit}`)
-      const notes = await response.json()
-      return {
-        notes: notes.map((note: any) => ({
-          id: note.id,
-          title: note.title,
-          preview: note.content?.slice(0, 200) + '...',
-        })),
-      }
+      // Implementation
     },
   },
   
-  createNote: {
+  read_note: {
+    description: 'Read full content of a note',
+    parameters: z.object({
+      noteId: z.string(),
+    }),
+    requiresConfirmation: false, // Safe operation
+    execute: async ({ noteId }) => {
+      // Implementation
+    },
+  },
+  
+  create_note: {
     description: 'Create a new note',
     parameters: z.object({
-      title: z.string().describe('Note title'),
-      content: z.string().describe('Note content in markdown'),
-      collectionId: z.string().optional().describe('Collection to add note to'),
+      title: z.string(),
+      content: z.string(),
+      collectionId: z.string().optional(),
     }),
+    requiresConfirmation: true, // Needs preview
+    confirmationType: 'preview',
     execute: async ({ title, content, collectionId }) => {
-      const response = await fetch('/api/notes', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, content, collectionId }),
-      })
-      const note = await response.json()
-      return { 
-        success: true, 
-        noteId: note.id,
-        message: `Created note "${title}"`,
-      }
+      // Implementation
     },
   },
   
-  updateNote: {
+  update_note: {
     description: 'Update an existing note',
     parameters: z.object({
-      noteId: z.string().describe('Note ID to update'),
-      title: z.string().optional().describe('New title'),
-      content: z.string().optional().describe('New content'),
+      noteId: z.string(),
+      updates: z.object({
+        title: z.string().optional(),
+        content: z.string().optional(),
+      }),
     }),
-    execute: async ({ noteId, title, content }) => {
-      const response = await fetch(`/api/notes/${noteId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, content }),
-      })
-      
-      if (!response.ok) {
-        return { success: false, message: 'Failed to update note' }
-      }
-      
-      return { 
-        success: true, 
-        message: `Updated note successfully`,
-      }
+    requiresConfirmation: true, // Needs diff view
+    confirmationType: 'diff',
+    execute: async ({ noteId, updates }) => {
+      // Implementation
     },
   },
 }
 ```
 
-**5.2 Update API Route with Tools**
+**Tool Confirmation UI**:
 
-File: `app/api/chat/route.ts` (updated)
 ```typescript
-import { streamText, convertToCoreMessages } from 'ai'
-import { openai } from '@ai-sdk/openai'
-import { chatTools } from '@/features/chat/tools/chat-tools'
+// features/chat/components/tool-confirmation.tsx
+interface ToolConfirmationProps {
+  tool: string
+  args: any
+  onConfirm: () => void
+  onReject: () => void
+}
 
-export async function POST(req: NextRequest) {
-  try {
-    const { messages, noteContext, useTools = true } = await req.json()
-
-    // ... (previous validation code)
-
-    // Stream with tools
-    const result = await streamText({
-      model: openai('gpt-4-turbo'),
-      messages: convertToCoreMessages(messages),
-      system: systemPrompt,
-      tools: useTools ? chatTools : undefined,
-      toolChoice: useTools ? 'auto' : undefined,
-      temperature: 0.7,
-      maxTokens: 2000,
-      onToolCall: async ({ toolCall }) => {
-        console.log('Tool called:', toolCall.toolName, toolCall.args)
-      },
-    })
-
-    return result.toDataStreamResponse()
-  } catch (error) {
-    // ... (error handling)
+export function ToolConfirmation({ tool, args, onConfirm, onReject }: ToolConfirmationProps) {
+  const toolConfig = noteTools[tool]
+  
+  if (toolConfig.confirmationType === 'preview') {
+    return (
+      <Card className="p-4 my-2">
+        <h4 className="font-medium mb-2">Create New Note</h4>
+        <div className="space-y-2">
+          <div>
+            <Label>Title</Label>
+            <div className="font-medium">{args.title}</div>
+          </div>
+          <div>
+            <Label>Content Preview</Label>
+            <div className="text-sm bg-muted p-2 rounded">
+              {args.content.slice(0, 200)}...
+            </div>
+          </div>
+        </div>
+        <div className="flex gap-2 mt-4">
+          <Button size="sm" onClick={onConfirm}>Create Note</Button>
+          <Button size="sm" variant="outline" onClick={onReject}>Cancel</Button>
+        </div>
+      </Card>
+    )
+  }
+  
+  if (toolConfig.confirmationType === 'diff') {
+    return <DiffViewer before={original} after={updated} onConfirm={onConfirm} onReject={onReject} />
   }
 }
 ```
 
 #### Day 6: Extract to Note Feature
 
-**Purpose**: Convert valuable chat conversations into permanent, well-formatted notes.
+**6.1 Flexible Extraction System**
 
-**Smart Extraction Strategy**:
-Based on content type, AI will format differently:
+**Purpose**: Convert valuable content into notes from multiple entry points.
 
-1. **Code-Heavy Conversations**:
-   ```markdown
-   # [Title: e.g., "React Hook Implementation Guide"]
-   
-   ## Overview
-   [Brief description of what was discussed]
-   
-   ## Code Examples
-   [Properly formatted code blocks with syntax highlighting]
-   
-   ## Key Concepts
-   - [Concept 1 with explanation]
-   - [Concept 2 with explanation]
-   
-   ## Implementation Notes
-   [Any warnings, best practices, or gotchas]
-   ```
+**Entry Points**:
+1. **From Highlighted Text**: Select text → Extract to note
+2. **From Chat Command**: "Extract our discussion about X to a note"
+3. **From Message Actions**: Hover message → Extract
+4. **From Selection**: Select multiple messages → Extract
 
-2. **Q&A Conversations**:
-   ```markdown
-   # [Title: e.g., "Database Design FAQ"]
-   
-   ## Questions & Answers
-   
-   ### Q: [Question 1]
-   A: [Detailed answer]
-   
-   ### Q: [Question 2]
-   A: [Detailed answer]
-   
-   ## Summary
-   [Key takeaways]
-   ```
+**Implementation**:
 
-3. **Brainstorming Sessions**:
-   ```markdown
-   # [Title: e.g., "Product Feature Ideas"]
-   
-   ## Main Ideas
-   - **[Idea 1]**: [Description]
-   - **[Idea 2]**: [Description]
-   
-   ## Action Items
-   - [ ] [Task 1]
-   - [ ] [Task 2]
-   
-   ## Next Steps
-   [What to do with these ideas]
-   ```
-
-**Extraction Flow**:
-1. User hovers over message → Shows action menu
-2. Clicks "Extract to Note" → AI analyzes conversation
-3. AI generates:
-   - Smart title based on content
-   - Appropriate format based on conversation type
-   - Key points and action items
-   - Preserves important code/examples
-4. User can edit before saving
-5. Choose collection or create new one
-6. Note includes backlink to original chat
-
-**6.1 Create Extraction Dialog**
-
-File: `features/chat/components/extract-to-note-dialog.tsx`
 ```typescript
-/**
- * Component: ExtractToNoteDialog
- * Purpose: Extract chat messages to a new note
- * Features:
- * - AI-powered summarization
- * - Title generation
- * - Collection selection
- */
-
-import { useState } from 'react'
-import { generateObject } from 'ai'
-import { openai } from '@ai-sdk/openai'
-import { z } from 'zod'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Loader2 } from 'lucide-react'
-import { Message } from 'ai'
-import { Collection } from '@/lib/db/schema'
-
-interface ExtractToNoteDialogProps {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  messages: Message[]
-  onExtract: (note: { title: string; content: string; collectionId?: string }) => void
+// features/chat/hooks/use-extract-to-note.ts
+interface ExtractOptions {
+  source: 'highlight' | 'chat' | 'message' | 'selection'
+  content: string | Message[]
+  context?: string
 }
 
-const extractionSchema = z.object({
-  title: z.string().describe('A clear, descriptive title for the note'),
-  summary: z.string().describe('A comprehensive summary of the conversation'),
-  keyPoints: z.array(z.string()).describe('Main points from the conversation'),
-  actionItems: z.array(z.string()).describe('Any action items mentioned'),
-  tags: z.array(z.string()).describe('Relevant tags for the note'),
-})
-
-export function ExtractToNoteDialog({
-  open,
-  onOpenChange,
-  messages,
-  onExtract,
-}: ExtractToNoteDialogProps) {
+export function useExtractToNote() {
   const [isExtracting, setIsExtracting] = useState(false)
-  const [title, setTitle] = useState('')
-  const [content, setContent] = useState('')
-  const [collectionId, setCollectionId] = useState<string>()
-  const [collections, setCollections] = useState<Collection[]>([])
-
-  const handleExtract = async () => {
+  
+  const extract = async (options: ExtractOptions) => {
     setIsExtracting(true)
     
     try {
-      // Use AI to extract and format the conversation
+      // Use AI to analyze and format
       const { object } = await generateObject({
         model: openai('gpt-4-turbo'),
         schema: extractionSchema,
-        prompt: `Extract the key information from this conversation:
-        
-${messages.map(m => `${m.role}: ${m.content}`).join('\n\n')}`,
+        prompt: buildExtractionPrompt(options),
       })
       
-      // Format the content
-      const formattedContent = `# ${object.summary}
-
-## Key Points
-${object.keyPoints.map(point => `- ${point}`).join('\n')}
-
-${object.actionItems.length > 0 ? `## Action Items
-${object.actionItems.map(item => `- [ ] ${item}`).join('\n')}` : ''}
-
-## Original Conversation
-${messages.map(m => `**${m.role}**: ${m.content}`).join('\n\n')}
-
----
-*Extracted from chat on ${new Date().toLocaleDateString()}*
-`
+      // Format based on content type
+      const formattedNote = formatNoteContent(object, options)
       
-      setTitle(object.title)
-      setContent(formattedContent)
-    } catch (error) {
-      console.error('Failed to extract:', error)
+      return {
+        title: object.title,
+        content: formattedNote,
+        suggestedCollection: object.collection,
+        tags: object.tags,
+      }
     } finally {
       setIsExtracting(false)
     }
   }
+  
+  return { extract, isExtracting }
+}
+```
 
-  const handleSave = () => {
-    onExtract({ title, content, collectionId })
-    onOpenChange(false)
+**Smart Formatting Based on Content**:
+
+```typescript
+// features/chat/utils/note-formatter.ts
+export function formatNoteContent(extracted: ExtractedContent, options: ExtractOptions) {
+  const contentType = detectContentType(extracted)
+  
+  switch (contentType) {
+    case 'code':
+      return formatCodeNote(extracted)
+    case 'qa':
+      return formatQANote(extracted)
+    case 'brainstorm':
+      return formatBrainstormNote(extracted)
+    case 'tutorial':
+      return formatTutorialNote(extracted)
+    default:
+      return formatGeneralNote(extracted)
   }
+}
+```
 
+**6.2 Extract Dialog Component**
+
+```typescript
+// features/chat/components/extract-to-note-dialog.tsx
+export function ExtractToNoteDialog({ 
+  open, 
+  onOpenChange, 
+  extractOptions 
+}: ExtractToNoteDialogProps) {
+  const { extract, isExtracting } = useExtractToNote()
+  const [extracted, setExtracted] = useState<ExtractedNote | null>(null)
+  const [isEditing, setIsEditing] = useState(false)
+  
+  const handleExtract = async () => {
+    const result = await extract(extractOptions)
+    setExtracted(result)
+  }
+  
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
-        <DialogHeader>
-          <DialogTitle>Extract to Note</DialogTitle>
-          <DialogDescription>
-            Create a note from this conversation
-          </DialogDescription>
-        </DialogHeader>
-        
-        <div className="flex-1 overflow-y-auto space-y-4 py-4">
-          {!title && !content ? (
-            <div className="flex flex-col items-center justify-center py-8 space-y-4">
-              <Button
-                onClick={handleExtract}
-                disabled={isExtracting}
-              >
-                {isExtracting ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Extracting...
-                  </>
-                ) : (
-                  'Extract Conversation'
-                )}
+      <DialogContent className="max-w-3xl">
+        {!extracted ? (
+          // Initial state - show extract button
+          <div className="text-center py-8">
+            <Button onClick={handleExtract} disabled={isExtracting}>
+              {isExtracting ? (
+                <><Loader2 className="animate-spin mr-2" /> Analyzing...</>
+              ) : (
+                'Extract to Note'
+              )}
+            </Button>
+          </div>
+        ) : (
+          // Show extracted content with edit capability
+          <div className="space-y-4">
+            <Input 
+              value={extracted.title} 
+              onChange={(e) => setExtracted({...extracted, title: e.target.value})}
+            />
+            
+            {isEditing ? (
+              <Textarea 
+                value={extracted.content}
+                onChange={(e) => setExtracted({...extracted, content: e.target.value})}
+                rows={15}
+              />
+            ) : (
+              <div className="prose max-w-none">
+                <ReactMarkdown>{extracted.content}</ReactMarkdown>
+              </div>
+            )}
+            
+            <div className="flex justify-between">
+              <Button variant="outline" onClick={() => setIsEditing(!isEditing)}>
+                {isEditing ? 'Preview' : 'Edit'}
               </Button>
+              <div className="space-x-2">
+                <Button variant="outline" onClick={() => onOpenChange(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={() => saveNote(extracted)}>
+                  Create Note
+                </Button>
+              </div>
             </div>
-          ) : (
-            <>
-              <div className="space-y-2">
-                <Label htmlFor="title">Title</Label>
-                <Input
-                  id="title"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  placeholder="Note title..."
-                />
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="content">Content</Label>
-                <Textarea
-                  id="content"
-                  value={content}
-                  onChange={(e) => setContent(e.target.value)}
-                  rows={10}
-                  className="font-mono text-sm"
-                />
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="collection">Collection (optional)</Label>
-                <Select value={collectionId} onValueChange={setCollectionId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a collection" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {collections.map((collection) => (
-                      <SelectItem key={collection.id} value={collection.id}>
-                        {collection.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </>
-          )}
-        </div>
-        
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button onClick={handleSave} disabled={!title || !content}>
-            Create Note
-          </Button>
-        </DialogFooter>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   )
 }
+```
+
+**6.3 Integration with Editor Highlight**
+
+```typescript
+// features/editor/components/editor-bubble-menu.tsx
+// Add to existing bubble menu
+<Button
+  size="sm"
+  variant="ghost"
+  onClick={() => {
+    const selectedText = editor.state.doc.textBetween(from, to)
+    openExtractDialog({
+      source: 'highlight',
+      content: selectedText,
+      context: noteTitle,
+    })
+  }}
+>
+  <FileText className="w-4 h-4 mr-1" />
+  Extract to Note
+</Button>
 ```
 
 ### Sprint 2 Summary & Integration Points
@@ -1644,14 +1519,10 @@ A deeply integrated AI chat that understands and interacts with your notes, tran
 
 #### Key Integration Points
 
-1. **Note Context Provider** wraps the entire app:
-   ```tsx
-   // app/layout.tsx
-   <NoteContextProvider>
-     <AppShell>
-       {children}
-     </AppShell>
-   </NoteContextProvider>
+1. **Zustand Store** for note context (consistent with sidebar):
+   ```typescript
+   // Used across the app
+   const { currentNote, recentNotes } = useNoteContextStore()
    ```
 
 2. **Chat Input** enhanced with @mention support:
@@ -1659,40 +1530,67 @@ A deeply integrated AI chat that understands and interacts with your notes, tran
    - Show note search dropdown
    - Insert references that expand on send
 
-3. **Chat Interface** receives note context:
-   - Auto-includes current note
-   - Shows contextual empty state
-   - Passes context to AI
+3. **Flexible Extraction**:
+   - From highlighted text in editor
+   - From chat conversation ("extract this to a note")
+   - From message actions menu
+   - From multi-message selection
 
-4. **Message Actions** extended with extraction:
-   - Add to existing action menu
-   - One-click note creation
-   - Smart formatting based on content
+4. **Tool Calling** with inline confirmations:
+   - Safe operations execute immediately
+   - Modifications show preview/diff
+   - Non-blocking UI
 
 #### Success Metrics
 - **Zero-friction context**: Current note automatically available
 - **Fast note search**: <100ms for @mention results
 - **Safe modifications**: All changes previewed before applying
 - **Smart extraction**: 90% of extractions need no manual editing
+- **Multiple entry points**: Extract from anywhere in the app
 
 #### Testing Checklist
 - [ ] Open note → Start chat → AI knows context
 - [ ] Type "@" → See recent/starred notes first
 - [ ] Search notes → Find by title or content
+- [ ] Highlight text → Extract to note
+- [ ] Ask AI to extract → Creates formatted note
 - [ ] AI creates note → Preview before saving
 - [ ] AI updates note → See diff before confirming
-- [ ] Extract conversation → Get well-formatted note
 - [ ] All tools show appropriate UI feedback
 - [ ] Error states handled gracefully
+- [ ] Zustand state persists correctly
 
 #### Dependencies to Install
 ```bash
 # For tool validation
 bun add zod
 
-# For extraction formatting
-bun add unified remark remark-gfm
+# For diff viewing
+bun add diff react-diff-viewer-continued
+
+# Already have these from Sprint 1:
+# - @tanstack/react-virtual (for virtual scrolling)
+# - react-markdown (for markdown rendering)
+# - react-syntax-highlighter (for code highlighting)
 ```
+
+#### Implementation Progress
+- [ ] Day 4: Note Context System
+  - [x] Create Zustand store for note context
+  - [x] Integrate with chat interface
+  - [x] Update API route with context handling
+  - [x] Integrate with canvas view (NoteComponent)
+- [ ] Day 5: Enhanced Chat Features  
+  - [ ] @mention dropdown component
+  - [ ] Enhanced chat input
+  - [ ] Tool calling implementation
+  - [ ] Tool confirmation UI
+- [ ] Day 6: Extract & Polish
+  - [ ] Flexible extraction system
+  - [ ] Extract dialog component
+  - [ ] Integration with editor highlight
+  - [ ] Message actions menu
+  - [ ] Testing & polish
 
 ### Sprint 3: Polish & Performance (Days 7-9)
 

@@ -1,10 +1,11 @@
-import { streamText } from 'ai'
+import { streamText, convertToCoreMessages } from 'ai'
 import { openai } from '@ai-sdk/openai'
 import { NextRequest } from 'next/server'
 import { getCurrentUser } from '@/lib/auth/session'
 import { db } from '@/lib/db'
 import { chats } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
+import { noteTools } from '@/features/chat/tools/note-tools'
 
 export async function POST(req: NextRequest) {
   try {
@@ -32,21 +33,43 @@ export async function POST(req: NextRequest) {
     // Build system prompt
     let systemPrompt = `You are a helpful AI assistant integrated into a note-taking application. 
     You help users organize thoughts, develop ideas, and create meaningful notes.
-    Be concise but thorough. Use markdown formatting for clarity.`
+    Be concise but thorough. Use markdown formatting for clarity.
+    
+    You have access to tools that allow you to:
+    - Search through the user's notes
+    - Read specific notes in full
+    - Create new notes (with user confirmation)
+    - Update existing notes (with user confirmation)
+    
+    When the user asks you to search for information, create notes, or update content, use the appropriate tools.`
 
+    // Handle note context - can be either a string (from our store) or an object (legacy)
     if (noteContext) {
-      systemPrompt += `\n\nThe user is currently viewing a note. 
-      Here is the note content for context:\n\n${noteContext.content}\n\n
-      When answering questions, reference specific parts of this note when relevant.`
+      if (typeof noteContext === 'string') {
+        // New format from note context store
+        systemPrompt += `\n\n${noteContext}\n\n`
+        systemPrompt += `When answering questions, reference specific parts of the notes above when relevant. 
+        If the user asks about "this note" or "the note", they're referring to the current note mentioned above.`
+      } else if (noteContext.content) {
+        // Legacy format for backward compatibility
+        systemPrompt += `\n\nThe user is currently viewing a note titled "${noteContext.title || 'Untitled'}". 
+        Here is the note content for context:\n\n${noteContext.content}\n\n
+        When answering questions, reference specific parts of this note when relevant.`
+      }
     }
 
-    // Stream the response
+    // Convert messages to core messages format
+    const coreMessages = convertToCoreMessages(messages)
+
+    // Stream the response with tools
     const result = await streamText({
       model: openai('gpt-4-turbo'),
       messages: [
         { role: 'system', content: systemPrompt },
-        ...messages,
+        ...coreMessages,
       ],
+      tools: noteTools,
+      toolChoice: 'auto',
       temperature: 0.7,
       maxTokens: 2000,
     })

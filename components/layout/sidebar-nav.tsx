@@ -13,7 +13,7 @@
  */
 "use client"
 
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useMemo, useCallback } from 'react'
 import { 
   ChevronDown, 
   ChevronRight, 
@@ -51,7 +51,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
-import type { User as UserType, Note, Chat } from '@/lib/db/schema'
+import type { User as UserType, Note, Chat, Collection, Space } from '@/lib/db/schema'
 import useOrganizationStore from '@/features/organization/store/organization-store'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
@@ -89,24 +89,160 @@ const getCollectionIcon = (collectionName: string) => {
   }
 }
 
+// Memoized collection component to prevent unnecessary re-renders
+const CollectionItem = React.memo(({ 
+  collection, 
+  space,
+  items,
+  isExpanded,
+  isActive,
+  onToggle,
+  onSelect,
+  onItemClick,
+  getFilteredItems,
+  getCollectionIcon
+}: {
+  collection: Collection;
+  space: Space;
+  items: (Note | Chat)[];
+  isExpanded: boolean;
+  isActive: boolean;
+  onToggle: (id: string) => void;
+  onSelect: (collectionId: string, spaceId: string) => void;
+  onItemClick: (item: Note | Chat, type: 'note' | 'chat') => void;
+  getFilteredItems: (collection: Collection, spaceId: string, items: (Note | Chat)[]) => (Note | Chat)[];
+  getCollectionIcon: (name: string) => React.ReactNode;
+}) => {
+  const filteredItems = useMemo(
+    () => getFilteredItems(collection, space.id, items),
+    [getFilteredItems, collection, space.id, items]
+  );
+  const itemCount = filteredItems.length;
+
+  return (
+    <div>
+      <button
+        className={cn(
+          "w-full flex items-center justify-between rounded-md px-2 py-1.5 text-sm",
+          "hover:bg-hover-1",
+          isActive && "bg-hover-2"
+        )}
+        onClick={(event) => {
+          event.stopPropagation();
+          onSelect(collection.id, space.id);
+          if (itemCount > 0) {
+            onToggle(collection.id);
+          }
+        }}
+      >
+        <div className="flex items-center gap-2">
+          {getCollectionIcon(collection.name)}
+          <span>{collection.name}</span>
+          {itemCount > 0 && (
+            <span className="text-xs text-muted-foreground">({itemCount})</span>
+          )}
+        </div>
+        {itemCount > 0 && (
+          isExpanded ? 
+            <ChevronDown className="h-3 w-3" /> : 
+            <ChevronRight className="h-3 w-3" />
+        )}
+      </button>
+      
+      {/* Items under collection */}
+      {isExpanded && itemCount > 0 && (
+        <div className="mt-0.5 ml-5 space-y-0.5">
+          {filteredItems.map((item) => (
+            <button
+              key={item.id}
+              className={cn(
+                "w-full flex items-center gap-2 rounded-md px-2 py-1 text-sm text-left",
+                "hover:bg-hover-1",
+                "text-muted-foreground hover:text-foreground"
+              )}
+              onClick={(event) => {
+                event.stopPropagation();
+                onItemClick(item, space.id === 'permanent-chats' ? 'chat' : 'note');
+              }}
+            >
+              {item.isStarred && <Star className="h-3 w-3 fill-current" />}
+              <span className="truncate">{item.title}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+});
+
+CollectionItem.displayName = 'CollectionItem';
+
+// Memoized Space Section to prevent re-renders
+const SpaceSection = React.memo(({ 
+  space,
+  isExpanded,
+  onToggle,
+  children
+}: {
+  space: Space;
+  isExpanded: boolean;
+  onToggle: () => void;
+  children: React.ReactNode;
+}) => {
+  return (
+    <div className="mb-2">
+      <button
+        className={cn(
+          "w-full flex items-center justify-between rounded-md px-2 py-1.5 text-sm font-medium",
+          "hover:bg-hover-2"
+        )}
+        onClick={onToggle}
+      >
+        <div className="flex items-center gap-2">
+          <span className="text-base">{space.emoji}</span>
+          <span>{space.name}</span>
+        </div>
+        {isExpanded ? 
+          <ChevronDown className="h-4 w-4" /> : 
+          <ChevronRight className="h-4 w-4" />
+        }
+      </button>
+      
+      {isExpanded && children}
+    </div>
+  );
+}, (prevProps, nextProps) => {
+  // Only re-render if these specific props change
+  return (
+    prevProps.space.id === nextProps.space.id &&
+    prevProps.isExpanded === nextProps.isExpanded &&
+    prevProps.space.name === nextProps.space.name &&
+    prevProps.space.emoji === nextProps.space.emoji
+  );
+});
+
+SpaceSection.displayName = 'SpaceSection';
+
 export function SidebarNav({ className, user }: SidebarNavProps) {
-  const { theme, setTheme } = useTheme()
-  const { sidebarCollapsed, setSidebarCollapsed, openChat, openNote } = useAppShell()
   const { 
     spaces, 
-    activeSpaceId,
-    activeCollectionId,
-    notes,
-    chats,
+    notes, 
+    chats, 
     fetchInitialData, 
     setActiveSpace,
     setActiveCollection,
+    activeSpaceId,
+    activeCollectionId,
     createSpace,
     createCollection,
     searchQuery,
     setSearchQuery
   } = useOrganizationStore()
+  const { openChat, openNote } = useAppShell()
+  const { theme, setTheme } = useTheme()
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   
+  // Track which spaces and collections are expanded
   const [spaceExpansion, setSpaceExpansion] = useState<Record<string, boolean>>({
     'permanent-notes': true,
     'permanent-chats': true
@@ -116,38 +252,70 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
   useEffect(() => {
     fetchInitialData()
   }, [fetchInitialData])
-  
-  const toggleSpace = (spaceId: string) => {
+
+  const toggleSpace = useCallback((spaceId: string) => {
     setSpaceExpansion(prev => ({ ...prev, [spaceId]: !prev[spaceId] }))
-  }
+  }, [])
 
-  const toggleCollection = (collectionId: string) => {
+  const toggleCollection = useCallback((collectionId: string) => {
     setCollectionExpansion(prev => ({ ...prev, [collectionId]: !prev[collectionId] }))
-  }
+  }, [])
 
-  const handleCollectionClick = (collectionId: string, spaceId: string) => {
+  const handleCollectionClick = useCallback((collectionId: string, spaceId: string) => {
+    setActiveSpace(spaceId)
     setActiveCollection(collectionId, spaceId)
-    // Auto-expand collection when selected
-    setCollectionExpansion(prev => ({ ...prev, [collectionId]: true }))
-  }
+  }, [setActiveSpace, setActiveCollection])
 
-  const handleNewChat = () => {
+  // Helper function to filter items based on collection type
+  const getFilteredItems = useCallback((collection: Collection, spaceId: string, items: (Note | Chat)[]) => {
+    const now = new Date()
+    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+
+    switch (collection.name) {
+      case 'All':
+        return items
+      case 'Recent':
+        return items.filter(item => new Date(item.updatedAt) > sevenDaysAgo)
+      case 'Saved':
+        return items.filter(item => item.isStarred)
+      case 'Uncategorized':
+        return items.filter(item => !item.collectionId)
+      default:
+        // Regular collection - filter by collection ID
+        return items.filter(item => item.collectionId === collection.id)
+    }
+  }, [])
+
+  // Helper function to get items for a specific space
+  const getItemsForSpace = useCallback((spaceId: string): (Note | Chat)[] => {
+    if (spaceId === 'permanent-notes') {
+      return notes
+    } else if (spaceId === 'permanent-chats') {
+      return chats
+    } else {
+      // User spaces - for now, return notes
+      // TODO: In the future, spaces might contain mixed content
+      return notes
+    }
+  }, [notes, chats])
+
+  const handleNewChat = useCallback(() => {
     openChat({ 
       id: `chat-${Date.now()}`, 
       type: 'chat', 
       title: 'New Chat' 
     })
-  }
+  }, [openChat])
 
-  const handleNewNote = () => {
+  const handleNewNote = useCallback(() => {
     openNote({ 
       id: `note-${Date.now()}`, 
       type: 'note', 
       title: 'New Note' 
     })
-  }
+  }, [openNote])
 
-  const handleItemClick = (item: Note | Chat, type: 'note' | 'chat') => {
+  const handleItemClick = useCallback((item: Note | Chat, type: 'note' | 'chat') => {
     if (type === 'note') {
       openNote({ 
         id: item.id, 
@@ -161,34 +329,31 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
         title: item.title 
       })
     }
-  }
+  }, [openNote, openChat])
 
-  const handleSignOut = async () => {
+  const handleSignOut = useCallback(async () => {
     await fetch('/api/auth/signout', { method: 'POST' })
     window.location.href = '/'
-  }
+  }, [])
 
-  const handleNewSpace = async () => {
+  const handleNewSpace = useCallback(async () => {
     // TODO: Show emoji picker dialog
     const name = prompt('Space name:')
     if (name) {
       await createSpace(name, '📁')
     }
-  }
+  }, [createSpace])
 
-  const handleNewCollection = async (spaceId: string) => {
+  const handleNewCollection = useCallback(async (spaceId: string) => {
     const name = prompt('Collection name:')
     if (name) {
       await createCollection(name, spaceId)
     }
-  }
+  }, [createCollection])
 
   // Separate permanent and user spaces
   const permanentSpaces = spaces.filter(s => s.type === 'static')
   const userSpaces = spaces.filter(s => s.type !== 'static')
-
-  // Get items for the current collection
-  const currentItems = activeSpaceId?.includes('chat') ? chats : notes
 
   if (sidebarCollapsed) {
     // Collapsed sidebar - icon only view
@@ -439,173 +604,98 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
       <ScrollArea className="flex-1 scrollbar-minimal">
         <div className="px-2 pb-2">
           {/* Permanent Spaces */}
-          {permanentSpaces.map((space) => (
-            <div key={space.id} className="mb-2">
-              <button
-                className={cn(
-                  "w-full flex items-center justify-between rounded-md px-2 py-1.5 text-sm font-medium",
-                  "hover:bg-hover-2"
-                )}
-                onClick={() => toggleSpace(space.id)}
+          {permanentSpaces.map((space) => {
+            const spaceItems = getItemsForSpace(space.id)
+            const isSpaceExpanded = spaceExpansion[space.id]
+            
+            return (
+              <SpaceSection
+                key={space.id}
+                space={space}
+                isExpanded={isSpaceExpanded}
+                onToggle={() => toggleSpace(space.id)}
               >
-                <div className="flex items-center gap-2">
-                  <span className="text-base">{space.emoji}</span>
-                  <span>{space.name}</span>
-                </div>
-                {spaceExpansion[space.id] ? 
-                  <ChevronDown className="h-4 w-4" /> : 
-                  <ChevronRight className="h-4 w-4" />
-                }
-              </button>
-              
-              {spaceExpansion[space.id] && space.collections && (
-                <div className="mt-1 ml-6 space-y-0.5">
-                  {space.collections.map((collection) => {
-                    const itemCount = currentItems.length // TODO: Filter by collection
-                    const isExpanded = collectionExpansion[collection.id]
-                    
-                    return (
-                      <div key={collection.id}>
-                        <button
-                          className={cn(
-                            "w-full flex items-center justify-between rounded-md px-2 py-1.5 text-sm",
-                            "hover:bg-hover-1"
-                          )}
-                          onClick={() => {
-                            handleCollectionClick(collection.id, space.id)
-                            toggleCollection(collection.id)
-                          }}
-                        >
-                          <div className="flex items-center gap-2">
-                            {getCollectionIcon(collection.name)}
-                            <span>{collection.name}</span>
-                            {itemCount > 0 && (
-                              <span className="text-xs text-muted-foreground">({itemCount})</span>
-                            )}
-                          </div>
-                          {itemCount > 0 && (
-                            isExpanded ? 
-                              <ChevronDown className="h-3 w-3" /> : 
-                              <ChevronRight className="h-3 w-3" />
-                          )}
-                        </button>
-                        
-                        {/* Items under collection */}
-                        {isExpanded && activeCollectionId === collection.id && currentItems.length > 0 && (
-                          <div className="mt-0.5 ml-5 space-y-0.5">
-                            {currentItems.map((item) => (
-                              <button
-                                key={item.id}
-                                className={cn(
-                                  "w-full flex items-center gap-2 rounded-md px-2 py-1 text-sm text-left",
-                                  "hover:bg-hover-1",
-                                  "text-muted-foreground hover:text-foreground"
-                                )}
-                                onClick={() => handleItemClick(item, space.id.includes('chat') ? 'chat' : 'note')}
-                              >
-                                {item.isStarred && <Star className="h-3 w-3 fill-current" />}
-                                <span className="truncate">{item.title}</span>
-                              </button>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
-            </div>
-          ))}
+                {space.collections && (
+                  <div className="mt-1 ml-6 space-y-0.5">
+                    {space.collections.map((collection) => {
+                      const isExpanded = collectionExpansion[collection.id]
+                      const isActive = activeCollectionId === collection.id
+                      
+                      return (
+                        <CollectionItem
+                          key={collection.id}
+                          collection={collection}
+                          space={space}
+                          items={spaceItems}
+                          isExpanded={isExpanded}
+                          isActive={isActive}
+                          onToggle={toggleCollection}
+                          onSelect={handleCollectionClick}
+                          onItemClick={handleItemClick}
+                          getFilteredItems={getFilteredItems}
+                          getCollectionIcon={getCollectionIcon}
+                        />
+                      )
+                    })}
+                  </div>
+                )}
+              </SpaceSection>
+            )
+          })}
 
           {userSpaces.length > 0 && <Separator className="my-3" />}
 
           {/* User Spaces */}
-          {userSpaces.map((space) => (
-            <div key={space.id} className="mb-2">
-              <button
-                className={cn(
-                  "w-full flex items-center justify-between rounded-md px-2 py-1.5 text-sm font-medium",
-                  "hover:bg-hover-2"
-                )}
-                onClick={() => toggleSpace(space.id)}
+          {userSpaces.map((space) => {
+            const spaceItems = getItemsForSpace(space.id)
+            const isSpaceExpanded = spaceExpansion[space.id]
+            
+            return (
+              <SpaceSection
+                key={space.id}
+                space={space}
+                isExpanded={isSpaceExpanded}
+                onToggle={() => toggleSpace(space.id)}
               >
-                <div className="flex items-center gap-2">
-                  <span className="text-base">{space.emoji}</span>
-                  <span>{space.name}</span>
-                </div>
-                {spaceExpansion[space.id] ? 
-                  <ChevronDown className="h-4 w-4" /> : 
-                  <ChevronRight className="h-4 w-4" />
-                }
-              </button>
-              
-              {spaceExpansion[space.id] && space.collections && (
-                <div className="mt-1 ml-6 space-y-0.5">
-                  {space.collections.map((collection) => {
-                    const itemCount = currentItems.length // TODO: Filter by collection
-                    const isExpanded = collectionExpansion[collection.id]
+                {space.collections && (
+                  <div className="mt-1 ml-6 space-y-0.5">
+                    {space.collections.map((collection) => {
+                      const isExpanded = collectionExpansion[collection.id]
+                      const isActive = activeCollectionId === collection.id
+                      
+                      return (
+                        <CollectionItem
+                          key={collection.id}
+                          collection={collection}
+                          space={space}
+                          items={spaceItems}
+                          isExpanded={isExpanded}
+                          isActive={isActive}
+                          onToggle={toggleCollection}
+                          onSelect={handleCollectionClick}
+                          onItemClick={handleItemClick}
+                          getFilteredItems={getFilteredItems}
+                          getCollectionIcon={getCollectionIcon}
+                        />
+                      )
+                    })}
                     
-                    return (
-                      <div key={collection.id}>
-                        <button
-                          className={cn(
-                            "w-full flex items-center justify-between rounded-md px-2 py-1.5 text-sm",
-                            "hover:bg-hover-1"
-                          )}
-                          onClick={() => {
-                            handleCollectionClick(collection.id, space.id)
-                            toggleCollection(collection.id)
-                          }}
-                        >
-                          <div className="flex items-center gap-2">
-                            {getCollectionIcon(collection.name)}
-                            <span>{collection.name}</span>
-                            {itemCount > 0 && (
-                              <span className="text-xs text-muted-foreground">({itemCount})</span>
-                            )}
-                          </div>
-                          {itemCount > 0 && (
-                            isExpanded ? 
-                              <ChevronDown className="h-3 w-3" /> : 
-                              <ChevronRight className="h-3 w-3" />
-                          )}
-                        </button>
-                        
-                        {/* Items under collection */}
-                        {isExpanded && activeCollectionId === collection.id && currentItems.length > 0 && (
-                          <div className="mt-0.5 ml-5 space-y-0.5">
-                            {currentItems.map((item) => (
-                              <button
-                                key={item.id}
-                                className={cn(
-                                  "w-full flex items-center gap-2 rounded-md px-2 py-1 text-sm text-left",
-                                  "hover:bg-hover-1",
-                                  "text-muted-foreground hover:text-foreground"
-                                )}
-                                onClick={() => handleItemClick(item, 'note')}
-                              >
-                                {item.isStarred && <Star className="h-3 w-3 fill-current" />}
-                                <span className="truncate">{item.title}</span>
-                              </button>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    )
-                  })}
-                  
-                  {/* Add new collection button */}
-                  <button
-                    className="w-full flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground hover:bg-hover-1 hover:text-foreground"
-                    onClick={() => handleNewCollection(space.id)}
-                  >
-                    <Plus className="h-3 w-3" />
-                    <span>New Collection</span>
-                  </button>
-                </div>
-              )}
-            </div>
-          ))}
+                    {/* Add new collection button */}
+                    <button
+                      className="w-full flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground hover:bg-hover-1 hover:text-foreground"
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        handleNewCollection(space.id)
+                      }}
+                    >
+                      <Plus className="h-3 w-3" />
+                      <span>New Collection</span>
+                    </button>
+                  </div>
+                )}
+              </SpaceSection>
+            )
+          })}
 
           {/* New Space Button */}
           <button

@@ -113,7 +113,7 @@ export function AIBubbleMenuCommands({ editor, onBack }: AIBubbleMenuCommandsPro
           <button
             key={cmd.id}
             onClick={() => handleCommand(cmd.id as AIOperation)}
-            className="flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-accent rounded-md transition-colors text-left"
+            className="flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-md transition-colors text-left"
           >
             <cmd.icon className="h-4 w-4 shrink-0" />
             <span>{cmd.label}</span>

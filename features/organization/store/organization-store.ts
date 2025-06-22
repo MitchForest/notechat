@@ -55,10 +55,12 @@ type OrganizationActions = {
   setActiveCollection: (collectionId: string, spaceId: string) => Promise<void>
   createSpace: (name: string, emoji: string) => Promise<void>
   createCollection: (name: string, spaceId: string) => Promise<void>
-  createNote: (title: string, collectionId: string) => Promise<void>
-  createChat: (title: string, collectionId: string) => Promise<void>
+  createNote: (title: string, collectionId: string | null, id?: string) => Promise<Note | null>
+  createChat: (title: string, collectionId: string, id?: string) => Promise<Chat | null>
   updateNote: (noteId: string, data: Partial<Note>) => Promise<void>
   updateChat: (chatId: string, data: Partial<Chat>) => Promise<void>
+  deleteNote: (noteId: string) => Promise<void>
+  deleteChat: (chatId: string) => Promise<void>
   // New actions
   setSearchQuery: (query: string) => void
   performSearch: (query: string) => Promise<void>
@@ -238,35 +240,46 @@ const useOrganizationStore = create<OrganizationStore>((set, get) => ({
     }
   },
 
-  createNote: async (title: string, collectionId: string) => {
+  createNote: async (title: string, collectionId: string | null, id?: string) => {
     try {
+      const noteData: any = { title }
+      if (collectionId) noteData.collectionId = collectionId
+      if (id) noteData.id = id
+      
       const response = await fetch('/api/notes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, collectionId }),
+        body: JSON.stringify(noteData),
       })
       if (!response.ok) throw new Error('Failed to create note')
       const newNote = await response.json()
       set(state => ({ notes: [newNote, ...state.notes] }))
+      return newNote
     } catch (error) {
       set({ error: (error as Error).message })
       toast.error('Failed to create note')
+      return null
     }
   },
 
-  createChat: async (title: string, collectionId: string) => {
+  createChat: async (title: string, collectionId: string, id?: string) => {
     try {
+      const chatData: any = { title, collectionId }
+      if (id) chatData.id = id
+      
       const response = await fetch('/api/chats', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, collectionId }),
+        body: JSON.stringify(chatData),
       })
       if (!response.ok) throw new Error('Failed to create chat')
       const newChat = await response.json()
       set(state => ({ chats: [newChat, ...state.chats] }))
+      return newChat
     } catch (error) {
       set({ error: (error as Error).message })
       toast.error('Failed to create chat')
+      return null
     }
   },
 
@@ -315,6 +328,34 @@ const useOrganizationStore = create<OrganizationStore>((set, get) => ({
         get().setActiveCollection(activeCollectionId, activeSpaceId)
       }
       toast.error('Failed to update chat')
+    }
+  },
+
+  deleteNote: async (noteId: string) => {
+    try {
+      const response = await fetch(`/api/notes/${noteId}`, {
+        method: 'DELETE',
+      })
+      if (!response.ok) throw new Error('Failed to delete note')
+      set(state => ({ notes: state.notes.filter(n => n.id !== noteId) }))
+      toast.success('Note deleted')
+    } catch (error) {
+      set({ error: (error as Error).message })
+      toast.error('Failed to delete note')
+    }
+  },
+
+  deleteChat: async (chatId: string) => {
+    try {
+      const response = await fetch(`/api/chats/${chatId}`, {
+        method: 'DELETE',
+      })
+      if (!response.ok) throw new Error('Failed to delete chat')
+      set(state => ({ chats: state.chats.filter(c => c.id !== chatId) }))
+      toast.success('Chat deleted')
+    } catch (error) {
+      set({ error: (error as Error).message })
+      toast.error('Failed to delete chat')
     }
   },
 

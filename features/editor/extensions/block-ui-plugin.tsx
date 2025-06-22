@@ -90,7 +90,6 @@ class BlockUIView {
   private reactRoot: Root;
   private container: HTMLElement;
   private editor: Editor;
-  private isHandleHovered: boolean = false;
 
   constructor(view: EditorView, container: HTMLElement, editor: Editor) {
     this.view = view;
@@ -109,17 +108,15 @@ class BlockUIView {
     this.portal.className = 'block-handle-portal';
     this.container.appendChild(this.portal);
     this.reactRoot = createRoot(this.portal);
+    
+    log('Portal created and appended to container', {
+      portal: this.portal,
+      container: this.container.className,
+      portalInDOM: document.contains(this.portal)
+    });
 
-    this.portal.addEventListener('mouseenter', () => {
-      this.isHandleHovered = true;
-    });
-    this.portal.addEventListener('mouseleave', () => {
-      this.isHandleHovered = false;
-      // Use requestAnimationFrame to avoid race conditions with React state
-      requestAnimationFrame(() => {
-        handleMouseMove(this.view, this.container, new MouseEvent('mousemove', { bubbles: true, cancelable: true }));
-      });
-    });
+    // Remove the hover tracking on portal - let the block handle manage its own hover
+    // The CSS pointer-events changes will handle the hover behavior
     
     this.update(view, view.state);
   }
@@ -129,6 +126,16 @@ class BlockUIView {
   }
 
   update(view: EditorView, prevState: any) {
+    // Check if portal is still in DOM, re-append if needed
+    if (!document.contains(this.portal)) {
+      const currentContainer = view.dom.closest('.editor-wrapper');
+      if (currentContainer && currentContainer !== this.container) {
+        log('Container changed, re-appending portal to new container');
+        this.container = currentContainer as HTMLElement;
+        this.container.appendChild(this.portal);
+      }
+    }
+    
     const state = blockUiPluginKey.getState(view.state);
     const prevPluginState = blockUiPluginKey.getState(prevState);
 
@@ -147,7 +154,7 @@ class BlockUIView {
         const containerRect = this.container.getBoundingClientRect();
         const nodeRect = domNode.getBoundingClientRect();
         const top = nodeRect.top - containerRect.top;
-        const left = 24; // Position handle in the new gutter area
+        const left = 8; // Position handle further left in the gutter
         this.portal.style.display = 'block';
         this.portal.style.position = 'absolute';
         this.portal.style.top = `${top}px`;
@@ -162,9 +169,7 @@ class BlockUIView {
         );
       }
     } else {
-      if (!this.isHandleHovered) {
-          this.portal.style.display = 'none';
-      }
+      this.portal.style.display = 'none';
     }
   }
 
@@ -195,18 +200,33 @@ function findHoveredBlock(view: EditorView, container: HTMLElement, event: Mouse
   // This logic now ignores the horizontal cursor position, effectively extending
   // the hover area to the full width of the editor.
   let hoveredBlockInfo: { pos: number; node: any } | null = null;
+  let debugInfo: any[] = [];
+  
   view.state.doc.forEach((node, pos) => {
     if (hoveredBlockInfo) return; // Already found
     if (node.isBlock) {
       const domNode = view.nodeDOM(pos) as HTMLElement;
       if (domNode) {
         const rect = domNode.getBoundingClientRect();
+        debugInfo.push({
+          pos,
+          type: node.type.name,
+          dom: domNode.tagName,
+          rect: { top: rect.top, bottom: rect.bottom },
+          mouseY: event.clientY,
+          inRange: event.clientY >= rect.top && event.clientY <= rect.bottom
+        });
+        
         if (event.clientY >= rect.top && event.clientY <= rect.bottom) {
           hoveredBlockInfo = { pos, node };
         }
       }
     }
   });
+  
+  if (DEBUG && debugInfo.length > 0) {
+    log('findHoveredBlock debug:', debugInfo);
+  }
 
   return hoveredBlockInfo;
 }
@@ -451,10 +471,12 @@ export const BlockUi = Extension.create<BlockUiOptions>({
     console.error("Error in BlockUi extension:", error);
   },
   addProseMirrorPlugins() {
+    console.log('[BlockUI] addProseMirrorPlugins called with options:', this.options);
     if (!this.options.container) {
       console.warn('[BlockUI] No container provided to extension');
       return [];
     }
+    console.log('[BlockUI] Creating plugin with container:', this.options.container.className);
     return [blockUiPlugin(this.options.container, this.editor)];
   },
 });

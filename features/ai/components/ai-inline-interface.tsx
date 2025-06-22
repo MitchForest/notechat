@@ -106,7 +106,7 @@ export function AIInlineInterface({ editor, node, getPos }: NodeViewProps) {
                     <button
                       key={s}
                       type="button"
-                      className="px-2 py-1 rounded-md bg-background hover:bg-accent border"
+                      className="px-2 py-1 rounded-md bg-background hover:bg-neutral-100 dark:hover:bg-neutral-800 border"
                       onClick={() => handleSuggestionClick(s)}
                     >
                       {s}
@@ -131,12 +131,12 @@ export function AIInlineInterface({ editor, node, getPos }: NodeViewProps) {
               <Button variant="ghost" size="sm" onClick={() => triggerCompletion(input)}>
                 <RefreshCw className="h-4 w-4 mr-1.5" /> Try Again
               </Button>
-              <Button variant="primary" size="sm" onClick={handleAccept}>
+              <Button variant="default" size="sm" onClick={handleAccept}>
                 <Check className="h-4 w-4 mr-1.5" /> Accept
               </Button>
             </>
           ) : (
-            <Button variant="primary" size="sm" type="submit" onClick={handleSubmit} disabled={!input.trim()}>
+            <Button variant="default" size="sm" type="submit" onClick={handleSubmit} disabled={!input.trim()}>
               <CornerDownLeft className="h-4 w-4 mr-1.5" />
               Generate
             </Button>

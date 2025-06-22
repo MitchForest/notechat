@@ -60,8 +60,8 @@ Heading,   // Remove .extend({ addNodeView() })
 #### 1.3 Verify Basic Functionality
 
 **Tests**:
-- [ ] Text is visible when typing
-- [ ] Slash commands work without errors
+- [x] Text is visible when typing ✅
+- [x] Slash commands work without errors ✅
 - [ ] Basic formatting works
 - [ ] Cursor/selection works normally
 

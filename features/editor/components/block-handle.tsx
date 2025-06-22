@@ -12,7 +12,8 @@ import {
   List,
   ListOrdered,
   Quote,
-  Code
+  Code,
+  MoreVertical
 } from 'lucide-react'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { Editor } from '@tiptap/core'
@@ -119,7 +120,7 @@ export function BlockHandle({ editor, blockPos, blockNode, onMenuToggle, onDragS
         data-drag-handle
         title="Drag to move"
       >
-        <GripVertical size={18} />
+        <GripVertical size={16} />
       </button>
 
       <DropdownMenu.Root open={menuOpen} onOpenChange={onOpenChange}>
@@ -128,7 +129,7 @@ export function BlockHandle({ editor, blockPos, blockNode, onMenuToggle, onDragS
             className="handle-button"
             title="Block options"
           >
-            <Plus size={18} />
+            <Plus size={16} />
           </button>
         </DropdownMenu.Trigger>
 

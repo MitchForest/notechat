@@ -11,7 +11,6 @@ import { ErrorRegistry } from '../services/ErrorRegistry'
 import Underline from '@tiptap/extension-underline';
 import TaskList from '@tiptap/extension-task-list';
 import TaskItem from '@tiptap/extension-task-item';
-import { BlockUi } from '../extensions/block-ui-plugin'
 import { Extension } from '@tiptap/core'
 import { InlineAI } from '@/features/ai/extensions/inline-ai';
 import { GhostText } from '@/features/ai/extensions/ghost-text'
@@ -23,6 +22,7 @@ import BulletList from '@tiptap/extension-bullet-list'
 import OrderedList from '@tiptap/extension-ordered-list'
 import ListItem from '@tiptap/extension-list-item'
 import Blockquote from '@tiptap/extension-blockquote'
+import { BlockId } from '../extensions/block-id'
 
 const lowlight = createLowlight(common)
 
@@ -36,12 +36,12 @@ export const getEditorExtensions = (
     onUpdateDropTarget?: (targetId: string | null, position: 'before' | 'after' | null) => void
   }
 ) => {
-  console.log('[Extensions] Loading editor extensions...')
+  console.log('[Extensions] Loading editor extensions...', { container: !!container, containerClass: container?.className })
 
   const extensions = [
     // Configure StarterKit without the nodes we're customizing
     StarterKit.configure({
-      paragraph: false, // We'll add our own with node view
+      paragraph: false, // We'll add our own
       heading: false, // We'll add our own with node view
       bulletList: false, // We'll add our own with node view
       orderedList: false, // We'll add our own with node view
@@ -51,15 +51,73 @@ export const getEditorExtensions = (
       history: {},
     }),
     
-    // Temporarily use native Tiptap implementations to fix editing
-    Paragraph,
-    Heading,
-    BulletList,
-    OrderedList,
-    ListItem,
-    Blockquote,
+    // Use native Tiptap implementations with block identification
+    Paragraph.extend({
+      addAttributes() {
+        return {
+          ...this.parent?.(),
+          id: {
+            default: null,
+          },
+        }
+      },
+      renderHTML({ HTMLAttributes }) {
+        return ['p', { ...HTMLAttributes, 'data-block-type': 'paragraph' }, 0]
+      },
+    }),
     
-    CodeBlockLowlight.configure({
+    Heading.extend({
+      addAttributes() {
+        return {
+          ...this.parent?.(),
+          id: {
+            default: null,
+          },
+        }
+      },
+      renderHTML({ HTMLAttributes, node }) {
+        const level = node.attrs.level
+        return [`h${level}`, { ...HTMLAttributes, 'data-block-type': 'heading' }, 0]
+      },
+    }),
+    
+    BulletList.extend({
+      renderHTML({ HTMLAttributes }) {
+        return ['ul', { ...HTMLAttributes, 'data-block-type': 'bulletList' }, 0]
+      },
+    }),
+    
+    OrderedList.extend({
+      renderHTML({ HTMLAttributes }) {
+        return ['ol', { ...HTMLAttributes, 'data-block-type': 'orderedList' }, 0]
+      },
+    }),
+    
+    ListItem.extend({
+      renderHTML({ HTMLAttributes }) {
+        return ['li', { ...HTMLAttributes, 'data-block-type': 'listItem' }, 0]
+      },
+    }),
+    
+    Blockquote.extend({
+      renderHTML({ HTMLAttributes }) {
+        return ['blockquote', { ...HTMLAttributes, 'data-block-type': 'blockquote' }, 0]
+      },
+    }),
+    
+    CodeBlockLowlight.extend({
+      addAttributes() {
+        return {
+          ...this.parent?.(),
+          id: {
+            default: null,
+          },
+        }
+      },
+      renderHTML({ HTMLAttributes }) {
+        return ['pre', { ...HTMLAttributes, 'data-block-type': 'codeBlock' }, ['code', 0]]
+      },
+    }).configure({
       lowlight,
       languageClassPrefix: 'language-',
       defaultLanguage: 'plaintext',
@@ -74,7 +132,11 @@ export const getEditorExtensions = (
     Color,
     Underline,
     TaskList,
-    TaskItem,
+    TaskItem.extend({
+      renderHTML({ HTMLAttributes }) {
+        return ['li', { ...HTMLAttributes, 'data-block-type': 'taskItem' }, 0]
+      },
+    }),
     
     // Enhanced placeholder with support for all block types
     Placeholder.configure({
@@ -117,12 +179,13 @@ export const getEditorExtensions = (
       includeChildren: true, // Show in nested structures like lists
     }),
     
-    BlockUi.configure({
-      container
-    }),
-    
     // Add BlockDragPlugin if drag handlers are provided
-    ...(dragHandlers ? [BlockDragPlugin.configure(dragHandlers)] : [])
+    ...(dragHandlers ? [BlockDragPlugin.configure(dragHandlers)] : []),
+    
+    // Add BlockId extension
+    BlockId.configure({
+      // Configure BlockId extension
+    })
   ]
 
   console.log('[Extensions] Loaded', extensions.length, 'extensions')
