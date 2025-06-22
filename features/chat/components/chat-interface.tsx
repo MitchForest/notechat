@@ -264,12 +264,11 @@ export function ChatInterface({ chatId, className, onClose, noteContext }: ChatI
         // Get the active collection from the organization store or default to null
         const { activeCollectionId } = useCollectionStore.getState()
         const { activeSpaceId } = useSpaceStore.getState()
+        const { activeSmartCollectionId } = useSmartCollectionStore.getState()
         
-        // Check if the active collection is a smart collection
-        const { smartCollections } = useSmartCollectionStore.getState()
-        const collectionId = activeCollectionId && smartCollections.some(sc => sc.id === activeCollectionId) 
-          ? null 
-          : activeCollectionId;
+        // If we're viewing a smart collection, don't use it as a collection ID
+        // Smart collections are just filters, not actual containers
+        const collectionId = activeSmartCollectionId ? null : activeCollectionId
         
         const spaceId = activeSpaceId
         

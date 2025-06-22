@@ -50,15 +50,12 @@ export function CreateSpaceDialog({
 
     try {
       await onCreateSpace(name.trim(), emoji)
-      toast.success(`Created space "${name}"`)
-      
-      // Reset form
       setName('')
       setEmoji('📁')
       onOpenChange(false)
     } catch (error) {
+      console.error('Failed to create space:', error)
       setError('Failed to create space. Please try again.')
-      toast.error('Failed to create space')
     } finally {
       setLoading(false)
     }

@@ -25,6 +25,7 @@ import { useNoteContextStore } from '@/features/chat/stores/note-context-store'
 import { toast } from 'sonner'
 import type { Note } from '@/lib/db/schema'
 import { useSpaceStore } from '@/features/organization/stores/space-store'
+import { useSmartCollectionStore } from '@/features/organization/stores/smart-collection-store'
 
 // Chat component wrapper
 function ChatComponent({
@@ -165,17 +166,11 @@ function NoteComponent({
         // Get the active collection from the organization store or default to null (uncategorized)
         const { activeCollectionId } = useCollectionStore.getState();
         const { activeSpaceId } = useSpaceStore.getState();
+        const { activeSmartCollectionId } = useSmartCollectionStore.getState();
         
-        // Check if it's a virtual collection (permanent collections)
-        const virtualCollectionIds = [
-          'notes-all', 'notes-recent', 'notes-saved', 'notes-uncategorized',
-          'chats-all', 'chats-recent', 'chats-saved', 'chats-uncategorized',
-          'inbox-all', 'inbox-recent', 'inbox-saved'
-        ];
-        
-        const collectionId = virtualCollectionIds.includes(activeCollectionId || '') 
-          ? null 
-          : activeCollectionId;
+        // If we're viewing a smart collection, don't use it as a collection ID
+        // Smart collections are just filters, not actual containers
+        const collectionId = activeSmartCollectionId ? null : activeCollectionId;
         
         // Use the active space ID directly
         const spaceId = activeSpaceId;

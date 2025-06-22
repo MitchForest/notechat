@@ -50,6 +50,26 @@ export const useCollectionStore = create<CollectionStore>((set, get) => ({
   
   // Create collection
   createCollection: async (name, spaceId) => {
+    // Generate temporary ID
+    const tempId = `temp-${Date.now()}`
+    
+    // Create optimistic collection
+    const optimisticCollection: Collection = {
+      id: tempId,
+      userId: 'current-user', // Will be replaced with real user ID from response
+      spaceId,
+      name,
+      type: 'user',
+      icon: null, // Default icon, will need to add icon support later
+      createdAt: new Date(),
+      updatedAt: new Date()
+    }
+    
+    // Optimistically add to store
+    set(state => ({
+      collections: [...state.collections, optimisticCollection]
+    }))
+    
     try {
       const response = await fetch('/api/collections', {
         method: 'POST',
@@ -61,15 +81,22 @@ export const useCollectionStore = create<CollectionStore>((set, get) => ({
       
       const newCollection = await response.json()
       
-      // Add to local state
+      // Replace temporary collection with real one
       set(state => ({
-        collections: [...state.collections, newCollection]
+        collections: state.collections.map(c => 
+          c.id === tempId ? newCollection : c
+        )
       }))
       
       toast.success(`Created collection "${name}"`)
       
       return newCollection
     } catch (error) {
+      // Rollback - remove the optimistic collection
+      set(state => ({
+        collections: state.collections.filter(c => c.id !== tempId)
+      }))
+      
       console.error('Failed to create collection:', error)
       toast.error('Failed to create collection')
       throw error

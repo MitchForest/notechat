@@ -75,7 +75,8 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
   
   const { 
     collections, 
-    createCollection
+    createCollection,
+    setActiveCollection
   } = useCollectionStore()
   
   const {
@@ -532,6 +533,8 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
                               isActive={activeSmartCollectionId === smartCollection.id}
                               onClick={() => {
                                 setActiveSmartCollection(smartCollection.id)
+                                // Clear regular collection when smart collection is selected
+                                setActiveCollection(null)
                                 fetchSmartCollectionContent(smartCollection)
                               }}
                               onContextMenu={(e) => {
@@ -560,6 +563,11 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
                                   items={spaceItems}
                                   isExpanded={isExpanded}
                                   onToggle={toggleCollection}
+                                  onCollectionClick={(collectionId) => {
+                                    setActiveCollection(collectionId)
+                                    // Clear smart collection when regular collection is selected
+                                    setActiveSmartCollection('')
+                                  }}
                                   onItemClick={handleItemClick}
                                   onItemAction={handleItemAction}
                                   getFilteredItems={getFilteredItems}
@@ -603,6 +611,8 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
                               isActive={activeSmartCollectionId === smartCollection.id}
                               onClick={() => {
                                 setActiveSmartCollection(smartCollection.id)
+                                // Clear regular collection when smart collection is selected
+                                setActiveCollection(null)
                                 fetchSmartCollectionContent(smartCollection)
                               }}
                               onContextMenu={(e) => {
@@ -631,6 +641,11 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
                                   items={spaceItems}
                                   isExpanded={isExpanded}
                                   onToggle={toggleCollection}
+                                  onCollectionClick={(collectionId) => {
+                                    setActiveCollection(collectionId)
+                                    // Clear smart collection when regular collection is selected
+                                    setActiveSmartCollection('')
+                                  }}
                                   onItemClick={handleItemClick}
                                   onItemAction={handleItemAction}
                                   getFilteredItems={getFilteredItems}

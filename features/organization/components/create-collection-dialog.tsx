@@ -63,8 +63,8 @@ export function CreateCollectionDialog({
       setName('')
       onOpenChange(false)
     } catch (error) {
+      console.error('Failed to create collection:', error)
       setError('Failed to create collection. Please try again.')
-      toast.error('Failed to create collection')
     } finally {
       setLoading(false)
     }

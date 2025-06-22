@@ -16,6 +16,7 @@ interface SidebarCollectionItemProps {
   items: (Note | Chat)[]
   isExpanded: boolean
   onToggle: (collectionId: string) => void
+  onCollectionClick?: (collectionId: string) => void
   onItemClick: (item: Note | Chat, type: 'note' | 'chat') => void
   onItemAction: (action: string, itemId: string) => void
   getFilteredItems: (collection: Collection, spaceId: string, items: (Note | Chat)[]) => (Note | Chat)[]
@@ -28,6 +29,7 @@ export const SidebarCollectionItem = React.memo(({
   items,
   isExpanded,
   onToggle,
+  onCollectionClick,
   onItemClick,
   onItemAction,
   getFilteredItems,
@@ -73,6 +75,7 @@ export const SidebarCollectionItem = React.memo(({
         onClick={(event) => {
           event.stopPropagation()
           onToggle(collection.id)
+          onCollectionClick?.(collection.id)
         }}
       >
         <div className="flex items-center gap-2">

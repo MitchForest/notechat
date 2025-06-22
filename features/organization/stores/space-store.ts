@@ -82,6 +82,30 @@ export const useSpaceStore = create<SpaceStore>((set, get) => ({
   
   // Create space
   createSpace: async (name, emoji) => {
+    // Generate temporary ID
+    const tempId = `temp-${Date.now()}`
+    
+    // Get current user ID (we'll need to handle this properly)
+    const userId = 'current-user' // This will be replaced with real user ID from the response
+    
+    // Create optimistic space with default smart collections
+    const optimisticSpace: Space = {
+      id: tempId,
+      userId,
+      name,
+      emoji,
+      type: 'user',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      collections: [],
+      smartCollections: [] // Will be populated by the server
+    }
+    
+    // Optimistically add to store
+    set(state => ({
+      spaces: [...state.spaces, optimisticSpace]
+    }))
+    
     try {
       const response = await fetch('/api/spaces', {
         method: 'POST',
@@ -93,13 +117,11 @@ export const useSpaceStore = create<SpaceStore>((set, get) => ({
       
       const newSpace = await response.json()
       
-      // Add the new space to the list
+      // Replace temporary space with real one
       set(state => ({ 
-        spaces: [
-          ...state.spaces.filter(s => s.type === 'static'),
-          newSpace,
-          ...state.spaces.filter(s => s.type !== 'static' && s.id !== newSpace.id)
-        ]
+        spaces: state.spaces.map(s => 
+          s.id === tempId ? newSpace : s
+        )
       }))
       
       // Update collection store with new collections
@@ -111,9 +133,14 @@ export const useSpaceStore = create<SpaceStore>((set, get) => ({
       }
       
       toast.success(`Created space "${name}"`)
+      return newSpace
     } catch (error) {
+      // Rollback - remove the optimistic space
+      set(state => ({
+        spaces: state.spaces.filter(s => s.id !== tempId)
+      }))
+      
       console.error('Failed to create space:', error)
-      set({ error: (error as Error).message })
       toast.error('Failed to create space')
       throw error
     }
