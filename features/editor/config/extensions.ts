@@ -162,10 +162,12 @@ export const getEditorExtensions = (
       tippyOptions: {
         duration: 0,
         placement: 'left',
-        offset: [0, 0],
+        offset: [0, 12],
         hideOnClick: false,
-        animation: false,
-        appendTo: () => document.getElementById('tiptap-editor-wrapper') || document.body,
+        animation: 'shift-away',
+        interactive: true,  // Allow mouse to move to the handle
+        interactiveBorder: 30, // Invisible border to help transition
+        appendTo: () => document.body, // Ensures proper z-index stacking
         onShow: (instance: any) => {
           console.log('[DragHandle] Tippy onShow:', instance)
         },

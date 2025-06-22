@@ -406,7 +406,7 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
 
   // Separate permanent and user spaces
   const permanentSpaces = spaces.filter(s => s.type === 'system')
-  const userSpaces = spaces.filter(s => s.type === 'user')
+  const userSpaces = spaces.filter(s => s.type === 'user' || s.type === 'seeded')
 
   // Memoize permanent collections to prevent recreation on every render
   const permanentInboxCollections = useMemo(() => {

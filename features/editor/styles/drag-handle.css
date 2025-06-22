@@ -25,28 +25,104 @@
 }
 
 .tiptap-drag-handle {
+  position: absolute;
   width: 20px;
   height: 20px;
-  min-width: 20px;
-  min-height: 20px;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: grab;
   color: oklch(var(--muted-foreground));
-  transition: all 0.15s ease;
+  background-color: transparent;
   border-radius: 4px;
+  transition: all 0.2s ease;
+  
+  /* Ensure handle is interactive */
+  pointer-events: auto !important;
+  z-index: 10;
 }
 
 .tiptap-drag-handle:hover {
-  color: oklch(var(--foreground));
   background-color: oklch(var(--muted));
+  color: oklch(var(--foreground));
 }
 
 .tiptap-drag-handle:active {
   cursor: grabbing;
-  color: oklch(var(--foreground));
   background-color: oklch(var(--muted) / 0.8);
+}
+
+.tiptap-drag-handle.dragging {
+  cursor: grabbing;
+  opacity: 0.5;
+}
+
+/* Extend hover zone into left margin for better interaction */
+.ProseMirror p::before,
+.ProseMirror h1::before,
+.ProseMirror h2::before,
+.ProseMirror h3::before,
+.ProseMirror h4::before,
+.ProseMirror h5::before,
+.ProseMirror h6::before,
+.ProseMirror li::before,
+.ProseMirror blockquote::before,
+.ProseMirror pre::before {
+  content: '';
+  position: absolute;
+  left: -60px;
+  top: 0;
+  bottom: 0;
+  width: 60px;
+  pointer-events: none;
+}
+
+/* Activate pointer events only on hover */
+.ProseMirror p:hover::before,
+.ProseMirror h1:hover::before,
+.ProseMirror h2:hover::before,
+.ProseMirror h3:hover::before,
+.ProseMirror h4:hover::before,
+.ProseMirror h5:hover::before,
+.ProseMirror h6:hover::before,
+.ProseMirror li:hover::before,
+.ProseMirror blockquote:hover::before,
+.ProseMirror pre:hover::before {
+  pointer-events: all;
+}
+
+/* Ensure blocks are positioned relative for pseudo-elements */
+.ProseMirror p,
+.ProseMirror h1,
+.ProseMirror h2,
+.ProseMirror h3,
+.ProseMirror h4,
+.ProseMirror h5,
+.ProseMirror h6,
+.ProseMirror li,
+.ProseMirror blockquote,
+.ProseMirror pre {
+  position: relative;
+}
+
+/* Drop cursor styling */
+.ProseMirror-dropcursor {
+  border-left-width: 2px;
+  border-left-style: solid;
+  border-left-color: oklch(var(--primary));
+  pointer-events: none;
+}
+
+/* Selected node outline during drag */
+.ProseMirror .ProseMirror-selectednode {
+  outline: 2px solid oklch(var(--primary) / 0.3);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Hide placeholders during drag */
+.ProseMirror.dragging .is-empty::before {
+  opacity: 0 !important;
 }
 
 /* SVG icon sizing */
@@ -65,18 +141,6 @@
 /* Editor dragging state */
 .ProseMirror.dragging {
   cursor: grabbing !important;
-}
-
-/* Hide placeholders during drag */
-.ProseMirror.dragging .is-empty::before {
-  opacity: 0 !important;
-}
-
-/* Selected node during drag */
-.ProseMirror .ProseMirror-selectednode {
-  outline: 2px solid oklch(var(--primary) / 0.3);
-  outline-offset: 2px;
-  border-radius: 4px;
 }
 
 /* Tippy tooltip container adjustments */
