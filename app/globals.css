@@ -43,6 +43,15 @@
   --color-error: var(--error);
   --color-info: var(--info);
   
+  /* Hover state tokens */
+  --color-hover-1: var(--hover-1);
+  --color-hover-2: var(--hover-2);
+  --color-hover-3: var(--hover-3);
+  
+  /* Active state tokens */
+  --color-active-bg: var(--active-bg);
+  --color-active-text: var(--active-text);
+  
   /* Font variables */
   --font-sans: var(--font-family-sans);
   --font-mono: var(--font-family-mono);
@@ -111,6 +120,15 @@
   --warning: oklch(0.595 0.143 70.08); /* #B45309 */
   --error: oklch(0.577 0.245 27.325); /* #DC2626 */
   --info: oklch(0.478 0.095 194.769); /* #0D7377 */
+  
+  /* Neutral hover states */
+  --hover-1: oklch(0.98 0 0); /* ~gray-50 - Subtle hover */
+  --hover-2: oklch(0.96 0 0); /* ~gray-100 - Medium hover */
+  --hover-3: oklch(0.93 0 0); /* ~gray-200 - Strong hover */
+  
+  /* Active states - NOT primary */
+  --active-bg: oklch(0.90 0 0); /* ~gray-300 - Darker than hover */
+  --active-text: oklch(0.2 0 0); /* Keep text dark */
 }
 
 .dark {
@@ -163,6 +181,15 @@
   --warning: oklch(0.768 0.195 70.08); /* #F59E0B */
   --error: oklch(0.628 0.258 25.331); /* #EF4444 */
   --info: oklch(0.689 0.093 174.769); /* #14B8A6 */
+  
+  /* Neutral hover states */
+  --hover-1: oklch(0.17 0 0); /* ~gray-900 - Subtle hover */
+  --hover-2: oklch(0.21 0 0); /* ~gray-800 - Medium hover */
+  --hover-3: oklch(0.26 0 0); /* ~gray-700 - Strong hover */
+  
+  /* Active states - NOT primary */
+  --active-bg: oklch(0.30 0 0); /* ~gray-600 - Darker than hover */
+  --active-text: oklch(0.95 0 0); /* Keep text light */
 }
 
 @layer base {
@@ -278,15 +305,32 @@
 
 /* Component-specific styles */
 @layer components {
-  /* Sidebar item styling */
+  /* Sidebar item styling - Updated to use neutral hovers */
   .sidebar-item {
-    @apply px-3 py-2 rounded-md text-sm cursor-pointer transition-colors;
-    @apply hover:bg-sidebar-accent active:bg-sidebar-accent/80;
+    @apply px-3 py-2 rounded-md text-sm cursor-pointer;
+    @apply hover:bg-hover-2 active:bg-hover-3;
+    /* Remove transition for snappy feel */
   }
   
   .sidebar-item-active {
-    @apply bg-sidebar-primary text-sidebar-primary-foreground;
-    @apply hover:bg-sidebar-primary/90;
+    @apply bg-active-bg text-active-text;
+    @apply hover:bg-active-bg;
+  }
+  
+  /* Interactive elements - Consistent hover states */
+  .interactive-element {
+    @apply rounded-md;
+    @apply hover:bg-hover-1;
+  }
+  
+  .interactive-element-medium {
+    @apply rounded-md;
+    @apply hover:bg-hover-2;
+  }
+  
+  .interactive-element-strong {
+    @apply rounded-md;
+    @apply hover:bg-hover-3;
   }
   
   /* Button variants using new color system */
@@ -299,7 +343,19 @@
   }
   
   .btn-ghost {
-    @apply hover:bg-accent/10 hover:text-accent-foreground;
+    @apply hover:bg-hover-2 hover:text-foreground;
+  }
+  
+  /* Dropdown and menu items */
+  .menu-item {
+    @apply px-2 py-1.5 rounded-md text-sm cursor-pointer;
+    @apply hover:bg-hover-2 focus:bg-hover-2 focus:outline-none;
+    /* Fast transitions for snappy feel */
+    /* transition: background-color 75ms ease-out; */
+  }
+  
+  .menu-item-destructive {
+    @apply text-destructive hover:bg-destructive/10 focus:bg-destructive/10;
   }
   
   /* Card styles */
@@ -314,6 +370,12 @@
   
   .chat-message-ai {
     @apply bg-muted rounded-lg px-4 py-3;
+  }
+  
+  /* Tooltip styles - Updated to neutral */
+  .tooltip-content {
+    @apply bg-gray-900 text-gray-100 dark:bg-gray-100 dark:text-gray-900;
+    @apply px-3 py-1.5 rounded-md text-xs shadow-lg;
   }
 }
 
@@ -330,7 +392,7 @@
   text-decoration-color: oklch(var(--warning) / 0.8);
 }
 
-/* Smooth transitions */
-.transition-all {
-  transition: all 0.2s ease-in-out;
+/* Remove slow transitions globally for snappy feel */
+* {
+  transition: none !important;
 }

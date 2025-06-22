@@ -288,3 +288,75 @@ Upon approval of this plan:
 ---
 
 *This plan follows the established patterns in code-standards.md and maintains consistency with our architecture.* 
+
+## Addendum: Simplified Drag-and-Drop Integration
+
+**Added**: December 20, 2024  
+**Author**: AI Senior Full-Stack Engineer
+
+### Integration Analysis
+
+After implementing the drag-and-drop system, we've identified that **no complex integration is needed** between ghost text and drag features. The features are naturally mutually exclusive due to editor state management.
+
+### Why No Integration Code is Needed
+
+1. **Natural Mutual Exclusion**
+   - Drag start: `editor.view.dom.blur()` → Clears any active ghost text
+   - Drag active: `editable: false` → Ghost text cannot trigger
+   - Drag end: `editable: true` + `editor.focus()` → Normal operation resumes
+
+2. **Ghost Text Requirements**
+   - Only activates during active typing
+   - Requires cursor at specific position
+   - Needs editable state
+
+3. **Drag State Prevents Ghost Text**
+   - No cursor visible during drag
+   - No text input possible
+   - No `++` trigger can occur
+
+### Simplified Implementation
+
+The only change needed is one safety check in the ghost text extension:
+
+```typescript
+// In ghost-text.ts handleTextInput:
+if (!view.editable) return false; // Don't process if editor is read-only
+```
+
+This single line ensures ghost text respects the editor's editable state, which the drag system already manages.
+
+### Benefits of This Approach
+
+1. **Simplicity**: No cross-feature dependencies
+2. **Maintainability**: Each feature is self-contained
+3. **Robustness**: Uses existing editor state management
+4. **Performance**: No additional checks or coordination
+
+### Updated Implementation Steps
+
+The original plan remains unchanged except:
+
+1. **Step 4 Addition**: Add the `!view.editable` check to ghost text extension
+2. **No Integration Code**: Skip any drag-specific integration
+3. **Testing**: Verify features work independently, not together
+
+### Testing the Non-Integration
+
+1. **Sequential Testing**:
+   - Type `++` → See ghost text → Start drag → Ghost text clears ✓
+   - During drag → Type (nothing happens) → Drop → Type `++` → Ghost text works ✓
+
+2. **State Verification**:
+   - Ghost text cannot activate during drag (editable = false)
+   - Drag cannot start with ghost text loading (blur clears it)
+
+### Conclusion
+
+The best integration is no integration. By relying on the editor's existing state management (focus/blur, editable/read-only), both features work perfectly without awareness of each other. This is more robust and maintainable than explicit coordination.
+
+**Total implementation time saved: ~1.5 hours**
+
+---
+
+*This addendum confirms that the original ghost text plan can proceed without modification for drag-and-drop compatibility.* 

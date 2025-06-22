@@ -1,6 +1,7 @@
 import { Extension, RawCommands } from '@tiptap/core'
 import { Plugin, PluginKey } from 'prosemirror-state'
 import { Decoration, DecorationSet } from 'prosemirror-view'
+import type { GhostTextStorage } from '../types/ghost-text'
 
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {
@@ -9,12 +10,6 @@ declare module '@tiptap/core' {
       clearGhostText: () => ReturnType
     }
   }
-}
-
-export interface GhostTextStorage {
-  ghostText: string
-  isActive: boolean
-  position: number | null
 }
 
 const ghostTextKey = new PluginKey('ghostText')
@@ -26,7 +21,8 @@ export const GhostText = Extension.create({
     return {
       ghostText: '',
       isActive: false,
-      position: null
+      position: null,
+      triggerTimeout: undefined
     } as GhostTextStorage
   },
 
@@ -39,7 +35,6 @@ export const GhostText = Extension.create({
 
         state: {
           init: () => {
-            console.log('[GhostText] Plugin initialized')
             return { decorations: DecorationSet.empty }
           },
 
@@ -47,52 +42,61 @@ export const GhostText = Extension.create({
             const storage = extension.storage as GhostTextStorage
             const meta = tr.getMeta('ghostTextUpdate')
 
-            if (meta) {
-              console.log(
-                '[GhostText] Apply with meta - isActive:',
-                storage.isActive,
-                'text:',
-                storage.ghostText,
-                'position:',
-                storage.position
-              )
-
+            // Handle explicit updates
+            if (meta === true) {
               if (storage.isActive && storage.ghostText && storage.position !== null) {
-                const decoration = Decoration.inline(
-                  storage.position,
-                  storage.position,
-                  {
-                    class: 'ghost-text',
-                    'data-text': storage.ghostText
-                  },
-                  { inclusiveStart: true, inclusiveEnd: false }
-                )
-                return {
-                  decorations: DecorationSet.create(newState.doc, [decoration])
+                try {
+                  const decoration = Decoration.inline(
+                    storage.position,
+                    storage.position,
+                    {
+                      class: 'ghost-text',
+                      'data-text': storage.ghostText,
+                    },
+                    { inclusiveStart: true, inclusiveEnd: false }
+                  )
+                  
+                  const decorations = DecorationSet.create(newState.doc, [decoration])
+                  return { decorations }
+                } catch (e) {
+                  return { decorations: DecorationSet.empty }
+                }
+              } else {
+                return { decorations: DecorationSet.empty }
+              }
+            }
+            
+            // For document changes, check if we need to adjust/clear
+            if (tr.docChanged) {
+              // Map existing decorations through the change
+              const mapped = value.decorations.map(tr.mapping, newState.doc)
+              
+              // If we have active ghost text, check if position is still valid
+              if (storage.isActive && storage.position !== null) {
+                const mappedPos = tr.mapping.map(storage.position)
+                if (mappedPos !== storage.position) {
+                  // Position changed, update storage and clear
+                  storage.position = null
+                  storage.isActive = false
+                  ;(extension.editor as any).emit('ghostTextReject')
+                  return { decorations: DecorationSet.empty }
                 }
               }
-              return { decorations: DecorationSet.empty }
+              
+              return { decorations: mapped }
             }
-
-            const decorations = value.decorations.map(tr.mapping, newState.doc)
-
-            if (!decorations.find().length) {
-              return { decorations }
-            }
-
-            if (
-              storage.isActive &&
-              storage.position !== null &&
-              (tr.docChanged || oldState.selection.from !== newState.selection.from)
-            ) {
+            
+            // Check if cursor moved away
+            if (storage.isActive && storage.position !== null) {
               const { from } = newState.selection
-              if (from !== storage.position) {
+              if (from !== storage.position && from !== storage.position + 1) {
                 ;(extension.editor as any).emit('ghostTextReject')
                 return { decorations: DecorationSet.empty }
               }
             }
-
-            return { decorations }
+            
+            // No changes, return existing decorations
+            return value
           }
         },
 
@@ -102,6 +106,9 @@ export const GhostText = Extension.create({
           },
 
           handleTextInput(view, from, to, text) {
+            // Don't process if editor is read-only (e.g., during drag)
+            if (!view.editable) return false
+            
             const { state } = view
             const storage = extension.storage as GhostTextStorage
 
@@ -114,16 +121,24 @@ export const GhostText = Extension.create({
               const before = state.doc.textBetween(Math.max(0, from - 1), from)
 
               if (before === '+') {
+                // Clear any existing timeout
+                if (storage.triggerTimeout) {
+                  clearTimeout(storage.triggerTimeout)
+                }
+                
                 const tr = state.tr.delete(from - 1, to)
                 view.dispatch(tr)
 
-                const contextStart = Math.max(0, from - 500)
-                const context = state.doc.textBetween(contextStart, from - 1)
+                // Debounce the trigger
+                storage.triggerTimeout = setTimeout(() => {
+                  const contextStart = Math.max(0, from - 500)
+                  const context = state.doc.textBetween(contextStart, from - 1)
 
-                ;(extension.editor as any).emit('ghostTextTrigger', {
-                  position: from - 1,
-                  context
-                })
+                  ;(extension.editor as any).emit('ghostTextTrigger', {
+                    position: from - 1,
+                    context
+                  })
+                }, 100) // 100ms delay to prevent duplicate calls
 
                 return true
               }
@@ -174,6 +189,7 @@ export const GhostText = Extension.create({
           storage.position = position
           storage.isActive = true
 
+          // Always dispatch the transaction
           if (dispatch) {
             const tr = editor.state.tr.setMeta('ghostTextUpdate', true)
             dispatch(tr)
@@ -186,11 +202,20 @@ export const GhostText = Extension.create({
         () =>
         ({ editor, dispatch }) => {
           const storage = this.storage as GhostTextStorage
+          const wasActive = storage.isActive
+          
           storage.ghostText = ''
           storage.isActive = false
           storage.position = null
 
-          if (dispatch) {
+          // Clear any pending timeout
+          if (storage.triggerTimeout) {
+            clearTimeout(storage.triggerTimeout)
+            storage.triggerTimeout = undefined
+          }
+
+          // Only dispatch if we were actually active
+          if (dispatch && wasActive) {
             const tr = editor.state.tr.setMeta('ghostTextUpdate', true)
             dispatch(tr)
           }

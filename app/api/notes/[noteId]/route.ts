@@ -3,6 +3,14 @@ import { getCurrentUser } from '@/lib/auth/session'
 import { db } from '@/lib/db'
 import { notes } from '@/lib/db/schema'
 import { and, eq } from 'drizzle-orm'
+import { z } from 'zod'
+
+const updateNoteSchema = z.object({
+  title: z.string().min(1).max(255).optional(),
+  content: z.any().optional(),
+  isStarred: z.boolean().optional(),
+  collectionId: z.string().uuid().nullable().optional(),
+})
 
 export async function GET(
   request: Request,
@@ -41,17 +49,22 @@ export async function PUT(
   }
 
   try {
-    const { title, content, isStarred } = await request.json()
+    const body = await request.json()
     const { noteId } = await context.params
+    
+    const validation = updateNoteSchema.safeParse(body)
+    if (!validation.success) {
+      return NextResponse.json({ error: validation.error.errors }, { status: 400 })
+    }
+
+    const updateData = {
+      ...validation.data,
+      updatedAt: new Date(),
+    }
 
     const [updatedNote] = await db
       .update(notes)
-      .set({ 
-        title, 
-        content,
-        isStarred,
-        updatedAt: new Date() 
-      })
+      .set(updateData)
       .where(and(eq(notes.id, noteId), eq(notes.userId, user.id)))
       .returning()
 

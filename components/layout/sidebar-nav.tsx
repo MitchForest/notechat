@@ -2,18 +2,37 @@
  * Component: SidebarNav
  * Purpose: Main navigation sidebar with spaces, collections, and drag & drop
  * Features:
- * - Hierarchical organization (spaces -> collections)
- * - Drag & drop reordering
+ * - Hierarchical organization (spaces -> collections -> items)
+ * - Permanent spaces (Notes, Chats) 
+ * - User spaces with emoji support
+ * - Drag & drop for items
  * - Search functionality
- * - Active chats display
- * - New item creation
+ * - Fast, responsive hover states
  * 
- * Modified: 2024-07-31 - Integrated with Zustand store
+ * Modified: 2024-12-19 - Fixed hover states and removed active states
  */
 "use client"
 
 import React, { useEffect, useState } from 'react'
-import { ChevronDown, ChevronRight, Search, MessageSquare, FileText, Settings, User, LogOut, Moon, Sun, Hash, Menu, PanelLeft, Plus } from 'lucide-react'
+import { 
+  ChevronDown, 
+  ChevronRight, 
+  Search, 
+  MessageSquare, 
+  FileText, 
+  Settings, 
+  User, 
+  LogOut, 
+  Moon, 
+  Sun, 
+  Hash, 
+  Menu, 
+  PanelLeft, 
+  Plus,
+  Star,
+  Clock,
+  Inbox
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useTheme } from 'next-themes'
@@ -32,8 +51,8 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
-import type { User as UserType } from '@/lib/db/schema'
-import useOrganizationStore, { Space } from '@/features/organization/store/organization-store'
+import type { User as UserType, Note, Chat } from '@/lib/db/schema'
+import useOrganizationStore from '@/features/organization/store/organization-store'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
 import Image from 'next/image'
@@ -54,28 +73,21 @@ const getInitials = (name: string | null | undefined, email: string) => {
   return email.substring(0, 2).toUpperCase()
 }
 
-const PERMANENT_SPACES = [
-    { 
-      id: 'all_notes', 
-      name: 'All Notes', 
-      emoji: '📝', 
-      collections: [
-        { id: 'all_notes_all', name: 'All' },
-        { id: 'all_notes_recent', name: 'Recent' },
-        { id: 'all_notes_saved', name: 'Saved' },
-      ]
-    },
-    { 
-      id: 'chats', 
-      name: 'Chats', 
-      emoji: '💬', 
-      collections: [
-        { id: 'chats_all', name: 'All' },
-        { id: 'chats_recent', name: 'Recent' },
-        { id: 'chats_saved', name: 'Saved' },
-      ]
-    },
-]
+// Collection icon mapping
+const getCollectionIcon = (collectionName: string) => {
+  switch (collectionName.toLowerCase()) {
+    case 'all':
+      return <Hash className="h-3 w-3" />
+    case 'recent':
+      return <Clock className="h-3 w-3" />
+    case 'saved':
+      return <Star className="h-3 w-3" />
+    case 'uncategorized':
+      return <Inbox className="h-3 w-3" />
+    default:
+      return <Hash className="h-3 w-3" />
+  }
+}
 
 export function SidebarNav({ className, user }: SidebarNavProps) {
   const { theme, setTheme } = useTheme()
@@ -83,27 +95,40 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
   const { 
     spaces, 
     activeSpaceId,
-    collections,
     activeCollectionId,
     notes,
+    chats,
     fetchInitialData, 
     setActiveSpace,
-    setActiveCollection
+    setActiveCollection,
+    createSpace,
+    createCollection,
+    searchQuery,
+    setSearchQuery
   } = useOrganizationStore()
   
-  const [activeChatsExpanded, setActiveChatsExpanded] = useState(true)
-  const [allNotesExpanded, setAllNotesExpanded] = useState(true)
-  const [spaceExpansion, setSpaceExpansion] = useState<Record<string, boolean>>({})
+  const [spaceExpansion, setSpaceExpansion] = useState<Record<string, boolean>>({
+    'permanent-notes': true,
+    'permanent-chats': true
+  })
+  const [collectionExpansion, setCollectionExpansion] = useState<Record<string, boolean>>({})
 
   useEffect(() => {
     fetchInitialData()
   }, [fetchInitialData])
   
   const toggleSpace = (spaceId: string) => {
-    if (activeSpaceId !== spaceId) {
-        setActiveSpace(spaceId)
-    }
     setSpaceExpansion(prev => ({ ...prev, [spaceId]: !prev[spaceId] }))
+  }
+
+  const toggleCollection = (collectionId: string) => {
+    setCollectionExpansion(prev => ({ ...prev, [collectionId]: !prev[collectionId] }))
+  }
+
+  const handleCollectionClick = (collectionId: string, spaceId: string) => {
+    setActiveCollection(collectionId, spaceId)
+    // Auto-expand collection when selected
+    setCollectionExpansion(prev => ({ ...prev, [collectionId]: true }))
   }
 
   const handleNewChat = () => {
@@ -122,12 +147,20 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
     })
   }
 
-  const handleNoteClick = (note: { id: string; title: string }) => {
-    openNote({ 
-      id: note.id, 
-      type: 'note', 
-      title: note.title 
-    })
+  const handleItemClick = (item: Note | Chat, type: 'note' | 'chat') => {
+    if (type === 'note') {
+      openNote({ 
+        id: item.id, 
+        type: 'note', 
+        title: item.title 
+      })
+    } else {
+      openChat({ 
+        id: item.id, 
+        type: 'chat', 
+        title: item.title 
+      })
+    }
   }
 
   const handleSignOut = async () => {
@@ -135,13 +168,35 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
     window.location.href = '/'
   }
 
+  const handleNewSpace = async () => {
+    // TODO: Show emoji picker dialog
+    const name = prompt('Space name:')
+    if (name) {
+      await createSpace(name, '📁')
+    }
+  }
+
+  const handleNewCollection = async (spaceId: string) => {
+    const name = prompt('Collection name:')
+    if (name) {
+      await createCollection(name, spaceId)
+    }
+  }
+
+  // Separate permanent and user spaces
+  const permanentSpaces = spaces.filter(s => s.type === 'static')
+  const userSpaces = spaces.filter(s => s.type !== 'static')
+
+  // Get items for the current collection
+  const currentItems = activeSpaceId?.includes('chat') ? chats : notes
+
   if (sidebarCollapsed) {
-    // Collapsed sidebar - icon only
+    // Collapsed sidebar - icon only view
     return (
       <TooltipProvider>
-        <div className={cn("h-full bg-card border-r flex flex-col", className)}>
-          {/* Header */}
-          <div className="p-3 border-b">
+        <div className={cn("h-full bg-card border-r flex flex-col overflow-hidden", className)}>
+          {/* Header - Fixed */}
+          <div className="p-3 border-b flex-shrink-0">
             <div className="flex items-center justify-center">
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -166,17 +221,17 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
             </div>
           </div>
 
-          {/* Action Buttons */}
-          <div className="p-2 space-y-2">
+          {/* Action Buttons - Fixed */}
+          <div className="p-2 space-y-2 flex-shrink-0">
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={handleNewChat}
-                  className="w-full h-8 p-0 hover:bg-accent"
+                  className="w-full h-8 p-0"
                 >
-                  <MessageSquare className="h-4 w-4 text-primary" />
+                  <MessageSquare className="h-4 w-4" />
                 </Button>
               </TooltipTrigger>
               <TooltipContent side="right">
@@ -190,9 +245,9 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
                   variant="ghost"
                   size="sm"
                   onClick={handleNewNote}
-                  className="w-full h-8 p-0 hover:bg-accent"
+                  className="w-full h-8 p-0"
                 >
-                  <FileText className="h-4 w-4 text-primary" />
+                  <FileText className="h-4 w-4" />
                 </Button>
               </TooltipTrigger>
               <TooltipContent side="right">
@@ -216,70 +271,69 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
             </Tooltip>
           </div>
 
-          {/* Spaces Icons */}
-          <div className="flex-1 p-2 space-y-2">
-            {PERMANENT_SPACES.map((space) => (
-                 <Tooltip key={space.id}>
-                 <TooltipTrigger asChild>
-                   <Button
-                     variant={activeSpaceId === space.id ? "secondary" : "ghost"}
-                     size="sm"
-                     className="w-full h-8 p-0 text-base"
-                     onClick={() => setActiveSpace(space.id)}
-                   >
-                     {space.emoji}
-                   </Button>
-                 </TooltipTrigger>
-                 <TooltipContent side="right">
-                   <p>{space.name}</p>
-                 </TooltipContent>
-               </Tooltip>
-            ))}
-            <Separator />
-            {spaces.map((space) => (
-              <Tooltip key={space.id}>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant={activeSpaceId === space.id ? "secondary" : "ghost"}
-                    size="sm"
-                    className="w-full h-8 p-0 text-base"
-                    onClick={() => setActiveSpace(space.id)}
-                  >
-                    {space.emoji}
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="right">
-                  <p>{space.name}</p>
-                </TooltipContent>
-              </Tooltip>
-            ))}
-          </div>
+          {/* Spaces Icons - Scrollable */}
+          <ScrollArea className="flex-1">
+            <div className="p-2 space-y-2">
+              {/* Permanent spaces */}
+              {permanentSpaces.map((space) => (
+                <Tooltip key={space.id}>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant={activeSpaceId === space.id ? "secondary" : "ghost"}
+                      size="sm"
+                      className="w-full h-8 p-0 text-base"
+                      onClick={() => setActiveSpace(space.id)}
+                    >
+                      {space.emoji}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="right">
+                    <p>{space.name}</p>
+                  </TooltipContent>
+                </Tooltip>
+              ))}
+              
+              {userSpaces.length > 0 && <Separator />}
+              
+              {/* User spaces */}
+              {userSpaces.map((space) => (
+                <Tooltip key={space.id}>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant={activeSpaceId === space.id ? "secondary" : "ghost"}
+                      size="sm"
+                      className="w-full h-8 p-0 text-base"
+                      onClick={() => setActiveSpace(space.id)}
+                    >
+                      {space.emoji}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="right">
+                    <p>{space.name}</p>
+                  </TooltipContent>
+                </Tooltip>
+              ))}
+            </div>
+          </ScrollArea>
 
-          {/* User Avatar */}
-          <div className="p-3 border-t">
+          {/* User Menu - Fixed */}
+          <div className="p-3 border-t flex-shrink-0">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="w-full justify-start text-left">
-                  <div className="flex items-center">
-                    {user.avatarUrl ? (
-                      <Image
-                        src={user.avatarUrl}
-                        alt={user.name || user.email}
-                        width={24}
-                        height={24}
-                        className="h-6 w-6 rounded-full mr-2"
-                      />
-                    ) : (
-                      <div className="h-6 w-6 rounded-full bg-muted flex items-center justify-center mr-2 text-xs font-bold">
-                        {getInitials(user.name, user.email)}
-                      </div>
-                    )}
-                    <div className="flex flex-col truncate">
-                      <span className="text-sm font-medium truncate">
-                        {user.name || user.email}
-                      </span>
+                <Button variant="ghost" size="sm" className="w-full p-0">
+                  {user.avatarUrl ? (
+                    <Image
+                      src={user.avatarUrl}
+                      alt={user.name || user.email}
+                      width={24}
+                      height={24}
+                      className="h-6 w-6 rounded-full"
+                    />
+                  ) : (
+                    <div className="h-6 w-6 rounded-full bg-muted flex items-center justify-center text-xs font-bold">
+                      {getInitials(user.name, user.email)}
                     </div>
-                  </div>
+                  )}
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent className="w-56" align="end" forceMount>
@@ -320,9 +374,9 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
 
   // Expanded sidebar - full view
   return (
-    <div className={cn("h-full bg-card border-r flex flex-col", className)}>
-      {/* Header */}
-      <div className="p-4 border-b">
+    <div className={cn("h-full bg-card border-r flex flex-col overflow-hidden", className)}>
+      {/* Header - Fixed */}
+      <div className="p-4 border-b flex-shrink-0">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
@@ -348,214 +402,224 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
         </div>
       </div>
 
-      {/* Action Buttons */}
-      <div className="p-3 space-y-2">
+      {/* Action Buttons - Fixed */}
+      <div className="p-3 space-y-2 flex-shrink-0">
         <Button
           onClick={handleNewChat}
-          className="w-full justify-start bg-secondary text-secondary-foreground hover:bg-secondary/80 group"
+          className="w-full justify-start hover:bg-hover-2"
+          variant="secondary"
         >
-          <MessageSquare className="mr-2 h-4 w-4 text-secondary-foreground group-hover:text-white" />
+          <MessageSquare className="mr-2 h-4 w-4" />
           New Chat
         </Button>
         <Button
           onClick={handleNewNote}
-          className="w-full justify-start bg-secondary text-secondary-foreground hover:bg-secondary/80 group"
+          className="w-full justify-start hover:bg-hover-2"
+          variant="secondary"
         >
-          <FileText className="mr-2 h-4 w-4 text-secondary-foreground group-hover:text-white" />
+          <FileText className="mr-2 h-4 w-4" />
           New Note
         </Button>
       </div>
       
-      {/* Search */}
-      <div className="px-3 pb-2">
+      {/* Search - Fixed */}
+      <div className="px-3 pb-2 flex-shrink-0">
         <div className="relative">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Search..."
             className="pl-9"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
           />
         </div>
       </div>
 
-      {/* Main navigation */}
-      <div className="flex-1 overflow-y-auto px-2">
-        {/* Active Chats */}
-        <div className="mb-4">
-          <Button
-            onClick={() => setActiveChatsExpanded(!activeChatsExpanded)}
-            variant="ghost"
-            className="w-full justify-start text-sm font-semibold text-muted-foreground"
-          >
-            {activeChatsExpanded ? (
-              <ChevronDown className="mr-1 h-4 w-4" />
-            ) : (
-              <ChevronRight className="mr-1 h-4 w-4" />
-            )}
-            Active Chats
-          </Button>
-          {activeChatsExpanded && (
-            <div className="pl-2 space-y-1 mt-1">
-              {spaces.map((space) => (
-                <Button
-                  key={space.id}
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setActiveSpace(space.id)}
-                  className="w-full justify-start truncate"
-                >
-                  <MessageSquare className="mr-2 h-4 w-4" />
-                  {space.name}
-                </Button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* All Notes */}
-        <div className="mb-4">
-          <Button
-            onClick={() => setAllNotesExpanded(!allNotesExpanded)}
-            variant="ghost"
-            className="w-full justify-start text-sm font-semibold text-muted-foreground"
-          >
-            {allNotesExpanded ? (
-              <ChevronDown className="mr-1 h-4 w-4" />
-            ) : (
-              <ChevronRight className="mr-1 h-4 w-4" />
-            )}
-            All Notes
-          </Button>
-          {allNotesExpanded && (
-            <div className="pl-2 space-y-1 mt-1">
-              {spaces.map((space) => (
-                <Button
-                  key={space.id}
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setActiveSpace(space.id)}
-                  className="w-full justify-start truncate"
-                >
-                  <MessageSquare className="mr-2 h-4 w-4" />
-                  {space.name}
-                </Button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Spaces */}
-        <ScrollArea className="flex-1">
-          <div className="px-2">
-            {/* Permanent Spaces */}
-            {PERMANENT_SPACES.map((space) => (
-                 <div key={space.id} className="mt-2">
-                 <div 
-                     className="flex items-center justify-between rounded-md px-2 py-1.5 text-sm font-medium cursor-pointer hover:bg-accent"
-                     onClick={() => toggleSpace(space.id)}
-                 >
-                     <div className="flex items-center">
-                         <span className='text-base'>{space.emoji}</span>
-                         <span className="ml-2">{space.name}</span>
-                     </div>
-                     {spaceExpansion[space.id] ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                 </div>
-                 {spaceExpansion[space.id] && (
-                     <div className="pl-4 mt-1 space-y-1">
-                         {space.collections.map((collection) => (
-                             <div 
-                                 key={collection.id} 
-                                 className={cn(
-                                     "flex items-center justify-between rounded-md px-2 py-1.5 text-sm cursor-pointer hover:bg-accent",
-                                     activeCollectionId === collection.id && "bg-accent"
-                                 )}
-                                 onClick={() => setActiveCollection(collection.id, space.id)}
-                             >
-                                 <div className='flex items-center'>
-                                     <Hash className="mr-2 h-3 w-3" />
-                                     <span>{collection.name}</span>
-                                 </div>
-                             </div>
-                         ))}
-                     </div>
-                 )}
-             </div>
-              ))}
-
-              <Separator className="my-4" />
-
-                {/* User Spaces */}
-                {spaces.map((space: Space) => (
-                    <div key={space.id} className="mt-2">
-                        <div 
-                            className="flex items-center justify-between rounded-md px-2 py-1.5 text-sm font-medium cursor-pointer hover:bg-accent"
-                            onClick={() => toggleSpace(space.id)}
+      {/* Main navigation - Scrollable */}
+      <ScrollArea className="flex-1 scrollbar-minimal">
+        <div className="px-2 pb-2">
+          {/* Permanent Spaces */}
+          {permanentSpaces.map((space) => (
+            <div key={space.id} className="mb-2">
+              <button
+                className={cn(
+                  "w-full flex items-center justify-between rounded-md px-2 py-1.5 text-sm font-medium",
+                  "hover:bg-hover-2"
+                )}
+                onClick={() => toggleSpace(space.id)}
+              >
+                <div className="flex items-center gap-2">
+                  <span className="text-base">{space.emoji}</span>
+                  <span>{space.name}</span>
+                </div>
+                {spaceExpansion[space.id] ? 
+                  <ChevronDown className="h-4 w-4" /> : 
+                  <ChevronRight className="h-4 w-4" />
+                }
+              </button>
+              
+              {spaceExpansion[space.id] && space.collections && (
+                <div className="mt-1 ml-6 space-y-0.5">
+                  {space.collections.map((collection) => {
+                    const itemCount = currentItems.length // TODO: Filter by collection
+                    const isExpanded = collectionExpansion[collection.id]
+                    
+                    return (
+                      <div key={collection.id}>
+                        <button
+                          className={cn(
+                            "w-full flex items-center justify-between rounded-md px-2 py-1.5 text-sm",
+                            "hover:bg-hover-1"
+                          )}
+                          onClick={() => {
+                            handleCollectionClick(collection.id, space.id)
+                            toggleCollection(collection.id)
+                          }}
                         >
-                            <div className="flex items-center">
-                                <span className='text-base'>{space.emoji}</span>
-                                <span className="ml-2">{space.name}</span>
-                            </div>
-                            <div className='flex items-center'>
-                                <Tooltip>
-                                    <TooltipTrigger asChild>
-                                        <Button variant='ghost' size='sm' className='h-6 w-6 p-0'>
-                                            <Plus className='h-3 w-3' />
-                                        </Button>
-                                    </TooltipTrigger>
-                                    <TooltipContent side="right">
-                                        <p>New collection</p>
-                                    </TooltipContent>
-                                </Tooltip>
-                                {spaceExpansion[space.id] ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                            </div>
-                        </div>
-                        {spaceExpansion[space.id] && (
-                            <div className="pl-4 mt-1 space-y-1">
-                                {space.collections.map((collection) => (
-                                    <div 
-                                        key={collection.id} 
-                                        className={cn(
-                                            "flex items-center justify-between rounded-md px-2 py-1.5 text-sm cursor-pointer hover:bg-accent",
-                                            activeCollectionId === collection.id && "bg-accent"
-                                        )}
-                                        onClick={() => setActiveCollection(collection.id, space.id)}
-                                    >
-                                        <div className='flex items-center'>
-                                            <Hash className="mr-2 h-3 w-3" />
-                                            <span>{collection.name}</span>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
+                          <div className="flex items-center gap-2">
+                            {getCollectionIcon(collection.name)}
+                            <span>{collection.name}</span>
+                            {itemCount > 0 && (
+                              <span className="text-xs text-muted-foreground">({itemCount})</span>
+                            )}
+                          </div>
+                          {itemCount > 0 && (
+                            isExpanded ? 
+                              <ChevronDown className="h-3 w-3" /> : 
+                              <ChevronRight className="h-3 w-3" />
+                          )}
+                        </button>
+                        
+                        {/* Items under collection */}
+                        {isExpanded && activeCollectionId === collection.id && currentItems.length > 0 && (
+                          <div className="mt-0.5 ml-5 space-y-0.5">
+                            {currentItems.map((item) => (
+                              <button
+                                key={item.id}
+                                className={cn(
+                                  "w-full flex items-center gap-2 rounded-md px-2 py-1 text-sm text-left",
+                                  "hover:bg-hover-1",
+                                  "text-muted-foreground hover:text-foreground"
+                                )}
+                                onClick={() => handleItemClick(item, space.id.includes('chat') ? 'chat' : 'note')}
+                              >
+                                {item.isStarred && <Star className="h-3 w-3 fill-current" />}
+                                <span className="truncate">{item.title}</span>
+                              </button>
+                            ))}
+                          </div>
                         )}
-                    </div>
-                ))}
-          </div>
-          
-          {/* Notes List */}
-          {activeCollectionId && (
-            <div className='mt-4 px-2'>
-              <h3 className='text-xs font-semibold text-muted-foreground mb-2 px-2'>
-                {collections.find(c => c.id === activeCollectionId)?.name} Notes
-              </h3>
-              <div className='space-y-1'>
-                {notes.map(note => (
-                  <div 
-                    key={note.id}
-                    className='flex items-center rounded-md px-2 py-1.5 text-sm cursor-pointer hover:bg-accent'
-                    onClick={() => handleNoteClick(note)}
-                  >
-                    <FileText className="mr-2 h-3 w-3" />
-                    <span className='truncate'>{note.title}</span>
-                  </div>
-                ))}
-              </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
             </div>
-          )}
-        </ScrollArea>
-      </div>
+          ))}
 
-      {/* Footer */}
-      <div className="p-3 border-t">
+          {userSpaces.length > 0 && <Separator className="my-3" />}
+
+          {/* User Spaces */}
+          {userSpaces.map((space) => (
+            <div key={space.id} className="mb-2">
+              <button
+                className={cn(
+                  "w-full flex items-center justify-between rounded-md px-2 py-1.5 text-sm font-medium",
+                  "hover:bg-hover-2"
+                )}
+                onClick={() => toggleSpace(space.id)}
+              >
+                <div className="flex items-center gap-2">
+                  <span className="text-base">{space.emoji}</span>
+                  <span>{space.name}</span>
+                </div>
+                {spaceExpansion[space.id] ? 
+                  <ChevronDown className="h-4 w-4" /> : 
+                  <ChevronRight className="h-4 w-4" />
+                }
+              </button>
+              
+              {spaceExpansion[space.id] && space.collections && (
+                <div className="mt-1 ml-6 space-y-0.5">
+                  {space.collections.map((collection) => {
+                    const itemCount = currentItems.length // TODO: Filter by collection
+                    const isExpanded = collectionExpansion[collection.id]
+                    
+                    return (
+                      <div key={collection.id}>
+                        <button
+                          className={cn(
+                            "w-full flex items-center justify-between rounded-md px-2 py-1.5 text-sm",
+                            "hover:bg-hover-1"
+                          )}
+                          onClick={() => {
+                            handleCollectionClick(collection.id, space.id)
+                            toggleCollection(collection.id)
+                          }}
+                        >
+                          <div className="flex items-center gap-2">
+                            {getCollectionIcon(collection.name)}
+                            <span>{collection.name}</span>
+                            {itemCount > 0 && (
+                              <span className="text-xs text-muted-foreground">({itemCount})</span>
+                            )}
+                          </div>
+                          {itemCount > 0 && (
+                            isExpanded ? 
+                              <ChevronDown className="h-3 w-3" /> : 
+                              <ChevronRight className="h-3 w-3" />
+                          )}
+                        </button>
+                        
+                        {/* Items under collection */}
+                        {isExpanded && activeCollectionId === collection.id && currentItems.length > 0 && (
+                          <div className="mt-0.5 ml-5 space-y-0.5">
+                            {currentItems.map((item) => (
+                              <button
+                                key={item.id}
+                                className={cn(
+                                  "w-full flex items-center gap-2 rounded-md px-2 py-1 text-sm text-left",
+                                  "hover:bg-hover-1",
+                                  "text-muted-foreground hover:text-foreground"
+                                )}
+                                onClick={() => handleItemClick(item, 'note')}
+                              >
+                                {item.isStarred && <Star className="h-3 w-3 fill-current" />}
+                                <span className="truncate">{item.title}</span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                  
+                  {/* Add new collection button */}
+                  <button
+                    className="w-full flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground hover:bg-hover-1 hover:text-foreground"
+                    onClick={() => handleNewCollection(space.id)}
+                  >
+                    <Plus className="h-3 w-3" />
+                    <span>New Collection</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          ))}
+
+          {/* New Space Button */}
+          <button
+            onClick={handleNewSpace}
+            className="w-full flex items-center gap-2 rounded-md px-2 py-1.5 text-sm font-medium text-muted-foreground hover:bg-hover-2 hover:text-foreground mt-2"
+          >
+            <Plus className="h-4 w-4" />
+            <span>New Space</span>
+          </button>
+        </div>
+      </ScrollArea>
+
+      {/* User Menu - Fixed */}
+      <div className="p-3 border-t flex-shrink-0">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="w-full justify-start text-left">
@@ -564,12 +628,12 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
                   <Image
                     src={user.avatarUrl}
                     alt={user.name || user.email}
-                    width={32}
-                    height={32}
-                    className="h-8 w-8 rounded-full mr-2"
+                    width={24}
+                    height={24}
+                    className="h-6 w-6 rounded-full mr-2"
                   />
                 ) : (
-                  <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center mr-2 text-sm font-bold">
+                  <div className="h-6 w-6 rounded-full bg-muted flex items-center justify-center mr-2 text-xs font-bold">
                     {getInitials(user.name, user.email)}
                   </div>
                 )}
@@ -578,7 +642,7 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
                     {user.name || user.email}
                   </span>
                   <span className="text-xs text-muted-foreground truncate">
-                    Free Plan
+                    {user.email}
                   </span>
                 </div>
               </div>
@@ -595,13 +659,22 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>
-              {theme === 'dark' ? <Sun className="mr-2 h-4 w-4" /> : <Moon className="mr-2 h-4 w-4" />}
-              Toggle Theme
+              {theme === 'dark' ? (
+                <>
+                  <Sun className="mr-2 h-4 w-4" />
+                  Light Mode
+                </>
+              ) : (
+                <>
+                  <Moon className="mr-2 h-4 w-4" />
+                  Dark Mode
+                </>
+              )}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={handleSignOut}>
               <LogOut className="mr-2 h-4 w-4" />
-              Sign Out
+              <span>Log out</span>
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

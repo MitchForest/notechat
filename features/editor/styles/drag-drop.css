@@ -1,0 +1,185 @@
+/* Drag and Drop Styles for Block Editor */
+
+/* Editor in dragging state */
+.editor-wrapper.is-dragging {
+  /* Hide all cursors and selections during drag */
+  caret-color: transparent !important;
+  
+  /* Disable text selection */
+  user-select: none;
+  -webkit-user-select: none;
+  
+  /* Hide all placeholders during drag */
+  .is-editor-empty::before,
+  [data-placeholder]::before,
+  .ProseMirror-gapcursor::after {
+    opacity: 0 !important;
+  }
+  
+  /* Dim all blocks except the one being dragged */
+  .block-wrapper:not(.is-dragging) {
+    opacity: 0.5;
+    transition: opacity 0.2s ease;
+  }
+  
+  /* Hide text cursor */
+  .ProseMirror {
+    cursor: default !important;
+  }
+  
+  /* Prevent any text input */
+  .ProseMirror:focus {
+    outline: none;
+  }
+}
+
+/* Block being dragged */
+.block-wrapper.is-dragging {
+  opacity: 0.3;
+  cursor: grabbing !important;
+}
+
+/* Blocks during drag (not the dragged one) */
+.block-wrapper.drag-active {
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+/* Drop zone indicators */
+.drop-zone {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--drop-zone-color, rgb(59, 130, 246));
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  pointer-events: none;
+  z-index: 20;
+}
+
+/* Show drop zones when they're active */
+.drop-zone-before,
+.drop-zone-after {
+  opacity: 1;
+}
+
+.drop-zone-before {
+  top: -1px;
+  box-shadow: 0 0 0 1px var(--drop-zone-color, rgb(59, 130, 246));
+}
+
+.drop-zone-after {
+  bottom: -1px;
+  box-shadow: 0 0 0 1px var(--drop-zone-color, rgb(59, 130, 246));
+}
+
+/* Drag handle during drag */
+.is-dragging .handle-button {
+  cursor: grabbing !important;
+}
+
+/* Block handle container adjustments during drag */
+.is-dragging .block-handle-container {
+  display: none;
+}
+
+/* Smooth transitions for block reordering */
+.block-wrapper {
+  transition: transform 0.2s ease;
+}
+
+/* Ghost/Preview styles (if implementing custom ghost) */
+.drag-ghost {
+  position: fixed;
+  pointer-events: none;
+  opacity: 0.8;
+  transform: rotate(2deg);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+  z-index: 1000;
+}
+
+/* Cursor styles */
+.block-wrapper:not(.is-dragging) .drag-handle {
+  cursor: grab;
+}
+
+.block-wrapper:not(.is-dragging) .drag-handle:active {
+  cursor: grabbing;
+}
+
+/* Auto-scroll zones (top and bottom of viewport) */
+.editor-wrapper.is-dragging::before,
+.editor-wrapper.is-dragging::after {
+  content: '';
+  position: fixed;
+  left: 0;
+  right: 0;
+  height: 50px;
+  pointer-events: none;
+  z-index: 100;
+}
+
+.editor-wrapper.is-dragging::before {
+  top: 0;
+  background: linear-gradient(to bottom, rgba(0,0,0,0.05), transparent);
+}
+
+.editor-wrapper.is-dragging::after {
+  bottom: 0;
+  background: linear-gradient(to top, rgba(0,0,0,0.05), transparent);
+}
+
+/* Performance optimizations */
+.is-dragging * {
+  will-change: transform;
+}
+
+/* Clean up after drag */
+.editor-wrapper:not(.is-dragging) * {
+  will-change: auto;
+}
+
+/* Accessibility - show focus ring when using keyboard */
+.block-wrapper:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+/* Prevent layout shift during drag */
+.block-wrapper {
+  position: relative;
+}
+
+/* Ensure drop zones don't interfere with content */
+.block-content {
+  position: relative;
+  z-index: 1;
+}
+
+/* Animation for blocks moving out of the way */
+@keyframes slide-up {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes slide-down {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(4px);
+  }
+}
+
+/* Apply animations when needed */
+.block-wrapper.slide-up {
+  animation: slide-up 0.2s ease forwards;
+}
+
+.block-wrapper.slide-down {
+  animation: slide-down 0.2s ease forwards;
+} 

@@ -1,16 +1,13 @@
 import { NextResponse } from 'next/server'
 import { getCurrentUser } from '@/lib/auth/session'
 import { db } from '@/lib/db'
-import { notes, notesToCollections, collections } from '@/lib/db/schema'
-import { and, eq, desc, inArray, gte, SQL } from 'drizzle-orm'
+import { notes } from '@/lib/db/schema'
+import { and, eq, desc, gte, SQL, isNull } from 'drizzle-orm'
 import { z } from 'zod'
 
 const getNotesSchema = z.object({
-  spaceId: z.string().uuid().optional(),
   collectionId: z.string().uuid().optional(),
-  filter: z.enum(['all', 'all_starred', 'all_recent']).optional(),
-}).refine(data => data.filter || (data.spaceId && data.collectionId), {
-    message: "Either filter or both spaceId and collectionId must be provided"
+  filter: z.enum(['all', 'all_starred', 'all_recent', 'uncategorized']).optional(),
 })
 
 export async function GET(request: Request) {
@@ -27,46 +24,37 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: validation.error.errors }, { status: 400 })
   }
   
-  const { spaceId, collectionId, filter } = validation.data
+  const { collectionId, filter } = validation.data
 
   try {
-    const conditions: (SQL)[] = [eq(notes.userId, user.id)];
+    const conditions: SQL[] = [eq(notes.userId, user.id)];
 
-    // Global filters
+    // Apply filters
     if (filter) {
-        if (filter === 'all_starred') {
-            conditions.push(eq(notes.isStarred, true));
-        } else if (filter === 'all_recent') {
-            const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-            conditions.push(gte(notes.updatedAt, sevenDaysAgo));
-        }
-    } else { // Space/Collection specific fetching
-        conditions.push(eq(notes.spaceId, spaceId!));
-
-        const collection = await db.query.collections.findFirst({
-            where: and(eq(collections.id, collectionId!), eq(collections.userId, user.id))
-        })
-
-        if (!collection) {
-            return NextResponse.json({ error: 'Collection not found' }, { status: 404 })
-        }
-        
-        if (collection.type === 'smart' && collection.name === 'Saved') {
-            conditions.push(eq(notes.isStarred, true));
-        } else if (collection.type === 'smart' && collection.name === 'Recent') {
-            const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-            conditions.push(gte(notes.updatedAt, sevenDaysAgo));
-        } else if (collection.type === 'manual') {
-            const noteIdsInCollection = await db.select({ noteId: notesToCollections.noteId }).from(notesToCollections).where(eq(notesToCollections.collectionId, collectionId!));
-            if (noteIdsInCollection.length === 0) {
-                return NextResponse.json([]);
-            }
-            const noteIds = noteIdsInCollection.map(n => n.noteId);
-            conditions.push(inArray(notes.id, noteIds));
-        }
+      switch (filter) {
+        case 'all_starred':
+          conditions.push(eq(notes.isStarred, true));
+          break;
+        case 'all_recent':
+          const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+          conditions.push(gte(notes.updatedAt, sevenDaysAgo));
+          break;
+        case 'uncategorized':
+          conditions.push(isNull(notes.collectionId));
+          break;
+        // 'all' requires no additional conditions
+      }
+    } else if (collectionId) {
+      // Filter by specific collection
+      conditions.push(eq(notes.collectionId, collectionId));
     }
     
-    const results = await db.select().from(notes).where(and(...conditions)).orderBy(desc(notes.updatedAt));
+    const results = await db
+      .select()
+      .from(notes)
+      .where(and(...conditions))
+      .orderBy(desc(notes.updatedAt));
+      
     return NextResponse.json(results)
   } catch (error) {
     console.error('Failed to fetch notes:', error)
@@ -81,26 +69,16 @@ export async function POST(request: Request) {
   }
 
   try {
-    const { title, spaceId, collectionId } = await request.json()
-
-    if (!spaceId || !collectionId) {
-      return NextResponse.json({ error: 'spaceId and collectionId are required' }, { status: 400 })
-    }
+    const { title, collectionId } = await request.json()
 
     const [newNote] = await db
       .insert(notes)
       .values({
         userId: user.id,
-        spaceId,
+        collectionId: collectionId || null, // Can be null for uncategorized
         title: title || 'Untitled Note',
       })
       .returning()
-
-    // Add note to the specified manual collection
-    await db.insert(notesToCollections).values({
-        noteId: newNote.id,
-        collectionId
-    })
 
     return NextResponse.json(newNote, { status: 201 })
   } catch (error) {

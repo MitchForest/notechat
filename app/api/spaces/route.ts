@@ -3,6 +3,7 @@ import { getCurrentUser } from '@/lib/auth/session'
 import { db } from '@/lib/db'
 import { spaces, collections } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
+import { seedUserAccount, getPermanentSpacesForUser } from '@/lib/db/seed-user'
 
 export async function GET() {
   const user = await getCurrentUser()
@@ -11,13 +12,36 @@ export async function GET() {
   }
 
   try {
+    // Fetch user's spaces from database
     const userSpaces = await db.query.spaces.findMany({
       where: eq(spaces.userId, user.id),
       with: {
         collections: true,
       },
+      orderBy: (spaces, { asc }) => [asc(spaces.createdAt)],
     })
-    return NextResponse.json(userSpaces)
+    
+    // Check if user needs seeding (no spaces exist)
+    if (userSpaces.length === 0) {
+      await seedUserAccount(user.id)
+      
+      // Fetch again after seeding
+      const seededSpaces = await db.query.spaces.findMany({
+        where: eq(spaces.userId, user.id),
+        with: {
+          collections: true,
+        },
+        orderBy: (spaces, { asc }) => [asc(spaces.createdAt)],
+      })
+      
+      // Combine permanent spaces with seeded spaces
+      const permanentSpaces = getPermanentSpacesForUser(user.id)
+      return NextResponse.json([...permanentSpaces, ...seededSpaces])
+    }
+    
+    // Combine permanent spaces with existing user spaces
+    const permanentSpaces = getPermanentSpacesForUser(user.id)
+    return NextResponse.json([...permanentSpaces, ...userSpaces])
   } catch (error) {
     console.error('Failed to fetch spaces:', error)
     return NextResponse.json({ error: 'Failed to fetch spaces' }, { status: 500 })
@@ -42,7 +66,8 @@ export async function POST(request: Request) {
       .values({
         userId: user.id,
         name,
-        emoji,
+        emoji: emoji || '📁',
+        type: 'user', // User-created spaces
       })
       .returning()
       
@@ -52,19 +77,19 @@ export async function POST(request: Request) {
             userId: user.id,
             spaceId: newSpace.id,
             name: 'All',
-            type: 'default',
+            type: 'user',
         },
         {
             userId: user.id,
             spaceId: newSpace.id,
             name: 'Recent',
-            type: 'smart',
+            type: 'user',
         },
         {
             userId: user.id,
             spaceId: newSpace.id,
             name: 'Saved',
-            type: 'smart',
+            type: 'user',
         }
     ])
 

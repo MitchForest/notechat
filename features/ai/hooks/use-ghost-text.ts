@@ -1,15 +1,11 @@
 import { useEffect, useRef, useCallback } from 'react'
 import { Editor } from '@tiptap/core'
 import { useCompletion } from 'ai/react'
-import { toast } from 'sonner'
 import { handleAIError } from '../lib/ai-errors'
 
 export function useGhostText(editor: Editor | null) {
   const positionRef = useRef<number | null>(null)
   const isMountedRef = useRef(false)
-  const lastCompletionRef = useRef<string>('')
-
-  console.log('[useGhostText] Hook initialized. Editor exists:', !!editor)
 
   useEffect(() => {
     isMountedRef.current = true
@@ -20,14 +16,7 @@ export function useGhostText(editor: Editor | null) {
 
   const { complete, completion, isLoading, stop } = useCompletion({
     api: '/api/ai/completion',
-    onResponse: response => {
-      console.log('[useGhostText] AI Response received:', response)
-    },
-    onFinish: (prompt, completion) => {
-      console.log('[useGhostText] AI Finished. Prompt:', prompt, 'Completion:', completion)
-    },
     onError: error => {
-      console.error('[useGhostText] AI Error:', error)
       if (isMountedRef.current) {
         handleAIError(error)
         if (editor) {
@@ -37,53 +26,29 @@ export function useGhostText(editor: Editor | null) {
     }
   })
 
+  // Update ghost text when completion changes
   useEffect(() => {
-    if (completion) {
-      console.log('[useGhostText] Completion updated:', completion)
+    if (completion && positionRef.current !== null && editor && isMountedRef.current) {
+      editor.commands.setGhostText(completion, positionRef.current)
     }
-  }, [completion])
-
-  const updateGhostText = useCallback(
-    (text: string, position: number) => {
-      if (editor && text !== lastCompletionRef.current) {
-        lastCompletionRef.current = text
-        requestAnimationFrame(() => {
-          if (isMountedRef.current) {
-            console.log('[useGhostText] Setting ghost text in editor:', text)
-            editor.commands.setGhostText(text, position)
-          }
-        })
-      }
-    },
-    [editor]
-  )
+  }, [completion, editor])
 
   useEffect(() => {
-    if (completion && positionRef.current !== null) {
-      updateGhostText(completion, positionRef.current)
-    }
-  }, [completion, updateGhostText])
-
-  useEffect(() => {
-    if (!editor) {
-      console.log('[useGhostText] No editor, skipping event setup')
-      return
-    }
-
-    console.log('[useGhostText] Setting up event listeners')
+    if (!editor) return
 
     const handleTrigger = (props: { position: number; context: string }) => {
-      console.log('[useGhostText] Trigger event received! Position:', props.position, 'Context length:', props.context.length)
       positionRef.current = props.position
 
+      // Clear any existing ghost text
       editor.commands.clearGhostText()
 
-      console.log('[useGhostText] Calling complete() with context')
-      complete(props.context, { body: { mode: 'ghost-text' } })
+      // Only trigger if we have enough context
+      if (props.context.length >= 10) {
+        complete(props.context, { body: { mode: 'ghost-text' } })
+      }
     }
 
     const handleAccept = (text: string) => {
-      console.log('[useGhostText] Accept event received:', text)
       if (positionRef.current !== null) {
         editor.chain().focus().insertContentAt(positionRef.current, text).run()
       }
@@ -94,7 +59,6 @@ export function useGhostText(editor: Editor | null) {
     }
 
     const handleReject = () => {
-      console.log('[useGhostText] Reject event received')
       editor.commands.clearGhostText()
       positionRef.current = null
       stop()
@@ -104,15 +68,18 @@ export function useGhostText(editor: Editor | null) {
     ;(editor as any).on('ghostTextAccept', handleAccept)
     ;(editor as any).on('ghostTextReject', handleReject)
 
-    console.log('[useGhostText] Event listeners registered')
-
     return () => {
-      console.log('[useGhostText] Cleaning up event listeners')
       ;(editor as any).off('ghostTextTrigger', handleTrigger)
       ;(editor as any).off('ghostTextAccept', handleAccept)
       ;(editor as any).off('ghostTextReject', handleReject)
+      
+      // Clean up any pending operations
+      if (positionRef.current !== null) {
+        stop()
+        positionRef.current = null
+      }
     }
-  }, [editor, complete, stop, updateGhostText])
+  }, [editor, complete, stop])
 
   return {
     isLoading,

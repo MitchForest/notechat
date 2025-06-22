@@ -27,7 +27,7 @@ export async function PUT(
       .where(and(
         eq(collections.id, collectionId), 
         eq(collections.userId, user.id),
-        ne(collections.type, 'default') // Prevent renaming default collections
+        ne(collections.type, 'static') // Prevent renaming static collections
       ))
       .returning()
 
@@ -59,7 +59,7 @@ export async function DELETE(
       .where(and(
         eq(collections.id, collectionId), 
         eq(collections.userId, user.id),
-        ne(collections.type, 'default') // Prevent deleting default collections
+        ne(collections.type, 'static') // Prevent deleting static collections
       ))
       .returning()
 

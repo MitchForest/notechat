@@ -38,15 +38,10 @@ export async function POST(request: Request) {
   }
 
   try {
-    const { name, spaceId, type, smartRules } = await request.json()
+    const { name, spaceId } = await request.json()
 
-    if (!name || !spaceId || !type) {
+    if (!name || !spaceId) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
-    }
-
-    if (type !== 'manual') {
-        // For now, only allow creating manual collections
-        return NextResponse.json({ error: 'Only manual collections can be created directly' }, { status: 400 })
     }
 
     const [newCollection] = await db
@@ -55,8 +50,7 @@ export async function POST(request: Request) {
         userId: user.id,
         spaceId,
         name,
-        type,
-        smartRules,
+        type: 'user', // User-created collections are always 'user' type
       })
       .returning()
 

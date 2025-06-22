@@ -1,0 +1,56 @@
+/**
+ * Component: GhostTextHandler
+ * Purpose: Manages AI ghost text state independently from editor rendering
+ * Features:
+ * - Displays loading indicator during AI processing
+ * - Isolates re-renders from editor component
+ * - Handles ghost text lifecycle
+ * 
+ * Created: 2024-12-20
+ */
+
+import { useEffect, useState } from 'react'
+import { Editor } from '@tiptap/core'
+import { useGhostText } from '../hooks/use-ghost-text'
+import { cn } from '@/lib/utils'
+import { Loader2 } from 'lucide-react'
+
+interface GhostTextHandlerProps {
+  editor: Editor
+}
+
+export function GhostTextHandler({ editor }: GhostTextHandlerProps) {
+  const { isLoading } = useGhostText(editor)
+  const [isVisible, setIsVisible] = useState(false)
+
+  // Handle loading state transitions with animation
+  useEffect(() => {
+    if (isLoading) {
+      setIsVisible(true)
+    } else {
+      // Delay hiding to allow fade out animation
+      const timeout = setTimeout(() => {
+        setIsVisible(false)
+      }, 200)
+      return () => clearTimeout(timeout)
+    }
+  }, [isLoading])
+
+  // Don't render anything if not needed
+  if (!isVisible) return null
+
+  return (
+    <div
+      className={cn(
+        'fixed bottom-8 left-1/2 -translate-x-1/2 z-50',
+        'flex items-center gap-2 px-3 py-2',
+        'bg-background border rounded-md shadow-sm',
+        'transition-all duration-200',
+        isLoading ? 'opacity-100 scale-100' : 'opacity-0 scale-95'
+      )}
+    >
+      <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+      <span className="text-sm text-muted-foreground">AI is thinking...</span>
+    </div>
+  )
+} 

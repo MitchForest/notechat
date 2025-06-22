@@ -22,6 +22,8 @@ interface BlockHandleProps {
   blockPos: number
   blockNode: any
   onMenuToggle: (isOpen: boolean) => void;
+  onDragStart?: (e: React.DragEvent) => void;
+  onDragEnd?: () => void;
 }
 
 const BLOCK_TYPES = [
@@ -35,7 +37,7 @@ const BLOCK_TYPES = [
   { type: 'codeBlock', icon: Code, label: 'Code' },
 ]
 
-export function BlockHandle({ editor, blockPos, blockNode, onMenuToggle }: BlockHandleProps) {
+export function BlockHandle({ editor, blockPos, blockNode, onMenuToggle, onDragStart, onDragEnd }: BlockHandleProps) {
   const [menuOpen, setMenuOpen] = useState(false)
   const isDraggingRef = useRef(false)
   const dragHandleRef = useRef<HTMLButtonElement>(null)
@@ -47,18 +49,32 @@ export function BlockHandle({ editor, blockPos, blockNode, onMenuToggle }: Block
 
   const handleDragStart = (e: React.DragEvent) => {
     isDraggingRef.current = true;
-    editor.view.dom.classList.add('is-dragging')
-    const slice = editor.state.doc.slice(blockPos, blockPos + blockNode.nodeSize)
-    e.dataTransfer.setData('application/vnd.tiptap-block', JSON.stringify({ 
-      pos: blockPos, 
-      content: slice.toJSON() 
-    }))
-    e.dataTransfer.effectAllowed = 'move'
+    
+    // Call the parent's drag start handler if provided
+    if (onDragStart) {
+      onDragStart(e);
+    } else {
+      // Default drag behavior if no handler provided
+      editor.view.dom.classList.add('is-dragging')
+      const slice = editor.state.doc.slice(blockPos, blockPos + blockNode.nodeSize)
+      e.dataTransfer.setData('application/vnd.tiptap-block', JSON.stringify({ 
+        pos: blockPos, 
+        content: slice.toJSON() 
+      }))
+      e.dataTransfer.effectAllowed = 'move'
+    }
   }
 
   const handleDragEnd = () => {
     isDraggingRef.current = false;
-    // Cleanup is handled by the plugin's dragend event
+    
+    // Call the parent's drag end handler if provided
+    if (onDragEnd) {
+      onDragEnd();
+    } else {
+      // Default cleanup if no handler provided
+      editor.view.dom.classList.remove('is-dragging')
+    }
   }
   
   const handleAddBlock = () => {

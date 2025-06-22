@@ -14,14 +14,14 @@
 import React, { useState, useCallback } from 'react'
 import { useAppShell, OpenItem } from '@/components/layout/app-shell-context'
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable'
-import { X, Send, Bot, Info } from 'lucide-react'
+import { X, Info } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Editor } from "@/features/editor/components/editor"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { ChatInterface } from '@/features/chat/components/chat-interface'
 
-// Placeholder components - these will be replaced with actual implementations
+// Chat component wrapper
 function ChatComponent({
   chat,
   onClose
@@ -29,75 +29,20 @@ function ChatComponent({
   chat: { id: string; title?: string }
   onClose?: () => void
 }) {
-  const [message, setMessage] = React.useState('')
-
-  const handleSendMessage = () => {
-    if (message.trim()) {
-      console.log('Sending message:', message)
-      setMessage('')
-    }
-  }
-
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      handleSendMessage()
-    }
-  }
-
   return (
-    <Card className="h-full flex flex-col">
-      <CardHeader className="flex flex-row items-center justify-between py-3">
-        <CardTitle className="text-lg font-semibold">
-          {chat.title || 'AI Chat'}
-        </CardTitle>
-        <div className="flex items-center gap-2">
-          <div className="text-sm text-muted-foreground">
-            ID: {chat.id}
-          </div>
-          {onClose && (
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={onClose}
-              className="h-8 w-8"
-            >
-              <X className="h-4 w-4" />
-            </Button>
-          )}
-        </div>
-      </CardHeader>
-
-      {/* Chat Messages Area */}
-      <CardContent className="flex-1 flex items-center justify-center">
-        <div className="text-center text-muted-foreground">
-          <div className="w-12 h-12 mx-auto mb-4 rounded-full bg-accent flex items-center justify-center">
-            <Bot className="h-6 w-6 text-accent-foreground" />
-          </div>
-          <p className="text-lg mb-2 text-foreground">AI Chat</p>
-          <p className="text-sm">Start a conversation below</p>
-        </div>
-      </CardContent>
-
-      {/* Chat Input */}
-      <div className="p-4 border-t">
-        <div className="flex gap-3">
-          <Input
-            type="text"
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            onKeyPress={handleKeyPress}
-            placeholder="Type your message..."
-          />
-          <Button
-            onClick={handleSendMessage}
-            disabled={!message.trim()}
-          >
-            <Send className="h-4 w-4" />
-          </Button>
-        </div>
-      </div>
-    </Card>
+    <div className="h-full relative">
+      {onClose && (
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={onClose}
+          className="absolute top-2 right-2 z-10 h-8 w-8"
+        >
+          <X className="h-4 w-4" />
+        </Button>
+      )}
+      <ChatInterface chatId={chat.id} />
+    </div>
   )
 }
 

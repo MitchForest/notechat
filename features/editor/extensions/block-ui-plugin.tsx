@@ -5,6 +5,7 @@ import React from 'react';
 import { Editor, Extension } from '@tiptap/core';
 import { BlockHandle } from '../components/block-handle';
 import { Slice } from 'prosemirror-model';
+import { blockDebugger } from '../utils/block-debug';
 
 const blockUiPluginKey = new PluginKey('block-ui');
 
@@ -95,9 +96,18 @@ class BlockUIView {
     this.view = view;
     this.container = container;
     this.editor = editor;
+    
+    // Log container info for debugging
+    log('BlockUIView constructor - container:', {
+      className: container.className,
+      id: container.id,
+      hasEditorWrapper: container.classList.contains('editor-wrapper')
+    });
+    
+    // Create portal in the provided container
     this.portal = document.createElement('div');
     this.portal.className = 'block-handle-portal';
-    container.appendChild(this.portal);
+    this.container.appendChild(this.portal);
     this.reactRoot = createRoot(this.portal);
 
     this.portal.addEventListener('mouseenter', () => {
@@ -107,7 +117,7 @@ class BlockUIView {
       this.isHandleHovered = false;
       // Use requestAnimationFrame to avoid race conditions with React state
       requestAnimationFrame(() => {
-        handleMouseMove(this.view, new MouseEvent('mousemove', { bubbles: true, cancelable: true }));
+        handleMouseMove(this.view, this.container, new MouseEvent('mousemove', { bubbles: true, cancelable: true }));
       });
     });
     
@@ -168,9 +178,12 @@ class BlockUIView {
   }
 }
 
-function findHoveredBlock(view: EditorView, event: MouseEvent): { pos: number; node: any } | null {
-  const container = (view as any).dom.closest('.editor-wrapper');
-  if (!container) return null;
+function findHoveredBlock(view: EditorView, container: HTMLElement, event: MouseEvent): { pos: number; node: any } | null {
+  // Use the provided container instead of searching for it
+  if (!container) {
+    log('findHoveredBlock: No container provided');
+    return null;
+  }
   
   // Check if the cursor is vertically within the editor's content area
   const editorRect = view.dom.getBoundingClientRect();
@@ -198,14 +211,14 @@ function findHoveredBlock(view: EditorView, event: MouseEvent): { pos: number; n
   return hoveredBlockInfo;
 }
 
-function handleMouseMove(view: EditorView, event: MouseEvent) {
+function handleMouseMove(view: EditorView, container: HTMLElement, event: MouseEvent) {
   const pluginState = blockUiPluginKey.getState(view.state);
   if (pluginState?.isDragging || pluginState?.isMenuOpen) return;
 
   const target = event.target as HTMLElement;
   if (target?.closest('.block-handle-portal')) return;
   
-  const blockInfo = findHoveredBlock(view, event);
+  const blockInfo = findHoveredBlock(view, container, event);
   const newHoveredPos = blockInfo ? blockInfo.pos : null;
 
   if (newHoveredPos !== pluginState.hoveredBlockPos) {
@@ -213,10 +226,11 @@ function handleMouseMove(view: EditorView, event: MouseEvent) {
   }
 }
 
-function handleMouseLeave(view: EditorView) {
+function handleMouseLeave(view: EditorView, container: HTMLElement) {
   const pluginState = blockUiPluginKey.getState(view.state);
   if (pluginState?.hoveredBlockPos !== null) {
-    const portal = view.dom.closest('.editor-wrapper')?.querySelector('.block-handle-portal');
+    // Use the stored portal reference instead of searching for it
+    const portal = container.querySelector('.block-handle-portal');
     if (portal && portal.matches(':hover')) {
       return;
     }
@@ -250,6 +264,15 @@ function createDropIndicator() {
 }
 
 const blockUiPlugin = (container: HTMLElement, editor: Editor) => {
+  // Validate container on plugin creation
+  if (!container) {
+    console.error('[BlockUI] No container provided to plugin');
+    throw new Error('BlockUI plugin requires a valid container element');
+  }
+  
+  log('Creating blockUiPlugin with container:', container.className);
+  blockDebugger.validateContainer(container);
+  
   return new Plugin({
     key: blockUiPluginKey,
     state: {
@@ -406,11 +429,11 @@ const blockUiPlugin = (container: HTMLElement, editor: Editor) => {
           return false;
         },
         mousemove: (view, event) => {
-          handleMouseMove(view, event as MouseEvent);
+          handleMouseMove(view, container, event as MouseEvent);
           return false;
         },
         mouseleave: (view) => {
-          handleMouseLeave(view);
+          handleMouseLeave(view, container);
         },
       },
     },
@@ -429,6 +452,7 @@ export const BlockUi = Extension.create<BlockUiOptions>({
   },
   addProseMirrorPlugins() {
     if (!this.options.container) {
+      console.warn('[BlockUI] No container provided to extension');
       return [];
     }
     return [blockUiPlugin(this.options.container, this.editor)];

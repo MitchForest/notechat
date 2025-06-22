@@ -1,9 +1,9 @@
-import { pgTable, text, timestamp, uuid, pgEnum, boolean, jsonb, primaryKey } from 'drizzle-orm/pg-core'
+import { pgTable, text, timestamp, uuid, pgEnum, boolean, jsonb } from 'drizzle-orm/pg-core'
 import { relations } from 'drizzle-orm'
 
 // --- Enums ---
 
-export const collectionTypeEnum = pgEnum('collection_type', ['manual', 'smart', 'default'])
+export const entityTypeEnum = pgEnum('entity_type', ['static', 'seeded', 'user'])
 
 // --- Tables ---
 
@@ -22,6 +22,7 @@ export const usersRelations = relations(users, ({ many }) => ({
     spaces: many(spaces),
     notes: many(notes),
     collections: many(collections),
+    chats: many(chats),
 }))
 
 export const accounts = pgTable('accounts', {
@@ -65,7 +66,7 @@ export const spaces = pgTable('spaces', {
     userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
     name: text('name').notNull(),
     emoji: text('emoji'),
-    isDefault: boolean('is_default').default(false),
+    type: entityTypeEnum('type').notNull(),
     createdAt: timestamp('created_at').defaultNow().notNull(),
     updatedAt: timestamp('updated_at').defaultNow().notNull(),
 })
@@ -76,7 +77,6 @@ export const spacesRelations = relations(spaces, ({ one, many }) => ({
         references: [users.id],
     }),
     collections: many(collections),
-    notes: many(notes)
 }))
 
 export const collections = pgTable('collections', {
@@ -84,8 +84,7 @@ export const collections = pgTable('collections', {
     userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
     spaceId: uuid('space_id').references(() => spaces.id, { onDelete: 'cascade' }).notNull(),
     name: text('name').notNull(),
-    type: collectionTypeEnum('type').notNull(),
-    smartRules: jsonb('smart_rules'),
+    type: entityTypeEnum('type').notNull(),
     createdAt: timestamp('created_at').defaultNow().notNull(),
     updatedAt: timestamp('updated_at').defaultNow().notNull(),
 })
@@ -99,13 +98,14 @@ export const collectionsRelations = relations(collections, ({ one, many }) => ({
         fields: [collections.spaceId],
         references: [spaces.id],
     }),
-    notesToCollections: many(notesToCollections),
+    notes: many(notes),
+    chats: many(chats),
 }))
 
 export const notes = pgTable('notes', {
     id: uuid('id').defaultRandom().primaryKey(),
     userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
-    spaceId: uuid('space_id').references(() => spaces.id, { onDelete: 'cascade' }).notNull(),
+    collectionId: uuid('collection_id').references(() => collections.id, { onDelete: 'set null' }),
     title: text('title').default('Untitled Note').notNull(),
     content: jsonb('content'),
     isStarred: boolean('is_starred').default(false),
@@ -113,32 +113,35 @@ export const notes = pgTable('notes', {
     updatedAt: timestamp('updated_at').defaultNow().notNull(),
 })
 
-export const notesRelations = relations(notes, ({ one, many }) => ({
+export const notesRelations = relations(notes, ({ one }) => ({
     user: one(users, {
         fields: [notes.userId],
         references: [users.id],
     }),
-    space: one(spaces, {
-        fields: [notes.spaceId],
-        references: [spaces.id],
+    collection: one(collections, {
+        fields: [notes.collectionId],
+        references: [collections.id],
     }),
-    notesToCollections: many(notesToCollections),
 }))
 
-export const notesToCollections = pgTable('notes_to_collections', {
-    noteId: uuid('note_id').references(() => notes.id, { onDelete: 'cascade' }).notNull(),
-    collectionId: uuid('collection_id').references(() => collections.id, { onDelete: 'cascade' }).notNull(),
-}, (t) => ({
-    pk: primaryKey({ columns: [t.noteId, t.collectionId] }),
-}))
+export const chats = pgTable('chats', {
+    id: uuid('id').defaultRandom().primaryKey(),
+    userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+    collectionId: uuid('collection_id').references(() => collections.id, { onDelete: 'set null' }),
+    title: text('title').default('Untitled Chat').notNull(),
+    content: jsonb('content'),
+    isStarred: boolean('is_starred').default(false),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+})
 
-export const notesToCollectionsRelations = relations(notesToCollections, ({ one }) => ({
-    note: one(notes, {
-        fields: [notesToCollections.noteId],
-        references: [notes.id],
+export const chatsRelations = relations(chats, ({ one }) => ({
+    user: one(users, {
+        fields: [chats.userId],
+        references: [users.id],
     }),
     collection: one(collections, {
-        fields: [notesToCollections.collectionId],
+        fields: [chats.collectionId],
         references: [collections.id],
     }),
 }))
@@ -157,5 +160,5 @@ export type Collection = typeof collections.$inferSelect
 export type NewCollection = typeof collections.$inferInsert
 export type Note = typeof notes.$inferSelect
 export type NewNote = typeof notes.$inferInsert
-export type NoteToCollection = typeof notesToCollections.$inferSelect
-export type NewNoteToCollection = typeof notesToCollections.$inferInsert 
+export type Chat = typeof chats.$inferSelect
+export type NewChat = typeof chats.$inferInsert 

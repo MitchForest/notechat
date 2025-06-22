@@ -31,11 +31,44 @@ export class EditorService extends EventEmitter {
   private checkOrchestrator: CheckOrchestrator;
   private errorRegistry: ErrorRegistry;
   private changeDetector: ChangeDetector;
+  private container: HTMLElement;
   private debouncedCheck: (text: string, paragraphId: string, range: { from: number; to: number }) => void;
   private debouncedOnUpdate: (args: { editor: TiptapEditor, transaction: any }) => void;
 
-  constructor(container: HTMLElement, customExtensions: Extension[] = []) {
+  constructor(
+    container: HTMLElement, 
+    customExtensions: Extension[] = [],
+    dragHandlers?: {
+      onDragStart?: (data: any) => void
+      onDragEnd?: () => void
+      onDrop?: (targetPos: number, position: 'before' | 'after') => void
+      onUpdateDropTarget?: (targetId: string | null, position: 'before' | 'after' | null) => void
+    }
+  ) {
     super();
+    
+    // Validate container
+    if (!container) {
+      throw new Error(
+        'EditorService requires a valid container element. ' +
+        'Ensure the component is mounted before initializing the editor.'
+      );
+    }
+    
+    // Check if container is visible
+    if (!container.offsetParent) {
+      console.warn(
+        'EditorService: Container element is not visible. ' +
+        'This may cause layout issues with block handles.'
+      );
+    }
+    
+    // Validate container dimensions
+    this.validateContainer(container);
+    
+    // Store container reference
+    this.container = container;
+    
     this.errorRegistry = new ErrorRegistry();
     this.changeDetector = new ChangeDetector();
     
@@ -56,7 +89,7 @@ export class EditorService extends EventEmitter {
       }
     }, 300);
 
-    const baseExtensions = getEditorExtensions(this.errorRegistry, container);
+    const baseExtensions = getEditorExtensions(this.errorRegistry, container, dragHandlers);
 
     this._editor = new TiptapEditor({
       extensions: [...baseExtensions, ...customExtensions],
@@ -118,6 +151,16 @@ export class EditorService extends EventEmitter {
     this.checkOrchestrator = new CheckOrchestrator();
 
     this.setupEventListeners();
+  }
+
+  private validateContainer(container: HTMLElement): void {
+    const rect = container.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) {
+      throw new Error(
+        'EditorService: Container has zero dimensions. ' +
+        'The editor requires a container with defined width and height.'
+      );
+    }
   }
 
   private setupEventListeners() {
