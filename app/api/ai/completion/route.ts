@@ -1,28 +1,37 @@
 import { streamText } from 'ai'
+import { openai } from '@ai-sdk/openai'
+import { NextRequest } from 'next/server'
 import {
   AI_MAX_TOKENS,
   AI_MODELS,
   AI_SYSTEM_PROMPTS,
   AI_TEMPERATURES
 } from '@/features/ai/lib/ai-config'
-import { NextRequest } from 'next/server'
 
 export const runtime = 'edge'
 
 export async function POST(req: NextRequest) {
-  try {
-    const { prompt: text } = await req.json()
+  console.log('[API /ai/completion] Request received')
 
-    if (!text || typeof text !== 'string') {
-      return new Response('Invalid request: text is required', { status: 400 })
+  try {
+    const { prompt: text, mode } = await req.json()
+    console.log('[API /ai/completion] Body:', { textLength: text?.length, mode })
+
+    if (!text) {
+      console.error('[API /ai/completion] No text provided')
+      return new Response('No text provided', { status: 400 })
     }
+
+    const isGhostText = mode === 'ghost-text'
 
     const result = await streamText({
       model: AI_MODELS.fast,
       messages: [
         {
           role: 'system',
-          content: AI_SYSTEM_PROMPTS.continue
+          content: isGhostText
+            ? 'You are a helpful writing assistant. Continue the text naturally. Keep it brief, around 50-100 characters.'
+            : AI_SYSTEM_PROMPTS.continue
         },
         {
           role: 'user',
@@ -30,22 +39,13 @@ export async function POST(req: NextRequest) {
         }
       ],
       temperature: AI_TEMPERATURES.continue,
-      maxTokens: AI_MAX_TOKENS.continue
+      maxTokens: isGhostText ? 50 : AI_MAX_TOKENS.continue
     })
 
+    console.log('[API /ai/completion] Streaming response started')
     return result.toDataStreamResponse()
   } catch (error) {
-    console.error('Completion error:', error)
-
-    if (error instanceof Error) {
-      if (error.message.includes('rate limit')) {
-        return new Response('Rate limit exceeded', { status: 429 })
-      }
-      if (error.message.includes('context length')) {
-        return new Response('Text too long', { status: 400 })
-      }
-    }
-
-    return new Response('Internal server error', { status: 500 })
+    console.error('[API /ai/completion] Error:', error)
+    return new Response('Internal error', { status: 500 })
   }
 } 

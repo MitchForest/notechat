@@ -12,35 +12,6 @@
 }
 
 /* ==========================================================================
-   2. PLACEHOLDER STYLES - All block types including lists
-   ========================================================================== */
-
-/* This is the definitive placeholder rule that fixes the alignment bug. */
-.ProseMirror .is-empty::before {
-  content: attr(data-placeholder);
-  color: hsl(var(--muted-foreground));
-  opacity: 0.8;
-  pointer-events: none;
-  float: none;
-  height: auto;
-}
-
-.ProseMirror h1.is-empty,
-.ProseMirror h2.is-empty,
-.ProseMirror h3.is-empty,
-.ProseMirror h4.is-empty,
-.ProseMirror h5.is-empty,
-.ProseMirror h6.is-empty,
-.ProseMirror p.is-empty,
-.ProseMirror blockquote.is-empty,
-.ProseMirror ul li.is-empty,
-.ProseMirror ol li.is-empty,
-.ProseMirror ul li p.is-empty,
-.ProseMirror ol li p.is-empty {
-  color: hsl(var(--muted-foreground));
-}
-
-/* ==========================================================================
    3. CORE CONTENT STYLES (Typography, Lists, etc.)
    ========================================================================== */
 .ProseMirror {
@@ -324,17 +295,21 @@
   user-select: none !important;
 }
 
-/* Drop indicator line */
+/* Drop indicator line with fallbacks */
 .drop-indicator {
   position: absolute;
   left: 0;
   right: 0;
-  height: 4px; /* Make the drop zone more prominent */
-  background-color: hsl(var(--success) / 0.8); /* Use a vibrant green */
+  height: 4px;
+  background-color: #10B981; /* Fallback 1: Hard-coded hex */
+  background-color: hsl(var(--success) / 0.8); /* Fallback 2: HSL for older browsers */
+  background-color: oklch(var(--success) / 0.8); /* Modern standard */
   border-radius: 2px;
   pointer-events: none;
   z-index: 100;
-  box-shadow: 0 0 10px hsl(var(--success) / 0.5); /* Add a subtle glow */
+  box-shadow: 0 0 10px #10B981; /* Matching fallback */
+  box-shadow: 0 0 10px hsl(var(--success) / 0.5);
+  box-shadow: 0 0 10px oklch(var(--success) / 0.5);
 }
 
 .drop-indicator::before {
@@ -351,15 +326,23 @@
 .ProseMirror h2 { margin-bottom: 0.75rem; }
 .ProseMirror h3 { margin-bottom: 0.5rem; }
 
-.ProseMirror p.is-editor-empty:first-child::before,
-.ProseMirror h1.is-empty::before,
-.ProseMirror h2.is-empty::before,
-.ProseMirror h3.is-empty::before {
-  color: #adb5bd;
+/* 
+  This is the single, correct rule for all placeholders.
+  The :where() pseudo-class has zero specificity, ensuring this base style
+  applies without interfering with other styles.
+*/
+.ProseMirror :where(.is-empty)::before {
   content: attr(data-placeholder);
-  float: left; /* This is the key fix for the cursor position */
-  height: 0; /* This is the key fix for the cursor position */
+  color: hsl(var(--muted-foreground));
+  opacity: 0.8;
+  float: left;
+  height: 0;
   pointer-events: none;
+}
+
+/* Hide the placeholder on the element that is being dragged */
+.ProseMirror.is-dragging .is-empty::before {
+  display: none !important;
 }
 
 /* Prevent text selection during the small mouse movements before a drag is initiated */
@@ -374,4 +357,22 @@
 /* Visual feedback for the entire editor during a drag operation */
 .ProseMirror.is-dragging::selection {
   background: transparent;
+}
+
+.ghost-text::after {
+  content: attr(data-text);
+  color: #adb5bd;
+  font-style: italic;
+  opacity: 0.6;
+  pointer-events: none;
+  animation: ghostFadeIn 200ms ease-in;
+}
+
+@keyframes ghostFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 0.6;
+  }
 }

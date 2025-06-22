@@ -8,6 +8,30 @@ import { Slice } from 'prosemirror-model';
 
 const blockUiPluginKey = new PluginKey('block-ui');
 
+// --- Utilities for Robustness & Debugging ---
+const DEBUG = process.env.NODE_ENV === 'development';
+
+function log(message: string, ...args: any[]) {
+  if (DEBUG) {
+    console.log(`[BlockUI] ${message}`, ...args);
+  }
+}
+
+function safeExecute<T extends (...args: any[]) => any>(
+  fn: T,
+  description: string
+): (...args: Parameters<T>) => ReturnType<T> | undefined {
+  return (...args: Parameters<T>) => {
+    try {
+      log(`Executing: ${description}`);
+      return fn(...args);
+    } catch (error) {
+      console.error(`[BlockUI] Error in ${description}:`, error);
+      return undefined;
+    }
+  };
+}
+
 export interface BlockUiOptions {
   container: HTMLElement | null;
 }
@@ -65,9 +89,7 @@ class BlockUIView {
   private reactRoot: Root;
   private container: HTMLElement;
   private editor: Editor;
-  private hideTimeout: NodeJS.Timeout | null = null;
   private isHandleHovered: boolean = false;
-  public mouseMoveTimeout: NodeJS.Timeout | null = null;
 
   constructor(view: EditorView, container: HTMLElement, editor: Editor) {
     this.view = view;
@@ -80,10 +102,6 @@ class BlockUIView {
 
     this.portal.addEventListener('mouseenter', () => {
       this.isHandleHovered = true;
-      if (this.hideTimeout) {
-        clearTimeout(this.hideTimeout);
-        this.hideTimeout = null;
-      }
     });
     this.portal.addEventListener('mouseleave', () => {
       this.isHandleHovered = false;
@@ -135,15 +153,12 @@ class BlockUIView {
       }
     } else {
       if (!this.isHandleHovered) {
-        this.hideTimeout = setTimeout(() => {
           this.portal.style.display = 'none';
-        }, 100);
       }
     }
   }
 
   destroy() {
-    if (this.hideTimeout) clearTimeout(this.hideTimeout);
     setTimeout(() => {
       if (this.reactRoot) {
           this.reactRoot.unmount();
@@ -235,7 +250,6 @@ function createDropIndicator() {
 }
 
 const blockUiPlugin = (container: HTMLElement, editor: Editor) => {
-  let pluginView: BlockUIView;
   return new Plugin({
     key: blockUiPluginKey,
     state: {
@@ -253,8 +267,7 @@ const blockUiPlugin = (container: HTMLElement, editor: Editor) => {
       },
     },
     view(editorView) {
-      pluginView = new BlockUIView(editorView, container, editor);
-      return pluginView;
+      return new BlockUIView(editorView, container, editor);
     },
     props: {
       decorations(state) {
@@ -321,8 +334,6 @@ const blockUiPlugin = (container: HTMLElement, editor: Editor) => {
           return true;
         },
         dragend: (view) => {
-          // This is the correct way to reset state in Prosemirror.
-          // It guarantees the isDragging state and dragging class are removed.
           const { state, dispatch } = view;
           const tr = state.tr.setMeta(blockUiPluginKey, { 
             isDragging: false, 
@@ -338,7 +349,6 @@ const blockUiPlugin = (container: HTMLElement, editor: Editor) => {
           if (!data) return false;
 
           (event as DragEvent).preventDefault();
-          const pluginState = blockUiPluginKey.getState(view.state);
           hideDragPreview();
           
           try {
@@ -399,7 +409,9 @@ const blockUiPlugin = (container: HTMLElement, editor: Editor) => {
           handleMouseMove(view, event as MouseEvent);
           return false;
         },
-        mouseleave: (view) => handleMouseLeave(view),
+        mouseleave: (view) => {
+          handleMouseLeave(view);
+        },
       },
     },
   });
@@ -421,4 +433,4 @@ export const BlockUi = Extension.create<BlockUiOptions>({
     }
     return [blockUiPlugin(this.options.container, this.editor)];
   },
-}); 
+});

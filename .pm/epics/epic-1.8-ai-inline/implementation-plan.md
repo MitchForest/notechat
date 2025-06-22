@@ -147,7 +147,43 @@ The "Ghost Completions" (`++`) feature is explicitly deferred. All work will adh
 
 ---
 
-## Sprint 6: Ghost Text Completions (`++`)
+## Sprint 6: Ghost Text Completions (`++`) - Component Stabilization Refactor
+
+**Goal**: Eradicate all race conditions and rendering bugs by re-architecting the `Editor` component for stability. This will be achieved by creating a stable, single instance of the editor, memoizing the component to prevent unnecessary re-renders, and making the underlying ProseMirror plugin more robust.
+
+**User Story**: As a user, when I type `++`, the ghost text feature works reliably, smoothly, and without visual artifacts.
+
+### Tasks:
+
+1.  **Create a Stable Editor Hook (`features/editor/hooks/use-stable-editor.ts`)**:
+    *   Create a new hook responsible for instantiating the `EditorService` **only once**.
+    *   This hook will accept a `ref` to a DOM element from the component to pass to the `EditorService` constructor.
+    *   It will use `useRef` to hold the `EditorService` instance and `useState` to expose the stable `editor` object.
+    *   This hook will be the cornerstone of the new architecture, eliminating the primary source of re-renders.
+
+2.  **Refactor the Editor Component (`features/editor/components/editor.tsx`)**:
+    *   **Adopt `useStableEditor`**: Replace the existing `useEffect`-based initialization with a single call to the new `useStableEditor` hook.
+    *   **Memoize Component**: Wrap the main `EditorInner` component with `React.memo` to prevent it from re-rendering when its parent or internal state (like the `ghostLoading` state from `useGhostText`) changes.
+    *   **Use `useCallback`**: Ensure any event handlers passed down, like `onChange`, are wrapped in `useCallback` to maintain stable references.
+
+3.  **Refactor the Ghost Text Hook (`features/ai/hooks/use-ghost-text.ts`)**:
+    *   **Use Stable Callbacks**: Replace the `debounce` logic with a `useCallback`-wrapped function that uses `requestAnimationFrame`. This ensures that editor commands are dispatched in sync with the browser's render cycle, preventing stale updates.
+    *   **Add Mount Check**: Introduce a `isMountedRef` to prevent any state updates or commands from being called after the component has unmounted, avoiding potential memory leaks.
+
+4.  **Refactor the Ghost Text Extension (`features/ai/extensions/ghost-text.ts`)**:
+    *   **Improve `apply` Logic**: Make the plugin's `apply` function more robust.
+        *   It will now correctly preserve existing decorations by default using `decorations.map(tr.mapping, ...)`.
+        *   It will only create/destroy decorations when explicit `ghostTextUpdate` metadata is found in a transaction.
+        *   It will add a check for `tr.docChanged` to intelligently clear the ghost text if the user types or edits at the suggestion's position.
+
+5.  **Final Testing and Verification**:
+    *   Perform end-to-end testing of the entire feature, focusing on edge cases that previously caused failures: rapid typing, immediate rejection, etc.
+    *   Verify that the "AI is thinking..." loading indicator appears and disappears correctly.
+    *   Confirm that the console is free of excessive render logs and that the user experience is fluid and responsive.
+
+---
+
+## Sprint 7: Ghost Text Completions (`++`)
 
 **Goal**: Implement AI-powered ghost text completions triggered by `++`.
 
@@ -181,4 +217,5 @@ The "Ghost Completions" (`++`) feature is explicitly deferred. All work will adh
 5.  **Add CSS for Ghost Text**:
     *   Modify `features/editor/styles/editor.css`: Add a new CSS rule for the `.ghost-text` class.
     *   It will use an `::after` pseudo-element with `content: attr(data-text);` to display the suggestion.
-    *   The text will be styled to be semi-transparent and italic, as specified in the design documents. 
+    *   The text will be styled to be semi-transparent and italic, as specified in the design documents.
+    *   **Done** 

@@ -11,57 +11,63 @@ import { ErrorRegistry } from '../services/ErrorRegistry'
 import Underline from '@tiptap/extension-underline';
 import TaskList from '@tiptap/extension-task-list';
 import TaskItem from '@tiptap/extension-task-item';
-import { BlockUi } from '../extensions/block-ui-plugin';
+import { BlockUi } from '../extensions/block-ui-plugin'
 import { Extension } from '@tiptap/core'
 import { InlineAI } from '@/features/ai/extensions/inline-ai';
+import { GhostText } from '@/features/ai/extensions/ghost-text'
 
 const lowlight = createLowlight(common)
 
-export const getEditorExtensions = (registry: ErrorRegistry, container: HTMLElement) => [
-  StarterKit.configure({
-    bulletList: { keepMarks: true, keepAttributes: false },
-    orderedList: { keepMarks: true, keepAttributes: false },
-    history: {},
-    codeBlock: false,
-  }),
-  InlineAI,
-  SlashCommand,
-  TrailingNode,
-  CodeBlockLowlight.configure({
-    lowlight,
-    languageClassPrefix: 'language-',
-    defaultLanguage: 'plaintext',
-  }),
-  TextStyle,
-  Color,
-  Underline,
-  TaskList,
-  TaskItem,
-  SpellCheckExtension.configure({
-    registry,
-  }),
-  Placeholder.configure({
-    placeholder: ({ node, editor, pos }) => {
-      if (node.type.name === 'heading') {
-        return `Heading ${node.attrs.level}`
-      }
+export const getEditorExtensions = (errorRegistry: ErrorRegistry, container?: HTMLElement) => {
+  console.log('[Extensions] Loading editor extensions...')
 
-      const resolvedPos = editor.state.doc.resolve(pos)
-      const parent = resolvedPos.parent
-
-      if (node.type.name === 'paragraph') {
-        if (parent.type.name === 'listItem') {
-          return ''
+  const extensions = [
+    StarterKit.configure({
+      heading: {
+        levels: [1, 2, 3]
+      },
+      bulletList: { keepMarks: true, keepAttributes: false },
+      orderedList: { keepMarks: true, keepAttributes: false },
+      history: {},
+      codeBlock: false,
+    }),
+    InlineAI,
+    SlashCommand,
+    TrailingNode,
+    GhostText,
+    CodeBlockLowlight.configure({
+      lowlight,
+      languageClassPrefix: 'language-',
+      defaultLanguage: 'plaintext',
+    }),
+    TextStyle,
+    Color,
+    Underline,
+    TaskList,
+    TaskItem,
+    Placeholder.configure({
+      placeholder: ({ node }) => {
+        if (node.type.name === 'heading') {
+          return `Heading ${node.attrs.level}`
         }
-        return "Type '/' for commands"
-      }
+        return "Press '/' for commands"
+      },
+      showOnlyCurrent: true
+    }),
+    BlockUi.configure({
+      container
+    })
+  ]
 
-      return ''
-    },
-    considerAnyAsEmpty: true,
-    showOnlyCurrent: true,
-  }),
-  BlockUi.configure({
-    container,
-  }),
-] 
+  console.log('[Extensions] Loaded', extensions.length, 'extensions')
+
+  if (container) {
+    extensions.push(
+      SpellCheckExtension.configure({
+        registry: errorRegistry
+      })
+    )
+  }
+
+  return extensions
+}

@@ -1,4 +1,4 @@
-import { Editor } from '@tiptap/core';
+import { Editor as TiptapEditor, Extension } from '@tiptap/core';
 import { Node as ProseMirrorNode } from 'prosemirror-model';
 import { EventEmitter } from 'events';
 import { CheckOrchestrator, CheckResult } from './CheckOrchestrator';
@@ -27,16 +27,15 @@ const lowlight = createLowlight(common)
 const performanceMonitor = new PerformanceMonitor();
 
 export class EditorService extends EventEmitter {
-  private _editor: Editor;
+  private _editor: TiptapEditor;
   private checkOrchestrator: CheckOrchestrator;
   private errorRegistry: ErrorRegistry;
   private changeDetector: ChangeDetector;
   private debouncedCheck: (text: string, paragraphId: string, range: { from: number; to: number }) => void;
-  private debouncedOnUpdate: (args: { editor: Editor, transaction: any }) => void;
+  private debouncedOnUpdate: (args: { editor: TiptapEditor, transaction: any }) => void;
 
-  constructor(container: HTMLElement) {
+  constructor(container: HTMLElement, customExtensions: Extension[] = []) {
     super();
-    this.checkOrchestrator = new CheckOrchestrator();
     this.errorRegistry = new ErrorRegistry();
     this.changeDetector = new ChangeDetector();
     
@@ -57,9 +56,11 @@ export class EditorService extends EventEmitter {
       }
     }, 300);
 
-    this._editor = new Editor({
-      extensions: getEditorExtensions(this.errorRegistry, container),
-      content: `<p>Start writing...</p>`,
+    const baseExtensions = getEditorExtensions(this.errorRegistry, container);
+
+    this._editor = new TiptapEditor({
+      extensions: [...baseExtensions, ...customExtensions],
+      content: `<p></p>`,
       editable: true,
       editorProps: {
         attributes: {
@@ -114,6 +115,8 @@ export class EditorService extends EventEmitter {
     });
     // --- END NEW DEBUG VERIFICATION ---
 
+    this.checkOrchestrator = new CheckOrchestrator();
+
     this.setupEventListeners();
   }
 
@@ -164,7 +167,7 @@ export class EditorService extends EventEmitter {
     });
   }
 
-  private handleDocChange({ editor, transaction }: { editor: Editor; transaction: any }) {
+  private handleDocChange({ editor, transaction }: { editor: TiptapEditor; transaction: any }) {
     const changedParagraphs = this.changeDetector.getChangedParagraphs(editor.state.doc, transaction);
     changedParagraphs.forEach((p: { id: string, text: string, pos: number, node: ProseMirrorNode }) => {
       if (p.node) {
@@ -185,7 +188,7 @@ export class EditorService extends EventEmitter {
     performanceMonitor.endTimer(timerId);
   }
 
-  private handleBoundaryCheck({ editor, transaction }: { editor: Editor, transaction: any }) {
+  private handleBoundaryCheck({ editor, transaction }: { editor: TiptapEditor, transaction: any }) {
     if (!transaction.selection.empty) return;
   
     const { from } = transaction.selection;
@@ -283,7 +286,7 @@ export class EditorService extends EventEmitter {
     return text.split(/\n+/).filter(p => p.trim().length > 0);
   }
 
-  public get editor(): Editor {
+  public get editor(): TiptapEditor {
     if (!this._editor) {
       throw new Error("Editor not initialized");
     }

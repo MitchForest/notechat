@@ -32,12 +32,25 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
+import type { User as UserType } from '@/lib/db/schema'
 
 interface SidebarNavProps {
   className?: string
+  user: UserType
 }
 
-export function SidebarNav({ className }: SidebarNavProps) {
+const getInitials = (name: string | null | undefined, email: string) => {
+  if (name) {
+    const names = name.split(' ')
+    if (names.length > 1) {
+      return `${names[0][0]}${names[names.length - 1][0]}`.toUpperCase()
+    }
+    return name.substring(0, 2).toUpperCase()
+  }
+  return email.substring(0, 2).toUpperCase()
+}
+
+export function SidebarNav({ className, user }: SidebarNavProps) {
   const { theme, setTheme } = useTheme()
   const { sidebarCollapsed, setSidebarCollapsed, openChat, openNote } = useAppShell()
   const [activeChatsExpanded, setActiveChatsExpanded] = useState(true)
@@ -133,6 +146,11 @@ export function SidebarNav({ className }: SidebarNavProps) {
       type: 'note', 
       title: note.title 
     })
+  }
+
+  const handleSignOut = async () => {
+    await fetch('/api/auth/signout', { method: 'POST' })
+    window.location.href = '/'
   }
 
   if (sidebarCollapsed) {
@@ -241,9 +259,15 @@ export function SidebarNav({ className }: SidebarNavProps) {
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="sm" className="w-full h-8 p-0">
-                  <div className="w-6 h-6 rounded-full bg-primary flex items-center justify-center">
-                    <User className="h-3 w-3 text-primary-foreground" />
-                  </div>
+                  {user.avatarUrl ? (
+                    <img src={user.avatarUrl} alt={user.name || user.email} className="w-6 h-6 rounded-full" />
+                  ) : (
+                    <div className="w-6 h-6 rounded-full bg-primary flex items-center justify-center">
+                      <span className="text-xs font-semibold text-primary-foreground">
+                        {getInitials(user.name, user.email)}
+                      </span>
+                    </div>
+                  )}
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent side="right" align="end" className="w-56">
@@ -270,7 +294,7 @@ export function SidebarNav({ className }: SidebarNavProps) {
                   )}
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem>
+                <DropdownMenuItem onClick={handleSignOut}>
                   <LogOut className="mr-2 h-4 w-4" />
                   Sign out
                 </DropdownMenuItem>
@@ -292,7 +316,7 @@ export function SidebarNav({ className }: SidebarNavProps) {
             <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
               <span className="font-bold text-primary-foreground">NC</span>
             </div>
-            <span className="font-semibold text-lg">NoteChat.AI</span>
+            <span className="font-semibold text-lg">NoteChat</span>
           </div>
           <Tooltip>
             <TooltipTrigger asChild>
@@ -467,12 +491,18 @@ export function SidebarNav({ className }: SidebarNavProps) {
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="w-full justify-start">
               <div className="flex items-center gap-2 w-full">
-                <div className="w-8 h-8 rounded-md bg-primary flex items-center justify-center">
-                  <User className="h-4 w-4 text-primary-foreground" />
-                </div>
+                {user.avatarUrl ? (
+                  <img src={user.avatarUrl} alt={user.name || user.email} className="w-8 h-8 rounded-md" />
+                ) : (
+                  <div className="w-8 h-8 rounded-md bg-primary flex items-center justify-center">
+                    <span className="font-semibold text-primary-foreground">
+                      {getInitials(user.name, user.email)}
+                    </span>
+                  </div>
+                )}
                 <div className="flex-1 text-left">
-                  <p className="font-semibold text-sm">Mitchell</p>
-                  <p className="text-xs text-muted-foreground">mitchell@cursor.sh</p>
+                  <p className="font-semibold text-sm truncate">{user.name || 'User'}</p>
+                  <p className="text-xs text-muted-foreground truncate">{user.email}</p>
                 </div>
               </div>
             </Button>
@@ -492,7 +522,7 @@ export function SidebarNav({ className }: SidebarNavProps) {
               Toggle Theme
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>
+            <DropdownMenuItem onClick={handleSignOut}>
               <LogOut className="mr-2 h-4 w-4" />
               Sign Out
             </DropdownMenuItem>
