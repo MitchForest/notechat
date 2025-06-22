@@ -161,8 +161,8 @@ export const getEditorExtensions = (
       },
       tippyOptions: {
         duration: 0,
-        placement: 'left',
-        offset: [0, 12],
+        placement: 'left-start',  // Position at top-left of block
+        offset: [-8, -2],  // Move further left and slightly up to align with block top
         hideOnClick: false,
         animation: 'shift-away',
         interactive: true,  // Allow mouse to move to the handle

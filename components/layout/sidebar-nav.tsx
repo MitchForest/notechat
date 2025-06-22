@@ -534,7 +534,7 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
                               onClick={() => {
                                 setActiveSmartCollection(smartCollection.id)
                                 // Clear regular collection when smart collection is selected
-                                setActiveCollection(null)
+                                setActiveCollection('')
                                 fetchSmartCollectionContent(smartCollection)
                               }}
                               onContextMenu={(e) => {
@@ -612,7 +612,7 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
                               onClick={() => {
                                 setActiveSmartCollection(smartCollection.id)
                                 // Clear regular collection when smart collection is selected
-                                setActiveCollection(null)
+                                setActiveCollection('')
                                 fetchSmartCollectionContent(smartCollection)
                               }}
                               onContextMenu={(e) => {
