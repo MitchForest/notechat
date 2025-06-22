@@ -7,12 +7,19 @@ export interface ViewConfig {
   primary: 'chat' | 'note' | 'empty'
   secondary?: 'chat' | 'note' | null
   primarySize?: number // percentage for resizable panels
+  primaryItem?: OpenItem | null // Track what's in primary
+  secondaryItem?: OpenItem | null // Track what's in secondary
 }
 
 export interface OpenItem {
   id: string
   type: 'chat' | 'note'
   title?: string
+  content?: string
+  metadata?: {
+    spaceId?: string | null
+    collectionId?: string | null
+  }
 }
 
 export interface AppShellContextType {
@@ -63,10 +70,19 @@ export function AppShellProvider({ children }: { children: React.ReactNode }) {
   // Helper: Open chat (determines primary/secondary based on current state)
   const openChat = (chat: OpenItem) => {
     if (viewConfig.primary === 'empty' || viewConfig.primary === 'chat') {
-      setViewConfig({ primary: 'chat' })
+      setViewConfig({ 
+        primary: 'chat',
+        secondary: viewConfig.secondary,
+        primaryItem: chat,
+        secondaryItem: viewConfig.secondaryItem
+      })
       setActiveChat(chat)
     } else {
-      setViewConfig({ ...viewConfig, secondary: 'chat' })
+      setViewConfig({ 
+        ...viewConfig, 
+        secondary: 'chat',
+        secondaryItem: chat
+      })
       setActiveChat(chat)
     }
   }
@@ -74,67 +90,124 @@ export function AppShellProvider({ children }: { children: React.ReactNode }) {
   // Helper: Open note (determines primary/secondary based on current state)
   const openNote = (note: OpenItem) => {
     if (viewConfig.primary === 'empty' || viewConfig.primary === 'note') {
-      setViewConfig({ primary: 'note' })
+      setViewConfig({ 
+        primary: 'note',
+        secondary: viewConfig.secondary,
+        primaryItem: note,
+        secondaryItem: viewConfig.secondaryItem
+      })
       setActiveNote(note)
     } else {
-      setViewConfig({ ...viewConfig, secondary: 'note' })
+      setViewConfig({ 
+        ...viewConfig, 
+        secondary: 'note',
+        secondaryItem: note
+      })
       setActiveNote(note)
     }
   }
   
   const closeSecondary = () => {
-    setViewConfig({ ...viewConfig, secondary: null })
+    setViewConfig({ 
+      ...viewConfig, 
+      secondary: null,
+      secondaryItem: null
+    })
   }
   
   // Helper: Close chat
   const closeChat = () => {
     if (viewConfig.primary === 'chat') {
       // If chat is primary and there's a secondary, promote secondary to primary
-      if (viewConfig.secondary) {
-        setViewConfig({ primary: viewConfig.secondary })
+      if (viewConfig.secondary && viewConfig.secondaryItem) {
+        setViewConfig({ 
+          primary: viewConfig.secondary,
+          secondary: null,
+          primaryItem: viewConfig.secondaryItem,
+          secondaryItem: null
+        })
+        // Update active items based on what was promoted
+        if (viewConfig.secondary === 'note') {
+          setActiveNote(viewConfig.secondaryItem)
+        } else {
+          setActiveChat(viewConfig.secondaryItem)
+        }
       } else {
         // No secondary, go to empty
-        setViewConfig({ primary: 'empty' })
+        setViewConfig({ primary: 'empty', primaryItem: null })
+        setActiveChat(null)
       }
     } else if (viewConfig.secondary === 'chat') {
       // Chat is secondary, just remove it
-      setViewConfig({ ...viewConfig, secondary: null })
+      setViewConfig({ 
+        ...viewConfig, 
+        secondary: null,
+        secondaryItem: null
+      })
+      setActiveChat(null)
     }
-    setActiveChat(null)
   }
   
   // Helper: Close note
   const closeNote = () => {
     if (viewConfig.primary === 'note') {
       // If note is primary and there's a secondary, promote secondary to primary
-      if (viewConfig.secondary) {
-        setViewConfig({ primary: viewConfig.secondary })
+      if (viewConfig.secondary && viewConfig.secondaryItem) {
+        setViewConfig({ 
+          primary: viewConfig.secondary,
+          secondary: null,
+          primaryItem: viewConfig.secondaryItem,
+          secondaryItem: null
+        })
+        // Update active items based on what was promoted
+        if (viewConfig.secondary === 'chat') {
+          setActiveChat(viewConfig.secondaryItem)
+        } else {
+          setActiveNote(viewConfig.secondaryItem)
+        }
       } else {
         // No secondary, go to empty
-        setViewConfig({ primary: 'empty' })
+        setViewConfig({ primary: 'empty', primaryItem: null })
+        setActiveNote(null)
       }
     } else if (viewConfig.secondary === 'note') {
       // Note is secondary, just remove it
-      setViewConfig({ ...viewConfig, secondary: null })
+      setViewConfig({ 
+        ...viewConfig, 
+        secondary: null,
+        secondaryItem: null
+      })
+      setActiveNote(null)
     }
-    setActiveNote(null)
   }
   
   // Helper: Close primary panel (whatever it is)
   const closePrimary = () => {
-    if (viewConfig.secondary) {
+    if (viewConfig.secondary && viewConfig.secondaryItem) {
       // Promote secondary to primary
-      setViewConfig({ primary: viewConfig.secondary })
+      setViewConfig({ 
+        primary: viewConfig.secondary,
+        secondary: null,
+        primaryItem: viewConfig.secondaryItem,
+        secondaryItem: null
+      })
+      
+      // Update active items based on what was promoted
+      if (viewConfig.secondary === 'chat') {
+        setActiveChat(viewConfig.secondaryItem)
+      } else {
+        setActiveNote(viewConfig.secondaryItem)
+      }
     } else {
       // No secondary, go to empty
-      setViewConfig({ primary: 'empty' })
-    }
-    
-    // Clear the appropriate active item
-    if (viewConfig.primary === 'chat') {
-      setActiveChat(null)
-    } else if (viewConfig.primary === 'note') {
-      setActiveNote(null)
+      setViewConfig({ primary: 'empty', primaryItem: null })
+      
+      // Clear the appropriate active item
+      if (viewConfig.primary === 'chat') {
+        setActiveChat(null)
+      } else if (viewConfig.primary === 'note') {
+        setActiveNote(null)
+      }
     }
   }
   

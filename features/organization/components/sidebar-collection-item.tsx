@@ -9,17 +9,20 @@ import { DroppableCollection } from './droppable-collection'
 import { DraggableNoteItem } from './draggable-note-item'
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { useDragDrop } from '../hooks/use-drag-drop'
+import { HoverActions } from './hover-actions'
 
 interface SidebarCollectionItemProps {
   collection: Collection
   space: Space
   items: (Note | Chat)[]
   isExpanded: boolean
+  isActive?: boolean
   onToggle: (collectionId: string) => void
   onCollectionClick?: (collectionId: string) => void
   onItemClick: (item: Note | Chat, type: 'note' | 'chat') => void
   onItemAction: (action: string, itemId: string) => void
-  getFilteredItems: (collection: Collection, spaceId: string, items: (Note | Chat)[]) => (Note | Chat)[]
+  onCollectionAction?: (action: string, collectionId: string) => void
+  getFilteredItems: (collection: Collection) => (Note | Chat)[]
   chats: Chat[]
 }
 
@@ -28,10 +31,12 @@ export const SidebarCollectionItem = React.memo(({
   space,
   items,
   isExpanded,
+  isActive = false,
   onToggle,
   onCollectionClick,
   onItemClick,
   onItemAction,
+  onCollectionAction,
   getFilteredItems,
   chats,
 }: SidebarCollectionItemProps) => {
@@ -43,8 +48,8 @@ export const SidebarCollectionItem = React.memo(({
   }
   
   const filteredItems = useMemo(
-    () => getFilteredItems(collection, space.id, items),
-    [getFilteredItems, collection, space.id, items]
+    () => getFilteredItems(collection),
+    [getFilteredItems, collection]
   )
   const itemCount = filteredItems.length
   
@@ -67,30 +72,46 @@ export const SidebarCollectionItem = React.memo(({
       data={dropData}
       dropIndicator={dragDropHook.dropIndicator}
     >
-      <button
-        className={cn(
-          "w-full flex items-center justify-between rounded-md px-2 py-1.5 text-sm",
-          "hover:bg-hover-1"
-        )}
-        onClick={(event) => {
-          event.stopPropagation()
-          onToggle(collection.id)
-          onCollectionClick?.(collection.id)
-        }}
-      >
-        <div className="flex items-center gap-2">
-          <Icon className="h-3 w-3" />
-          <span>{collection.name}</span>
-          {itemCount > 0 && (
-            <span className="text-xs text-muted-foreground">({itemCount})</span>
+      <div className="group relative flex items-center">
+        <button
+          className={cn(
+            "flex-1 flex items-center justify-between rounded-md px-2 py-1.5 text-sm",
+            "hover:bg-hover-1",
+            isActive && "bg-hover-1"
           )}
-        </div>
-        {itemCount > 0 && (
-          isExpanded ? 
-            <ChevronDown className="h-3 w-3" /> : 
-            <ChevronRight className="h-3 w-3" />
+          onClick={(event) => {
+            event.stopPropagation()
+            onToggle(collection.id)
+            onCollectionClick?.(collection.id)
+          }}
+        >
+          <div className="flex items-center gap-2 flex-1">
+            <Icon className="h-3 w-3" />
+            <span>{collection.name}</span>
+            {itemCount > 0 && (
+              <span className="text-xs text-muted-foreground">({itemCount})</span>
+            )}
+          </div>
+          <div className="flex items-center gap-1">
+            {itemCount > 0 && (
+              isExpanded ? 
+                <ChevronDown className="h-3 w-3" /> : 
+                <ChevronRight className="h-3 w-3" />
+            )}
+          </div>
+        </button>
+        
+        {/* Hover actions */}
+        {onCollectionAction && (
+          <HoverActions
+            variant="collection"
+            onRename={() => onCollectionAction('rename', collection.id)}
+            onDelete={() => onCollectionAction('delete', collection.id)}
+            onMove={() => onCollectionAction('moveToSpace', collection.id)}
+            className="absolute right-7"
+          />
         )}
-      </button>
+      </div>
       
       {/* Items under collection */}
       {isExpanded && (

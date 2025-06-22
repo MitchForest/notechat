@@ -187,7 +187,7 @@
   background: var(--primary);
   color: var(--primary-foreground);
   transform: translateY(-1px);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
 .chat-send-button:not(:disabled)[data-has-input="true"] {
@@ -204,12 +204,15 @@
 .chat-input-container {
   border-top: 1px solid var(--border);
   background: var(--background);
+  position: sticky;
+  bottom: 0;
+  z-index: 50;
 }
 
 .chat-input-wrapper {
   max-width: 48rem;
   margin: 0 auto;
-  padding: 1rem 2rem;
+  padding: 1.5rem 2rem 1rem;
 }
 
 @media (max-width: 640px) {
@@ -225,8 +228,8 @@
   
   /* Adjust send button for better touch target */
   .chat-send-button {
-    min-width: 44px;
-    min-height: 44px;
+    min-width: 48px;
+    min-height: 48px;
   }
   
   /* Adjust help text on mobile */

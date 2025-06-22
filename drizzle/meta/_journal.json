@@ -29,6 +29,13 @@
       "when": 1750619499830,
       "tag": "0003_new_vanisher",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1750628977764,
+      "tag": "0004_aromatic_colossus",
+      "breakpoints": true
     }
   ]
 }

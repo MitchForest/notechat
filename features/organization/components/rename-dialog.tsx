@@ -17,7 +17,7 @@ interface RenameDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   currentName: string
-  itemType: 'space' | 'collection' | 'note' | 'chat'
+  itemType: 'space' | 'collection' | 'smart-collection' | 'note' | 'chat'
   onRename: (newName: string) => void
 }
 

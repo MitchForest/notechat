@@ -18,7 +18,7 @@ interface SmartCollectionActions {
   setActiveSmartCollection: (collectionId: string) => void
   
   // CRUD operations
-  createSmartCollection: (data: NewSmartCollection) => Promise<void>
+  createSmartCollection: (data: NewSmartCollection) => Promise<SmartCollection>
   updateSmartCollection: (id: string, data: Partial<SmartCollection>) => Promise<void>
   deleteSmartCollection: (id: string) => Promise<void>
   
@@ -67,6 +67,27 @@ export const useSmartCollectionStore = create<SmartCollectionStore>((set, get) =
   
   // Create smart collection
   createSmartCollection: async (data) => {
+    // Generate temporary ID
+    const tempId = `temp-${Date.now()}`
+    
+    // Create optimistic smart collection
+    const optimisticCollection: SmartCollection = {
+      id: tempId,
+      userId: 'current-user', // Will be replaced with real user ID from response
+      spaceId: data.spaceId,
+      name: data.name,
+      icon: data.icon || 'filter',
+      filterConfig: data.filterConfig,
+      isProtected: false,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    }
+    
+    // Optimistically add to store
+    set(state => ({
+      smartCollections: [...state.smartCollections, optimisticCollection]
+    }))
+    
     try {
       const response = await fetch('/api/smart-collections', {
         method: 'POST',
@@ -78,14 +99,22 @@ export const useSmartCollectionStore = create<SmartCollectionStore>((set, get) =
       
       const newCollection: SmartCollection = await response.json()
       
+      // Replace temporary collection with real one
       set(state => ({
-        smartCollections: [...state.smartCollections, newCollection]
+        smartCollections: state.smartCollections.map(c =>
+          c.id === tempId ? newCollection : c
+        )
       }))
       
       toast.success(`Created smart collection "${newCollection.name}"`)
+      return newCollection
     } catch (error) {
+      // Rollback - remove the optimistic collection
+      set(state => ({
+        smartCollections: state.smartCollections.filter(c => c.id !== tempId)
+      }))
+      
       console.error('Failed to create smart collection:', error)
-      set({ error: (error as Error).message })
       toast.error('Failed to create smart collection')
       throw error
     }

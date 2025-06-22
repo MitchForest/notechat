@@ -143,9 +143,9 @@ export const getEditorExtensions = (
     // Add drag handle - using official Tiptap extension
     DragHandle.configure({
       render: () => {
-        console.log('[DragHandle] render() called')
         const handle = document.createElement('div')
         handle.className = 'tiptap-drag-handle'
+        handle.draggable = true
         handle.innerHTML = `
           <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
             <circle cx="4" cy="4" r="1.5"/>
@@ -156,20 +156,44 @@ export const getEditorExtensions = (
             <circle cx="12" cy="12" r="1.5"/>
           </svg>
         `
-        console.log('[DragHandle] Created element:', handle)
         return handle
       },
       tippyOptions: {
         duration: 0,
         placement: 'left-start',  // Position at top-left of block
-        offset: [-8, -2],  // Move further left and slightly up to align with block top
+        offset: [-45, 0],  // Adjust to be in the left padding area
         hideOnClick: false,
         animation: 'shift-away',
         interactive: true,  // Allow mouse to move to the handle
         interactiveBorder: 30, // Invisible border to help transition
         appendTo: () => document.body, // Ensures proper z-index stacking
+        theme: 'drag-handle', // Apply our custom theme
+        getReferenceClientRect: null, // Let Tippy figure out the reference
+        popperOptions: {
+          modifiers: [
+            {
+              name: 'flip',
+              enabled: false, // Disable flipping to keep handle on left
+            },
+          ],
+        },
         onShow: (instance: any) => {
           console.log('[DragHandle] Tippy onShow:', instance)
+          // Debug: Log the actual position
+          const reference = instance.reference.getBoundingClientRect()
+          const popper = instance.popper.getBoundingClientRect()
+          console.log('[DragHandle] Positions:', {
+            reference: { left: reference.left, top: reference.top },
+            popper: { left: popper.left, top: popper.top },
+            offset: { x: popper.left - reference.left, y: popper.top - reference.top }
+          })
+          
+          // Check if the drag handle element is actually in the popper
+          const dragHandle = instance.popper.querySelector('.tiptap-drag-handle')
+          console.log('[DragHandle] Drag handle in popper:', !!dragHandle)
+          if (dragHandle) {
+            console.log('[DragHandle] Drag handle styles:', window.getComputedStyle(dragHandle))
+          }
         },
         onHide: (instance: any) => {
           console.log('[DragHandle] Tippy onHide')

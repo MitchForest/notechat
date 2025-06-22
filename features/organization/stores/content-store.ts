@@ -137,6 +137,9 @@ export const useContentStore = create<ContentStore>((set, get) => ({
         const chatsResponse = await fetch(`/api/chats?${params}`)
         if (!chatsResponse.ok) throw new Error('Failed to fetch chats')
         chatsData = await chatsResponse.json()
+        
+        // Filter out soft-deleted chats
+        chatsData = chatsData.filter((chat: Chat) => !chat.deletedAt)
       }
       
       // Combine and sort if needed
@@ -232,7 +235,12 @@ export const useContentStore = create<ContentStore>((set, get) => ({
       if (!response.ok) throw new Error('Failed to create chat')
       
       const newChat = await response.json()
-      set(state => ({ chats: [newChat, ...state.chats] }))
+      
+      // Only add to state if not soft-deleted
+      if (!newChat.deletedAt) {
+        set(state => ({ chats: [newChat, ...state.chats] }))
+      }
+      
       return newChat
     } catch (error) {
       console.error('Failed to create chat:', error)

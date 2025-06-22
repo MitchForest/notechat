@@ -12,7 +12,7 @@
 'use client'
 
 import React, { useState, useCallback, useEffect, useRef } from 'react'
-import { useAppShell, OpenItem } from '@/components/layout/app-shell-context'
+import { useAppShell } from '@/components/layout/app-shell-context'
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable'
 import { Card, CardContent } from '@/components/ui/card'
 import { Editor } from "@/features/editor/components/editor"
@@ -32,12 +32,12 @@ function ChatComponent({
   chat,
   onClose
 }: {
-  chat: { id: string; title?: string }
+  chat: { id: string; title?: string; metadata?: { spaceId?: string | null; collectionId?: string | null } }
   onClose?: () => void
 }) {
   return (
     <ErrorBoundary>
-      <ChatInterface chatId={chat.id} onClose={onClose} />
+      <ChatInterface chatId={chat.id} onClose={onClose} metadata={chat.metadata} />
     </ErrorBoundary>
   )
 }
@@ -46,7 +46,7 @@ function NoteComponent({
   note,
   onClose,
 }: {
-  note: { id: string; title?: string; content?: string };
+  note: { id: string; title?: string; content?: string; metadata?: { spaceId?: string | null; collectionId?: string | null } };
   onClose?: () => void;
 }) {
   const [content, setContent] = useState<string>(note.content || "");
@@ -163,17 +163,25 @@ function NoteComponent({
       setHasEverHadContent(true);
       try {
         // Create the note in the database
-        // Get the active collection from the organization store or default to null (uncategorized)
-        const { activeCollectionId } = useCollectionStore.getState();
-        const { activeSpaceId } = useSpaceStore.getState();
-        const { activeSmartCollectionId } = useSmartCollectionStore.getState();
+        // Use metadata if provided, otherwise get from store
+        let spaceId: string | null;
+        let collectionId: string | null;
         
-        // If we're viewing a smart collection, don't use it as a collection ID
-        // Smart collections are just filters, not actual containers
-        const collectionId = activeSmartCollectionId ? null : activeCollectionId;
-        
-        // Use the active space ID directly
-        const spaceId = activeSpaceId;
+        if (note.metadata) {
+          // Use the metadata passed from creation
+          spaceId = note.metadata.spaceId || null;
+          collectionId = note.metadata.collectionId || null;
+        } else {
+          // Fallback to current store state
+          const { activeCollectionId } = useCollectionStore.getState();
+          const { activeSpaceId } = useSpaceStore.getState();
+          const { activeSmartCollectionId } = useSmartCollectionStore.getState();
+          
+          // If we're viewing a smart collection, don't use it as a collection ID
+          // Smart collections are just filters, not actual containers
+          collectionId = activeSmartCollectionId ? null : activeCollectionId;
+          spaceId = activeSpaceId;
+        }
         
         const createdNote = await createNote(noteTitle, spaceId, collectionId);
         if (createdNote) {
@@ -191,7 +199,7 @@ function NoteComponent({
       // For existing notes, use the real UUID
       debouncedSave(realNoteIdRef.current, newContent);
     }
-  }, [isTemporary, hasEverHadContent, noteTitle, createNote, debouncedSave]);
+  }, [isTemporary, hasEverHadContent, noteTitle, createNote, debouncedSave, note.metadata]);
 
   const handleTitleChange = async (newTitle: string) => {
     setNoteTitle(newTitle);
@@ -296,18 +304,36 @@ function EmptyState() {
   const { openChat, openNote } = useAppShell()
 
   const handleNewChat = () => {
+    // Get current context
+    const { activeSpaceId } = useSpaceStore.getState()
+    const { activeCollectionId } = useCollectionStore.getState()
+    const { activeSmartCollectionId } = useSmartCollectionStore.getState()
+    
+    // Smart collections are just filters, not containers
+    const collectionId = activeSmartCollectionId ? null : activeCollectionId
+    
     openChat({
       id: `chat-${Date.now()}`,
       type: 'chat',
-      title: 'New Chat'
+      title: 'New Chat',
+      metadata: { spaceId: activeSpaceId, collectionId }
     })
   }
 
   const handleNewNote = () => {
+    // Get current context
+    const { activeSpaceId } = useSpaceStore.getState()
+    const { activeCollectionId } = useCollectionStore.getState()
+    const { activeSmartCollectionId } = useSmartCollectionStore.getState()
+    
+    // Smart collections are just filters, not containers
+    const collectionId = activeSmartCollectionId ? null : activeCollectionId
+    
     openNote({
       id: `note-${Date.now()}`,
       type: 'note',
-      title: 'New Note'
+      title: 'New Note',
+      metadata: { spaceId: activeSpaceId, collectionId }
     })
   }
 
@@ -361,23 +387,25 @@ export default function CanvasView() {
 
   // Single view (no secondary panel)
   if (!viewConfig.secondary) {
-    if (viewConfig.primary === 'chat' && activeChat) {
+    if (viewConfig.primary === 'chat' && (viewConfig.primaryItem || activeChat)) {
+      const chat = viewConfig.primaryItem || activeChat
       return (
         <div className="h-full p-4">
           <ChatComponent 
-            key={`chat-${activeChat.id}`} 
-            chat={activeChat} 
+            key={`chat-${chat!.id}`} 
+            chat={chat!} 
             onClose={closeChat}
           />
         </div>
       )
     }
-    if (viewConfig.primary === 'note' && activeNote) {
+    if (viewConfig.primary === 'note' && (viewConfig.primaryItem || activeNote)) {
+      const note = viewConfig.primaryItem || activeNote
       return (
         <div className="h-full p-4">
           <NoteComponent 
-            key={`note-${activeNote.id}`} 
-            note={activeNote} 
+            key={`note-${note!.id}`} 
+            note={note!} 
             onClose={closeNote}
           />
         </div>
@@ -387,13 +415,22 @@ export default function CanvasView() {
   }
 
   // Split view
-  const renderPanel = (item: OpenItem | null, type: 'chat' | 'note') => {
-    if (!item) return <EmptyState />
-    if (type === 'chat') {
-      return <ChatComponent key={`chat-${item.id}`} chat={item} onClose={closeChat} />
+  const renderPrimaryPanel = () => {
+    if (viewConfig.primary === 'chat' && viewConfig.primaryItem) {
+      return <ChatComponent key={`chat-${viewConfig.primaryItem.id}`} chat={viewConfig.primaryItem} onClose={closeChat} />
     }
-    if (type === 'note') {
-      return <NoteComponent key={`note-${item.id}`} note={item} onClose={closeNote} />
+    if (viewConfig.primary === 'note' && viewConfig.primaryItem) {
+      return <NoteComponent key={`note-${viewConfig.primaryItem.id}`} note={viewConfig.primaryItem} onClose={closeNote} />
+    }
+    return <EmptyState />
+  }
+
+  const renderSecondaryPanel = () => {
+    if (viewConfig.secondary === 'chat' && viewConfig.secondaryItem) {
+      return <ChatComponent key={`chat-${viewConfig.secondaryItem.id}`} chat={viewConfig.secondaryItem} onClose={closeChat} />
+    }
+    if (viewConfig.secondary === 'note' && viewConfig.secondaryItem) {
+      return <NoteComponent key={`note-${viewConfig.secondaryItem.id}`} note={viewConfig.secondaryItem} onClose={closeNote} />
     }
     return <EmptyState />
   }
@@ -402,19 +439,13 @@ export default function CanvasView() {
     <ResizablePanelGroup direction="horizontal" className="h-full">
       <ResizablePanel>
         <div className="h-full p-4">
-          {renderPanel(
-            viewConfig.primary === 'chat' ? activeChat : activeNote,
-            viewConfig.primary as 'chat' | 'note'
-          )}
+          {renderPrimaryPanel()}
         </div>
       </ResizablePanel>
       <ResizableHandle withHandle />
       <ResizablePanel>
         <div className="h-full p-4">
-          {renderPanel(
-            viewConfig.secondary === 'chat' ? activeChat : activeNote,
-            viewConfig.secondary as 'chat' | 'note'
-          )}
+          {renderSecondaryPanel()}
         </div>
       </ResizablePanel>
     </ResizablePanelGroup>

@@ -36,6 +36,7 @@ import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism'
 import { ExtractToNoteDialog } from './extract-to-note-dialog'
 import { MessageAvatar } from './message-avatar'
+import { highlightSearchResults } from './chat-search'
 
 interface ChatMessageProps {
   message: Message
@@ -44,6 +45,8 @@ interface ChatMessageProps {
   onEdit?: (content: string) => void
   userName?: string
   userImage?: string
+  searchQuery?: string
+  isCurrentSearchMatch?: boolean
 }
 
 export const ChatMessage = memo(function ChatMessage({
@@ -53,6 +56,8 @@ export const ChatMessage = memo(function ChatMessage({
   onEdit,
   userName,
   userImage,
+  searchQuery,
+  isCurrentSearchMatch,
 }: ChatMessageProps) {
   const [isCopied, setIsCopied] = useState(false)
   const [showExtractDialog, setShowExtractDialog] = useState(false)
@@ -213,6 +218,7 @@ export const ChatMessage = memo(function ChatMessage({
           isUser ? 'user' : 'assistant',
           showMobileActions && 'show-mobile-actions'
         )}
+        data-message-id={message.id}
       >
         <MessageAvatar 
           role={message.role} 
@@ -226,33 +232,44 @@ export const ChatMessage = memo(function ChatMessage({
         )}>
           <div className="chat-message-content">
             {isUser ? (
-              <p className="whitespace-pre-wrap">{message.content}</p>
+              <p className="whitespace-pre-wrap">
+                {searchQuery 
+                  ? highlightSearchResults(message.content, searchQuery, isCurrentSearchMatch)
+                  : message.content
+                }
+              </p>
             ) : (
               <>
-                <ReactMarkdown
-                  components={{
-                    code({ className, children, ...props }: any) {
-                      const inline = props.inline
-                      const match = /language-(\w+)/.exec(className || '')
-                      return !inline && match ? (
-                        <SyntaxHighlighter
-                          style={oneDark}
-                          language={match[1]}
-                          PreTag="div"
-                          {...props as any}
-                        >
-                          {String(children).replace(/\n$/, '')}
-                        </SyntaxHighlighter>
-                      ) : (
-                        <code className={className} {...props}>
-                          {children}
-                        </code>
-                      )
-                    },
-                  }}
-                >
-                  {message.content}
-                </ReactMarkdown>
+                {searchQuery ? (
+                  <div className="prose prose-sm dark:prose-invert max-w-none">
+                    {highlightSearchResults(message.content, searchQuery, isCurrentSearchMatch)}
+                  </div>
+                ) : (
+                  <ReactMarkdown
+                    components={{
+                      code({ className, children, ...props }: any) {
+                        const inline = props.inline
+                        const match = /language-(\w+)/.exec(className || '')
+                        return !inline && match ? (
+                          <SyntaxHighlighter
+                            style={oneDark}
+                            language={match[1]}
+                            PreTag="div"
+                            {...props as any}
+                          >
+                            {String(children).replace(/\n$/, '')}
+                          </SyntaxHighlighter>
+                        ) : (
+                          <code className={className} {...props}>
+                            {children}
+                          </code>
+                        )
+                      },
+                    }}
+                  >
+                    {message.content}
+                  </ReactMarkdown>
+                )}
                 
                 {/* Render tool invocations */}
                 {renderToolInvocations()}

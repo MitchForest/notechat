@@ -12,110 +12,104 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { WifiOff, Wifi, RefreshCw } from 'lucide-react'
+import { WifiOff, Wifi, AlertCircle, RefreshCw } from 'lucide-react'
 import { cn } from '@/lib/utils'
-
-type ConnectionState = 'online' | 'offline' | 'reconnecting'
+import { offlineQueue } from '@/features/chat/services/offline-queue'
+import { motion, AnimatePresence } from 'framer-motion'
 
 interface ConnectionStatusProps {
   className?: string
+  retryInfo?: {
+    attempt: number
+    maxAttempts: number
+    nextRetryIn: number
+  }
+  onRetry?: () => void
 }
 
-export function ConnectionStatus({ className }: ConnectionStatusProps) {
-  const [status, setStatus] = useState<ConnectionState>('online')
-  const [isVisible, setIsVisible] = useState(false)
-
+export function ConnectionStatus({ className, retryInfo, onRetry }: ConnectionStatusProps) {
+  const [isOnline, setIsOnline] = useState(true)
+  const [queuedCount, setQueuedCount] = useState(0)
+  const [showStatus, setShowStatus] = useState(false)
+  
   useEffect(() => {
-    const handleOnline = () => {
-      setStatus('online')
-      // Hide after 2 seconds when back online
-      setTimeout(() => {
-        if (navigator.onLine) {
-          setIsVisible(false)
-        }
-      }, 2000)
+    // Subscribe to connection changes
+    const unsubscribe = offlineQueue.onConnectionChange((online) => {
+      setIsOnline(online)
+      // Show status for 3 seconds when connection changes
+      setShowStatus(true)
+      if (online) {
+        setTimeout(() => setShowStatus(false), 3000)
+      }
+    })
+    
+    // Check queued messages periodically
+    const checkQueue = async () => {
+      const messages = await offlineQueue.getQueuedMessages()
+      setQueuedCount(messages.length)
     }
-
-    const handleOffline = () => {
-      setStatus('offline')
-      setIsVisible(true)
-    }
-
-    // Check initial state
-    if (!navigator.onLine) {
-      handleOffline()
-    }
-
-    window.addEventListener('online', handleOnline)
-    window.addEventListener('offline', handleOffline)
-
+    
+    checkQueue()
+    const interval = setInterval(checkQueue, 5000)
+    
     return () => {
-      window.removeEventListener('online', handleOnline)
-      window.removeEventListener('offline', handleOffline)
+      unsubscribe()
+      clearInterval(interval)
     }
   }, [])
-
-  // Simulate reconnecting state
-  useEffect(() => {
-    if (status === 'offline') {
-      const timer = setTimeout(() => {
-        setStatus('reconnecting')
-      }, 3000)
-      return () => clearTimeout(timer)
-    }
-  }, [status])
-
-  const getStatusConfig = () => {
-    switch (status) {
-      case 'online':
-        return {
-          icon: Wifi,
-          text: 'Back online',
-          className: 'bg-green-500/10 text-green-600 border-green-500/20',
-          iconClassName: 'text-green-600'
-        }
-      case 'offline':
-        return {
-          icon: WifiOff,
-          text: 'No connection',
-          className: 'bg-destructive/10 text-destructive border-destructive/20',
-          iconClassName: 'text-destructive'
-        }
-      case 'reconnecting':
-        return {
-          icon: RefreshCw,
-          text: 'Reconnecting...',
-          className: 'bg-yellow-500/10 text-yellow-600 border-yellow-500/20',
-          iconClassName: 'text-yellow-600 animate-spin'
-        }
-    }
-  }
-
-  const config = getStatusConfig()
-  const Icon = config.icon
-
+  
+  // Always show if offline or has queued messages or retry info
+  const shouldShow = !isOnline || queuedCount > 0 || retryInfo || showStatus
+  
+  if (!shouldShow) return null
+  
   return (
-    <div
-      className={cn(
-        "fixed top-4 left-1/2 -translate-x-1/2 z-50",
-        "transition-all duration-500 ease-in-out",
-        isVisible 
-          ? "opacity-100 translate-y-0" 
-          : "opacity-0 -translate-y-full pointer-events-none",
-        className
-      )}
-    >
-      <div
+    <AnimatePresence>
+      <motion.div
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -20 }}
         className={cn(
-          "flex items-center gap-2 px-4 py-2 rounded-full",
-          "border shadow-lg backdrop-blur-sm",
-          "animate-in fade-in-0 slide-in-from-top-2",
-          config.className
+          "flex items-center gap-2 px-3 py-2 rounded-md text-sm",
+          isOnline ? "bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400" : 
+                     "bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400",
+          className
         )}
       >
-        <Icon className={cn("h-4 w-4", config.iconClassName)} />
-        <span className="text-sm font-medium">{config.text}</span>
-      </div>
-    </div>
+        {isOnline ? (
+          <Wifi className="h-4 w-4" />
+        ) : (
+          <WifiOff className="h-4 w-4" />
+        )}
+        
+        <span className="font-medium">
+          {isOnline ? 'Connected' : 'Offline'}
+        </span>
+        
+        {queuedCount > 0 && (
+          <span className="text-xs opacity-75">
+            ({queuedCount} message{queuedCount > 1 ? 's' : ''} queued)
+          </span>
+        )}
+        
+        {retryInfo && (
+          <>
+            <AlertCircle className="h-4 w-4 ml-2" />
+            <span className="text-xs">
+              Retry {retryInfo.attempt}/{retryInfo.maxAttempts} in {retryInfo.nextRetryIn}s
+            </span>
+            {onRetry && (
+              <button
+                onClick={onRetry}
+                className="ml-2 p-1 hover:bg-black/10 dark:hover:bg-white/10 rounded"
+                title="Retry now"
+              >
+                <RefreshCw className="h-3 w-3" />
+              </button>
+            )}
+          </>
+        )}
+      </motion.div>
+    </AnimatePresence>
   )
 } 

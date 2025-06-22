@@ -1,0 +1,17 @@
+name: Daily Chat Cleanup
+
+on:
+  schedule:
+    # Runs at 00:00 UTC every day
+    - cron: '0 0 * * *'
+  workflow_dispatch: # Allows manual trigger
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger cleanup
+        run: |
+          curl -X POST "${{ secrets.APP_URL }}/api/cleanup?secret=${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json" \
+            -f -S --retry 3 

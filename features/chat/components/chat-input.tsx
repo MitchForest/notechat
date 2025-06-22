@@ -211,7 +211,7 @@ export function ChatInput({
   return (
     <div className="chat-input-container">
       <form onSubmit={onSubmit} className="chat-input-wrapper">
-        <div className="flex items-end gap-2">
+        <div className="flex items-end gap-3 w-full">
           <div className="flex-1 relative">
             <textarea
               ref={textareaRef}
@@ -223,18 +223,24 @@ export function ChatInput({
               maxLength={maxLength}
               rows={1}
               className={cn(
-                'w-full resize-none rounded-lg border bg-background px-4 py-3',
+                'w-full resize-none rounded-xl border bg-background',
+                'px-4 py-3.5 pr-14',
                 'placeholder:text-muted-foreground',
-                'focus:outline-none focus:ring-2 focus:ring-ring',
+                'focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent',
                 'disabled:cursor-not-allowed disabled:opacity-50',
-                'min-h-[52px] max-h-[200px]',
-                'pr-12', // Space for character count
-                'transition-all duration-200'
+                'min-h-[56px] max-h-[200px]',
+                'text-[15px] leading-relaxed',
+                'transition-all duration-200',
+                'selection:bg-primary/20'
               )}
+              style={{
+                scrollbarWidth: 'thin',
+                scrollbarColor: 'var(--border) transparent'
+              }}
             />
             
             {input.length > maxLength * 0.8 && (
-              <div className="absolute bottom-3 right-3 text-xs text-muted-foreground">
+              <div className="absolute bottom-3.5 right-4 text-xs text-muted-foreground pointer-events-none">
                 {input.length}/{maxLength}
               </div>
             )}
@@ -246,15 +252,16 @@ export function ChatInput({
             disabled={!hasInput && !isLoading}
             onClick={isLoading ? onStop : undefined}
             className={cn(
-              'h-[52px] w-[52px] chat-send-button',
+              'h-[56px] w-[56px] rounded-xl chat-send-button shrink-0',
+              'transition-all duration-200',
               hasInput && !isLoading && 'animate-in'
             )}
             data-has-input={hasInput}
           >
             {isLoading ? (
-              <Square className="h-4 w-4" />
+              <Square className="h-5 w-5" />
             ) : (
-              <Send className="h-4 w-4" />
+              <Send className="h-5 w-5" />
             )}
           </Button>
         </div>

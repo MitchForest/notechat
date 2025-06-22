@@ -20,6 +20,7 @@ interface PanelHeaderProps {
   onTitleChange: (title: string) => void
   onAction: (action: 'rename' | 'delete' | 'clear' | 'close') => void
   className?: string
+  extraActions?: React.ReactNode
 }
 
 export function PanelHeader({ 
@@ -27,7 +28,8 @@ export function PanelHeader({
   type, 
   onTitleChange, 
   onAction,
-  className 
+  className,
+  extraActions
 }: PanelHeaderProps) {
   const [isEditing, setIsEditing] = useState(false)
   const [editValue, setEditValue] = useState(title)
@@ -98,41 +100,45 @@ export function PanelHeader({
         )}
       </div>
 
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon" className="h-8 w-8">
-            <MoreVertical className="h-4 w-4" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-48">
-          <DropdownMenuItem onClick={handleRename}>
-            <Edit2 className="mr-2 h-4 w-4" />
-            Rename
-          </DropdownMenuItem>
-          
-          {type === 'chat' && (
-            <DropdownMenuItem onClick={() => onAction('clear')}>
-              <RotateCcw className="mr-2 h-4 w-4" />
-              Clear History
+      <div className="flex items-center gap-1">
+        {extraActions}
+        
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" className="h-8 w-8">
+              <MoreVertical className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-48">
+            <DropdownMenuItem onClick={handleRename}>
+              <Edit2 className="mr-2 h-4 w-4" />
+              Rename
             </DropdownMenuItem>
-          )}
-          
-          <DropdownMenuItem 
-            onClick={() => onAction('delete')}
-            className="text-destructive focus:text-destructive"
-          >
-            <Trash2 className="mr-2 h-4 w-4" />
-            Delete
-          </DropdownMenuItem>
-          
-          <DropdownMenuSeparator />
-          
-          <DropdownMenuItem onClick={() => onAction('close')}>
-            <X className="mr-2 h-4 w-4" />
-            Close
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+            
+            {type === 'chat' && (
+              <DropdownMenuItem onClick={() => onAction('clear')}>
+                <RotateCcw className="mr-2 h-4 w-4" />
+                Clear History
+              </DropdownMenuItem>
+            )}
+            
+            <DropdownMenuItem 
+              onClick={() => onAction('delete')}
+              className="text-destructive focus:text-destructive"
+            >
+              <Trash2 className="mr-2 h-4 w-4" />
+              Delete
+            </DropdownMenuItem>
+            
+            <DropdownMenuSeparator />
+            
+            <DropdownMenuItem onClick={() => onAction('close')}>
+              <X className="mr-2 h-4 w-4" />
+              Close
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
     </CardHeader>
   )
 } 

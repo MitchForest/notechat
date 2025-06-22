@@ -20,6 +20,7 @@ import '../styles/animations.css'
 import '../styles/chat.css'
 import '../styles/chat-selection.css'
 import { useChat } from 'ai/react'
+import { useChatWithRetry } from '../hooks/use-chat-with-retry'
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { cn } from '@/lib/utils'
 import { Card, CardContent } from '@/components/ui/card'
@@ -35,7 +36,9 @@ import { SelectionMenu } from './selection-menu'
 import { NotePreviewCard } from './note-preview-card'
 import { NoteContextPills } from './note-context-pills'
 import { ChatDropZone } from './chat-drop-zone'
+import { VirtualMessageList } from './virtual-message-list'
 import { useChatPersistence } from '../hooks/use-chat-persistence'
+import { useMessagePagination } from '../hooks/use-message-pagination'
 import { useTextSelection } from '../hooks/use-text-selection'
 import { useContentStore, useCollectionStore, useUIStore, useSpaceStore } from '@/features/organization/stores'
 import { useNoteContext } from '../stores/note-context-store'
@@ -44,12 +47,15 @@ import { useHighlightContext } from '../stores/highlight-context-store'
 import { HighlightContextCard } from './highlight-context-card'
 import { ToolConfirmation } from './tool-confirmation'
 import { toast } from 'sonner'
-import { FileText, AlertCircle, RefreshCw } from 'lucide-react'
+import { FileText, AlertCircle, RefreshCw, Search } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Message } from 'ai'
 import { useRouter } from 'next/navigation'
 import { markdownToTiptapHTML } from '@/features/ai/utils/content-parser'
 import { useSmartCollectionStore } from '@/features/organization/stores/smart-collection-store'
+import { ConnectionStatus } from './connection-status'
+import { ChatSearch } from './chat-search'
+import { useMessageSearch } from '../hooks/use-message-search'
 
 interface ChatInterfaceProps {
   chatId: string
@@ -60,14 +66,30 @@ interface ChatInterfaceProps {
     title: string
     content: string
   }
+  metadata?: {
+    spaceId?: string | null
+    collectionId?: string | null
+  }
 }
 
-export function ChatInterface({ chatId, className, onClose, noteContext }: ChatInterfaceProps) {
+export function ChatInterface({ chatId, className, onClose, noteContext, metadata }: ChatInterfaceProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const router = useRouter()
   const { loadMessages, saveMessage } = useChatPersistence(chatId)
   const { chats, updateChat, deleteChat, createChat, createNote, notes } = useContentStore()
   const { setActiveNote } = useUIStore()
+  
+  // Message pagination
+  const {
+    messages: paginatedMessages,
+    hasMore,
+    isLoadingMore,
+    loadMore,
+    loadInitial,
+    addMessage,
+    updateMessage,
+    clearMessages: clearPaginatedMessages,
+  } = useMessagePagination({ chatId })
   
   // Multi-note context
   const multiNoteContext = useMultiNoteContext()
@@ -111,6 +133,16 @@ export function ChatInterface({ chatId, className, onClose, noteContext }: ChatI
   const [isExecutingTool, setIsExecutingTool] = useState(false)
   const [toolResult, setToolResult] = useState<{ success: boolean; message?: string; data?: any } | undefined>(undefined)
 
+  // Message search
+  const {
+    isSearchOpen,
+    searchQuery,
+    currentMatch,
+    openSearch,
+    closeSearch,
+    handleResultSelect,
+  } = useMessageSearch({ messages: paginatedMessages })
+  
   // Check if this chat exists in the store (i.e., has been persisted)
   useEffect(() => {
     const existingChat = chats.find(c => c.id === chatId)
@@ -245,6 +277,11 @@ export function ChatInterface({ chatId, className, onClose, noteContext }: ChatI
     }
   }
 
+  // Load initial messages on mount
+  useEffect(() => {
+    loadInitial()
+  }, [loadInitial])
+
   // Custom submit handler to persist chat on first message
   const handleCustomSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -261,16 +298,25 @@ export function ChatInterface({ chatId, className, onClose, noteContext }: ChatI
     // If this is the first message and chat is temporary, persist it first
     if (isTemporary && !hasBeenPersisted && input.trim()) {
       try {
-        // Get the active collection from the organization store or default to null
-        const { activeCollectionId } = useCollectionStore.getState()
-        const { activeSpaceId } = useSpaceStore.getState()
-        const { activeSmartCollectionId } = useSmartCollectionStore.getState()
+        // Use metadata if provided, otherwise get from store
+        let spaceId: string | null
+        let collectionId: string | null
         
-        // If we're viewing a smart collection, don't use it as a collection ID
-        // Smart collections are just filters, not actual containers
-        const collectionId = activeSmartCollectionId ? null : activeCollectionId
-        
-        const spaceId = activeSpaceId
+        if (metadata) {
+          // Use the metadata passed from creation
+          spaceId = metadata.spaceId || null
+          collectionId = metadata.collectionId || null
+        } else {
+          // Fallback to current store state
+          const { activeCollectionId } = useCollectionStore.getState()
+          const { activeSpaceId } = useSpaceStore.getState()
+          const { activeSmartCollectionId } = useSmartCollectionStore.getState()
+          
+          // If we're viewing a smart collection, don't use it as a collection ID
+          // Smart collections are just filters, not actual containers
+          collectionId = activeSmartCollectionId ? null : activeCollectionId
+          spaceId = activeSpaceId
+        }
         
         const createdChat = await createChat(chatTitle, spaceId, collectionId, chatId)
         if (createdChat) {
@@ -302,10 +348,12 @@ export function ChatInterface({ chatId, className, onClose, noteContext }: ChatI
     stop,
     append,
     setMessages,
-  } = useChat({
-    id: chatId,
-    api: '/api/chat',
-    initialMessages: loadMessages(),
+    retryState,
+    retry,
+    isOnline
+  } = useChatWithRetry({
+    chatId,
+    initialMessages: paginatedMessages,
     body: {
       // Include all context: multi-note, highlight, and legacy
       noteContext: contextNotes.length > 0 
@@ -330,6 +378,9 @@ export function ChatInterface({ chatId, className, onClose, noteContext }: ChatI
       // Persist message to database
       saveMessage(message)
       
+      // Add to paginated messages
+      addMessage(message)
+      
       // Check if AI referenced any notes
       if (message.role === 'assistant' && contextNotes.length > 0) {
         contextNotes.forEach(note => {
@@ -352,7 +403,8 @@ export function ChatInterface({ chatId, className, onClose, noteContext }: ChatI
     },
     onError: (error) => {
       console.error('Chat error:', error)
-    },
+      toast.error('Failed to send message')
+    }
   })
 
   // Auto-scroll on new messages
@@ -377,6 +429,23 @@ export function ChatInterface({ chatId, className, onClose, noteContext }: ChatI
       setIsInitialLoading(false)
     }
   }, [messages, error])
+
+  // Update paginated messages when AI messages change
+  useEffect(() => {
+    // Only update if we have new messages not in paginated list
+    const lastMessage = messages[messages.length - 1]
+    const lastPaginatedMessage = paginatedMessages[paginatedMessages.length - 1]
+    
+    if (lastMessage && (!lastPaginatedMessage || lastMessage.id !== lastPaginatedMessage.id)) {
+      // Check if it's a temporary message that needs updating
+      const tempMessage = paginatedMessages.find(m => m.content === lastMessage.content && m.role === lastMessage.role)
+      if (tempMessage && tempMessage.id !== lastMessage.id) {
+        updateMessage(tempMessage.id, lastMessage)
+      } else if (!paginatedMessages.find(m => m.id === lastMessage.id)) {
+        addMessage(lastMessage)
+      }
+    }
+  }, [messages, paginatedMessages, addMessage, updateMessage])
 
   const handleTitleChange = async (newTitle: string) => {
     setChatTitle(newTitle)
@@ -418,6 +487,7 @@ export function ChatInterface({ chatId, className, onClose, noteContext }: ChatI
 
   const handleClearHistory = () => {
     setMessages([])
+    clearPaginatedMessages()
     toast.success('Chat history cleared')
   }
 
@@ -604,14 +674,50 @@ export function ChatInterface({ chatId, className, onClose, noteContext }: ChatI
   return (
     <>
       <Card className={cn('h-full flex flex-col', className)}>
-        <PanelHeader 
-          title={chatTitle}
-          type="chat"
-          onTitleChange={handleTitleChange}
-          onAction={handleAction}
-        />
+        <div className="relative">
+          <PanelHeader 
+            title={chatTitle}
+            type="chat"
+            onTitleChange={handleTitleChange}
+            onAction={handleAction}
+            extraActions={
+              <Button
+                size="icon"
+                variant="ghost"
+                onClick={openSearch}
+                className="h-8 w-8"
+                title="Search messages (Cmd/Ctrl+F)"
+              >
+                <Search className="h-4 w-4" />
+              </Button>
+            }
+          />
+          
+          {/* Connection status - positioned absolutely in header area */}
+          {(!isOnline || retryState.isRetrying) && (
+            <div className="absolute top-2 right-16 z-10">
+              <ConnectionStatus 
+                className="text-xs"
+                retryInfo={retryState.isRetrying ? {
+                  attempt: retryState.attempt,
+                  maxAttempts: retryState.maxAttempts,
+                  nextRetryIn: retryState.nextRetryIn
+                } : undefined}
+                onRetry={retry}
+              />
+            </div>
+          )}
+        </div>
         
-        <CardContent className="flex-1 flex flex-col p-0 overflow-hidden">
+        <CardContent className="flex-1 flex flex-col p-0 overflow-hidden relative">
+          {/* Search bar */}
+          <ChatSearch
+            isOpen={isSearchOpen}
+            onClose={closeSearch}
+            messages={paginatedMessages}
+            onResultSelect={handleResultSelect}
+          />
+          
           {/* Highlight context card */}
           {highlightedText && (
             <HighlightContextCard
@@ -683,92 +789,64 @@ export function ChatInterface({ chatId, className, onClose, noteContext }: ChatI
             ref={scrollRef}
             className="flex-1 overflow-y-auto chat-scroll-smooth"
           >
-            <div className="chat-messages-container">
-              {isInitialLoading ? (
-                <ChatSkeleton messageCount={3} />
-              ) : messages.length === 0 ? (
-                <ChatEmptyState 
-                  onSuggestionClick={(suggestion: string) => append({ role: 'user', content: suggestion })}
-                  hasNoteContext={hasContext}
-                />
-              ) : (
-                <div className="chat-messages-list">
-                  {messages.map((message, index) => (
-                    <ChatMessage
-                      key={message.id}
-                      message={message}
-                      isStreaming={isLoading && index === messages.length - 1 && message.role === 'assistant'}
-                      onRegenerate={index === messages.length - 1 && message.role === 'assistant' ? reload : undefined}
-                    />
-                  ))}
-                  
-                  {/* Tool confirmation UI */}
-                  {pendingToolCall && (
-                    <ToolConfirmation
-                      tool={pendingToolCall}
-                      onConfirm={handleToolConfirm}
-                      onDeny={handleToolDeny}
-                      isExecuting={isExecutingTool}
-                      result={toolResult}
-                    />
-                  )}
-                  
-                  {/* Tool execution loading */}
-                  {isExecutingTool && !toolResult && pendingToolCall && (
-                    <div className="chat-message-wrapper assistant">
-                      <div className="w-8 h-8" /> {/* Spacer for avatar */}
-                      <div className="chat-message-bubble assistant">
-                        <ToolLoading toolName={pendingToolCall.toolName} />
+            <VirtualMessageList
+              messages={paginatedMessages}
+              isLoading={isLoading}
+              isInitialLoading={isInitialLoading}
+              onRegenerate={reload}
+              onSuggestionClick={(suggestion: string) => append({ role: 'user', content: suggestion })}
+              hasNoteContext={hasContext}
+              hasMore={hasMore}
+              isLoadingMore={isLoadingMore}
+              onLoadMore={loadMore}
+              pendingToolCall={pendingToolCall}
+              onToolConfirm={handleToolConfirm}
+              onToolDeny={handleToolDeny}
+              isExecutingTool={isExecutingTool}
+              toolResult={toolResult}
+              userName={undefined}
+              userImage={undefined}
+              searchQuery={searchQuery}
+              currentSearchMatch={currentMatch}
+            />
+            
+            {error && (
+              <div className="mt-4 px-4 max-w-3xl mx-auto">
+                <Card className="border-destructive/50">
+                  <CardContent className="p-4">
+                    <div className="flex items-start gap-3">
+                      <div className="p-2 bg-destructive/10 rounded-full">
+                        <AlertCircle className="w-4 h-4 text-destructive" />
+                      </div>
+                      <div className="flex-1 space-y-2">
+                        <p className="text-sm font-medium">
+                          {error.message.includes('rate limit') 
+                            ? 'Too many requests'
+                            : error.message.includes('network')
+                            ? 'Connection error'
+                            : 'Something went wrong'}
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          {error.message.includes('rate limit')
+                            ? 'Please wait a moment before sending another message.'
+                            : error.message.includes('network')
+                            ? 'Check your internet connection and try again.'
+                            : 'An unexpected error occurred. Please try again.'}
+                        </p>
+                        <Button
+                          size="sm"
+                          onClick={() => reload()}
+                          className="mt-2"
+                        >
+                          <RefreshCw className="w-3 h-3 mr-1.5" />
+                          Try again
+                        </Button>
                       </div>
                     </div>
-                  )}
-                  
-                  {isLoading && messages[messages.length - 1]?.role === 'user' && (
-                    <div className="chat-message-wrapper assistant">
-                      <TypingIndicator />
-                    </div>
-                  )}
-                </div>
-              )}
-              
-              {error && (
-                <div className="mt-4 px-4">
-                  <Card className="border-destructive/50">
-                    <CardContent className="p-4">
-                      <div className="flex items-start gap-3">
-                        <div className="p-2 bg-destructive/10 rounded-full">
-                          <AlertCircle className="w-4 h-4 text-destructive" />
-                        </div>
-                        <div className="flex-1 space-y-2">
-                          <p className="text-sm font-medium">
-                            {error.message.includes('rate limit') 
-                              ? 'Too many requests'
-                              : error.message.includes('network')
-                              ? 'Connection error'
-                              : 'Something went wrong'}
-                          </p>
-                          <p className="text-sm text-muted-foreground">
-                            {error.message.includes('rate limit')
-                              ? 'Please wait a moment before sending another message.'
-                              : error.message.includes('network')
-                              ? 'Check your internet connection and try again.'
-                              : 'An unexpected error occurred. Please try again.'}
-                          </p>
-                          <Button
-                            size="sm"
-                            onClick={() => reload()}
-                            className="mt-2"
-                          >
-                            <RefreshCw className="w-3 h-3 mr-1.5" />
-                            Try again
-                          </Button>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </div>
-              )}
-            </div>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
           </div>
           
           <ChatInput

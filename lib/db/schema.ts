@@ -140,11 +140,12 @@ export const chats = pgTable('chats', {
     title: text('title').default('Untitled Chat').notNull(),
     content: jsonb('content'),
     isStarred: boolean('is_starred').default(false),
+    deletedAt: timestamp('deleted_at'),
     createdAt: timestamp('created_at').defaultNow().notNull(),
     updatedAt: timestamp('updated_at').defaultNow().notNull(),
 })
 
-export const chatsRelations = relations(chats, ({ one }) => ({
+export const chatsRelations = relations(chats, ({ one, many }) => ({
     user: one(users, {
         fields: [chats.userId],
         references: [users.id],
@@ -156,6 +157,25 @@ export const chatsRelations = relations(chats, ({ one }) => ({
     collection: one(collections, {
         fields: [chats.collectionId],
         references: [collections.id],
+    }),
+    messages: many(messages),
+}))
+
+// --- Messages Table ---
+
+export const messages = pgTable('messages', {
+    id: uuid('id').defaultRandom().primaryKey(),
+    chatId: uuid('chat_id').references(() => chats.id, { onDelete: 'cascade' }).notNull(),
+    role: text('role').notNull(),
+    content: text('content').notNull(),
+    metadata: jsonb('metadata'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+})
+
+export const messagesRelations = relations(messages, ({ one }) => ({
+    chat: one(chats, {
+        fields: [messages.chatId],
+        references: [chats.id],
     }),
 }))
 
@@ -200,5 +220,7 @@ export type Note = typeof notes.$inferSelect
 export type NewNote = typeof notes.$inferInsert
 export type Chat = typeof chats.$inferSelect
 export type NewChat = typeof chats.$inferInsert
+export type Message = typeof messages.$inferSelect
+export type NewMessage = typeof messages.$inferInsert
 export type SmartCollection = typeof smartCollections.$inferSelect
 export type NewSmartCollection = typeof smartCollections.$inferInsert 

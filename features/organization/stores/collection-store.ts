@@ -19,7 +19,7 @@ interface CollectionActions {
   setCollections: (collections: Collection[]) => void
   
   // CRUD operations
-  createCollection: (name: string, spaceId: string) => Promise<void>
+  createCollection: (name: string, spaceId: string, icon?: string) => Promise<Collection>
   updateCollection: (collectionId: string, data: Partial<Collection>) => Promise<void>
   deleteCollection: (collectionId: string) => Promise<void>
 }
@@ -49,7 +49,7 @@ export const useCollectionStore = create<CollectionStore>((set, get) => ({
   },
   
   // Create collection
-  createCollection: async (name, spaceId) => {
+  createCollection: async (name, spaceId, icon) => {
     // Generate temporary ID
     const tempId = `temp-${Date.now()}`
     
@@ -60,7 +60,7 @@ export const useCollectionStore = create<CollectionStore>((set, get) => ({
       spaceId,
       name,
       type: 'user',
-      icon: null, // Default icon, will need to add icon support later
+      icon: icon || null,
       createdAt: new Date(),
       updatedAt: new Date()
     }
@@ -74,7 +74,7 @@ export const useCollectionStore = create<CollectionStore>((set, get) => ({
       const response = await fetch('/api/collections', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, spaceId }),
+        body: JSON.stringify({ name, spaceId, icon }),
       })
       
       if (!response.ok) throw new Error('Failed to create collection')

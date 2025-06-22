@@ -33,9 +33,7 @@ import { CreateCollectionDialog } from '@/features/organization/components/creat
 import { RenameDialog } from '@/features/organization/components/rename-dialog'
 import { ChangeEmojiDialog } from '@/features/organization/components/change-emoji-dialog'
 
-// Context Menus
-import { SpaceContextMenu } from '@/features/organization/components/space-context-menu'
-import { CollectionContextMenu } from '@/features/organization/components/collection-context-menu'
+// Removed context menu imports - using hover actions instead
 
 // Sidebar Components
 import { SidebarHeader } from '@/features/organization/components/sidebar-header'
@@ -76,13 +74,15 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
   const { 
     collections, 
     createCollection,
-    setActiveCollection
+    setActiveCollection,
+    activeCollectionId,
   } = useCollectionStore()
   
   const {
     activeSmartCollectionId,
     setActiveSmartCollection,
-    setSmartCollections
+    setSmartCollections,
+    smartCollections
   } = useSmartCollectionStore()
   
   const { 
@@ -127,7 +127,7 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
   const [renameDialog, setRenameDialog] = useState<{
     open: boolean
     itemId: string
-    itemType: 'space' | 'collection' | 'note' | 'chat'
+    itemType: 'space' | 'collection' | 'smart-collection' | 'note' | 'chat'
     currentName: string
   }>({
     open: false,
@@ -190,7 +190,7 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
   }, [activeSpaceId, spaces, setSmartCollections])
 
   // Helper function to filter items based on collection type
-  const getFilteredItems = useCallback((collection: Collection, spaceId: string, items: (Note | Chat)[]) => {
+  const getFilteredItems = useCallback((collection: Collection) => {
     const now = new Date()
     const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
 
@@ -208,25 +208,28 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
       
     const collectionType = permanentCollection ? permanentCollection.type : 'user'
 
+    // Use ALL notes and chats, not just space items
+    const allItems = [...notes, ...chats]
     let filteredItems: (Note | Chat)[] = []
     
     switch (collectionType) {
       case 'static-all':
-        filteredItems = items
+        // For smart collections in system space, show all items from all spaces
+        filteredItems = allItems
         break
       case 'static-recent':
-        filteredItems = items.filter(item => new Date(item.updatedAt) > sevenDaysAgo)
+        filteredItems = allItems.filter(item => new Date(item.updatedAt) > sevenDaysAgo)
         break
       case 'static-starred':
-        filteredItems = items.filter(item => item.isStarred)
+        filteredItems = allItems.filter(item => item.isStarred)
         break
       case 'static-uncategorized':
-        filteredItems = items.filter(item => !item.collectionId)
+        filteredItems = allItems.filter(item => !item.collectionId)
         break
       case 'user':
       default:
         // Regular user collection - filter by collection ID
-        filteredItems = items.filter(item => item.collectionId === collection.id)
+        filteredItems = allItems.filter(item => item.collectionId === collection.id)
         break
     }
     
@@ -234,7 +237,7 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
     return filteredItems.sort((a, b) => 
       new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
     )
-  }, [spaces])
+  }, [spaces, notes, chats])
 
   // Helper function to get items for a specific space
   const getItemsForSpace = useCallback((spaceId: string): (Note | Chat)[] => {
@@ -250,18 +253,36 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
   }, [notes, chats])
 
   const handleNewChat = useCallback(() => {
+    // Get current context
+    const { activeSpaceId } = useSpaceStore.getState()
+    const { activeCollectionId } = useCollectionStore.getState()
+    const { activeSmartCollectionId } = useSmartCollectionStore.getState()
+    
+    // Smart collections are just filters, not containers
+    const collectionId = activeSmartCollectionId ? null : activeCollectionId
+    
     openChat({ 
       id: `chat-${Date.now()}`, 
       type: 'chat', 
-      title: 'New Chat' 
+      title: 'New Chat',
+      metadata: { spaceId: activeSpaceId, collectionId }
     })
   }, [openChat])
 
   const handleNewNote = useCallback(() => {
+    // Get current context
+    const { activeSpaceId } = useSpaceStore.getState()
+    const { activeCollectionId } = useCollectionStore.getState()
+    const { activeSmartCollectionId } = useSmartCollectionStore.getState()
+    
+    // Smart collections are just filters, not containers
+    const collectionId = activeSmartCollectionId ? null : activeCollectionId
+    
     openNote({ 
       id: `note-${Date.now()}`, 
       type: 'note', 
-      title: 'New Note' 
+      title: 'New Note',
+      metadata: { spaceId: activeSpaceId, collectionId }
     })
   }, [openNote])
 
@@ -303,9 +324,27 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
     await createSpace(name, emoji)
   }, [createSpace])
 
-  const handleCreateCollection = useCallback(async (name: string) => {
+  const handleCreateCollection = useCallback(async (data: {
+    name: string
+    icon: string
+    type: 'regular' | 'smart'
+    filterConfig?: SmartCollectionFilter
+  }) => {
     if (createCollectionSpaceId) {
-      await createCollection(name, createCollectionSpaceId)
+      if (data.type === 'regular') {
+        // Create regular collection
+        await createCollection(data.name, createCollectionSpaceId, data.icon)
+      } else {
+        // Create smart collection
+        const { createSmartCollection } = useSmartCollectionStore.getState()
+        await createSmartCollection({
+          name: data.name,
+          icon: data.icon,
+          spaceId: createCollectionSpaceId,
+          userId: 'current-user', // This will be replaced by the API
+          filterConfig: data.filterConfig || {}
+        })
+      }
     }
   }, [createCollection, createCollectionSpaceId])
 
@@ -363,6 +402,27 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
         break
     }
   }, [collections])
+
+  const handleSmartCollectionAction = useCallback((action: string, smartCollectionId: string) => {
+    const smartCollection = smartCollections.find(sc => sc.id === smartCollectionId)
+    if (!smartCollection) return
+
+    switch (action) {
+      case 'rename':
+        setRenameDialog({
+          open: true,
+          itemId: smartCollectionId,
+          itemType: 'smart-collection',
+          currentName: smartCollection.name
+        })
+        break
+      case 'delete':
+        if (confirm(`Delete smart collection "${smartCollection.name}"?`)) {
+          useSmartCollectionStore.getState().deleteSmartCollection(smartCollectionId)
+        }
+        break
+    }
+  }, [smartCollections])
 
   const handleItemAction = useCallback((action: string, itemId: string) => {
     const item = [...notes, ...chats].find(i => i.id === itemId)
@@ -513,73 +573,61 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
                 const spaceSmartCollections = space.smartCollections || []
                 
                 return (
-                  <SpaceContextMenu
+                  <SpaceSection
                     key={space.id}
                     space={space}
+                    isExpanded={isSpaceExpanded}
+                    isActive={activeSpaceId === space.id}
+                    onToggle={() => toggleSpace(space.id)}
                     onAction={handleSpaceAction}
                   >
-                    <SpaceSection
-                      space={space}
-                      isExpanded={isSpaceExpanded}
-                      onToggle={() => toggleSpace(space.id)}
-                    >
-                      {(spaceSmartCollections.length > 0 || spaceCollections.length > 0) && (
-                        <div className="mt-1 ml-6 space-y-0.5">
-                          {/* Smart Collections */}
-                          {spaceSmartCollections.map((smartCollection) => (
-                            <SmartCollectionItem
-                              key={smartCollection.id}
-                              smartCollection={smartCollection}
-                              isActive={activeSmartCollectionId === smartCollection.id}
-                              onClick={() => {
-                                setActiveSmartCollection(smartCollection.id)
-                                // Clear regular collection when smart collection is selected
-                                setActiveCollection('')
-                                fetchSmartCollectionContent(smartCollection)
-                              }}
-                              onContextMenu={(e) => {
-                                e.preventDefault()
-                                if (!smartCollection.isProtected) {
-                                  // TODO: Handle smart collection context menu
-                                  // For now, protected collections cannot be edited
-                                }
-                              }}
-                            />
-                          ))}
+                    {(spaceSmartCollections.length > 0 || spaceCollections.length > 0) && (
+                      <div className="mt-1 ml-6 space-y-0.5">
+                        {/* Smart Collections */}
+                        {spaceSmartCollections.map((smartCollection) => (
+                          <SmartCollectionItem
+                            key={smartCollection.id}
+                            smartCollection={smartCollection}
+                            isActive={activeSmartCollectionId === smartCollection.id}
+                            onClick={() => {
+                              setActiveSmartCollection(smartCollection.id)
+                              // Clear regular collection when smart collection is selected
+                              setActiveCollection('')
+                              fetchSmartCollectionContent(smartCollection)
+                            }}
+                            onAction={handleSmartCollectionAction}
+                          />
+                        ))}
+                        
+                        {/* Regular Collections */}
+                        {spaceCollections.map((collection) => {
+                          const isExpanded = collectionExpansion[collection.id] ?? false
                           
-                          {/* Regular Collections */}
-                          {spaceCollections.map((collection) => {
-                            const isExpanded = collectionExpansion[collection.id] ?? false
-                            
-                            return (
-                              <CollectionContextMenu
-                                key={collection.id}
-                                collection={collection}
-                                onAction={handleCollectionAction}
-                              >
-                                <SidebarCollectionItem
-                                  collection={collection}
-                                  space={space}
-                                  items={spaceItems}
-                                  isExpanded={isExpanded}
-                                  onToggle={toggleCollection}
-                                  onCollectionClick={(collectionId) => {
-                                    setActiveCollection(collectionId)
-                                    // Clear smart collection when regular collection is selected
-                                    setActiveSmartCollection('')
-                                  }}
-                                  onItemClick={handleItemClick}
-                                  onItemAction={handleItemAction}
-                                  getFilteredItems={getFilteredItems}
-                                  chats={chats}
-                                />
-                              </CollectionContextMenu>
-                            )
-                          })}
-                        </div>
-                      )}
-                    </SpaceSection>
-                  </SpaceContextMenu>
+                          return (
+                            <SidebarCollectionItem
+                              key={collection.id}
+                              collection={collection}
+                              space={space}
+                              items={spaceItems}
+                              isExpanded={isExpanded}
+                              isActive={activeCollectionId === collection.id}
+                              onToggle={toggleCollection}
+                              onCollectionClick={(collectionId) => {
+                                setActiveCollection(collectionId)
+                                // Clear smart collection when regular collection is selected
+                                setActiveSmartCollection('')
+                              }}
+                              onItemClick={handleItemClick}
+                              onItemAction={handleItemAction}
+                              onCollectionAction={handleCollectionAction}
+                              getFilteredItems={getFilteredItems}
+                              chats={chats}
+                            />
+                          )
+                        })}
+                      </div>
+                    )}
+                  </SpaceSection>
                 )
               })}
 
@@ -591,85 +639,73 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
                 const spaceSmartCollections = space.smartCollections || []
                 
                 return (
-                  <SpaceContextMenu
+                  <SpaceSection
                     key={space.id}
                     space={space}
+                    isExpanded={isSpaceExpanded}
+                    isActive={activeSpaceId === space.id}
+                    onToggle={() => toggleSpace(space.id)}
                     onAction={handleSpaceAction}
                   >
-                    <SpaceSection
-                      space={space}
-                      isExpanded={isSpaceExpanded}
-                      onToggle={() => toggleSpace(space.id)}
-                    >
-                      {(spaceSmartCollections.length > 0 || spaceCollections.length > 0) && (
-                        <div className="mt-1 ml-6 space-y-0.5">
-                          {/* Smart Collections */}
-                          {spaceSmartCollections.map((smartCollection) => (
-                            <SmartCollectionItem
-                              key={smartCollection.id}
-                              smartCollection={smartCollection}
-                              isActive={activeSmartCollectionId === smartCollection.id}
-                              onClick={() => {
-                                setActiveSmartCollection(smartCollection.id)
-                                // Clear regular collection when smart collection is selected
-                                setActiveCollection('')
-                                fetchSmartCollectionContent(smartCollection)
-                              }}
-                              onContextMenu={(e) => {
-                                e.preventDefault()
-                                if (!smartCollection.isProtected) {
-                                  // TODO: Handle smart collection context menu
-                                  // For now, protected collections cannot be edited
-                                }
-                              }}
-                            />
-                          ))}
-                          
-                          {/* Regular Collections */}
-                          {spaceCollections.map((collection) => {
-                            const isExpanded = collectionExpansion[collection.id] ?? false
-                            
-                            return (
-                              <CollectionContextMenu
-                                key={collection.id}
-                                collection={collection}
-                                onAction={handleCollectionAction}
-                              >
-                                <SidebarCollectionItem
-                                  collection={collection}
-                                  space={space}
-                                  items={spaceItems}
-                                  isExpanded={isExpanded}
-                                  onToggle={toggleCollection}
-                                  onCollectionClick={(collectionId) => {
-                                    setActiveCollection(collectionId)
-                                    // Clear smart collection when regular collection is selected
-                                    setActiveSmartCollection('')
-                                  }}
-                                  onItemClick={handleItemClick}
-                                  onItemAction={handleItemAction}
-                                  getFilteredItems={getFilteredItems}
-                                  chats={chats}
-                                />
-                              </CollectionContextMenu>
-                            )
-                          })}
-                          
-                          {/* Add new collection button */}
-                          <button
-                            className="w-full flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground hover:bg-hover-1 hover:text-foreground"
-                            onClick={(event) => {
-                              event.stopPropagation()
-                              handleNewCollection(space.id)
+                    {(spaceSmartCollections.length > 0 || spaceCollections.length > 0) && (
+                      <div className="mt-1 ml-6 space-y-0.5">
+                        {/* Smart Collections */}
+                        {spaceSmartCollections.map((smartCollection) => (
+                          <SmartCollectionItem
+                            key={smartCollection.id}
+                            smartCollection={smartCollection}
+                            isActive={activeSmartCollectionId === smartCollection.id}
+                            onClick={() => {
+                              setActiveSmartCollection(smartCollection.id)
+                              // Clear regular collection when smart collection is selected
+                              setActiveCollection('')
+                              fetchSmartCollectionContent(smartCollection)
                             }}
-                          >
-                            <Plus className="h-3 w-3" />
-                            <span>New Collection</span>
-                          </button>
-                        </div>
-                      )}
-                    </SpaceSection>
-                  </SpaceContextMenu>
+                            onAction={handleSmartCollectionAction}
+                          />
+                        ))}
+                        
+                        {/* Regular Collections */}
+                        {spaceCollections.map((collection) => {
+                          const isExpanded = collectionExpansion[collection.id] ?? false
+                          
+                          return (
+                            <SidebarCollectionItem
+                              key={collection.id}
+                              collection={collection}
+                              space={space}
+                              items={spaceItems}
+                              isExpanded={isExpanded}
+                              isActive={activeCollectionId === collection.id}
+                              onToggle={toggleCollection}
+                              onCollectionClick={(collectionId) => {
+                                setActiveCollection(collectionId)
+                                // Clear smart collection when regular collection is selected
+                                setActiveSmartCollection('')
+                              }}
+                              onItemClick={handleItemClick}
+                              onItemAction={handleItemAction}
+                              onCollectionAction={handleCollectionAction}
+                              getFilteredItems={getFilteredItems}
+                              chats={chats}
+                            />
+                          )
+                        })}
+                        
+                        {/* Add new collection button */}
+                        <button
+                          className="w-full flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground hover:bg-hover-1 hover:text-foreground"
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            handleNewCollection(space.id)
+                          }}
+                        >
+                          <Plus className="h-3 w-3" />
+                          <span>New Collection</span>
+                        </button>
+                      </div>
+                    )}
+                  </SpaceSection>
                 )
               })}
 
@@ -701,6 +737,7 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
           open={createCollectionOpen}
           onOpenChange={setCreateCollectionOpen}
           spaceName={createCollectionSpaceName}
+          spaceId={createCollectionSpaceId}
           onCreateCollection={handleCreateCollection}
         />
         
@@ -724,6 +761,9 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
                 break
               case 'chat':
                 await updateChat(itemId, { title: newName })
+                break
+              case 'smart-collection':
+                await useSmartCollectionStore.getState().updateSmartCollection(itemId, { name: newName })
                 break
             }
           }}
