@@ -19,7 +19,7 @@ import { Editor } from "@/features/editor/components/editor"
 import { ChatInterface } from '@/features/chat/components/chat-interface'
 import { PanelHeader } from '@/components/shared/panel-header'
 import { ConfirmationDialog } from '@/components/shared/confirmation-dialog'
-import useOrganizationStore from '@/features/organization/store/organization-store'
+import { useContentStore, useCollectionStore } from '@/features/organization/stores'
 import { useNoteContextStore } from '@/features/chat/stores/note-context-store'
 import { toast } from 'sonner'
 import type { Note } from '@/lib/db/schema'
@@ -47,7 +47,7 @@ function NoteComponent({
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isTemporary, setIsTemporary] = useState(true); // Track if note is temporary
   const [hasEverHadContent, setHasEverHadContent] = useState(false);
-  const { updateNote, deleteNote, createNote, notes } = useOrganizationStore();
+  const { updateNote, deleteNote, createNote, notes } = useContentStore();
   const { setCurrentNote } = useNoteContextStore();
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const realNoteIdRef = useRef<string | null>(null); // Track the real UUID
@@ -157,7 +157,7 @@ function NoteComponent({
       try {
         // Create the note in the database
         // Get the active collection from the organization store or default to null (uncategorized)
-        const { activeCollectionId } = useOrganizationStore.getState();
+        const { activeCollectionId } = useCollectionStore.getState();
         
         // Check if it's a virtual collection (permanent collections)
         const virtualCollectionIds = [

@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState, useLayoutEffect } from 'react'
 import { EditorService } from '../services/EditorService'
-import { blockDebugger } from '../utils/block-debug'
 
 export interface UseStableEditorProps {
   elementRef: React.RefObject<HTMLDivElement>
@@ -30,10 +29,7 @@ export const useStableEditor = ({
       isInitializedRef.current = true
       
       try {
-        // Validate container before creating editor
-        blockDebugger.validateContainer(elementRef.current)
-        
-        // Create editor service with validated container
+        // Create editor service with container
         editorServiceRef.current = new EditorService(
           elementRef.current, 
           []

@@ -128,7 +128,7 @@ export function CreateSpaceDialog({
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={loading}>
+            <Button type="submit" disabled={loading} variant="default">
               {loading ? 'Creating...' : 'Create Space'}
             </Button>
           </DialogFooter>

@@ -13,6 +13,7 @@ interface TestimonialCardProps {
 
 export function TestimonialCard({ quote, author, role, company, avatar }: TestimonialCardProps) {
   const initials = author.split(' ').map(n => n[0]).join('')
+  const avatarUrl = avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(author)}&background=0D7377&color=fff&size=128`
   
   return (
     <Card className="p-6 h-full flex flex-col justify-between bg-card/50 border-muted hover:border-muted-foreground/20 transition-colors">
@@ -26,7 +27,7 @@ export function TestimonialCard({ quote, author, role, company, avatar }: Testim
       {/* Author */}
       <div className="flex items-center gap-4 mt-6">
         <Avatar className="h-12 w-12">
-          <AvatarImage src={avatar} alt={author} />
+          <AvatarImage src={avatarUrl} alt={author} />
           <AvatarFallback className="bg-primary/10 text-primary font-semibold">
             {initials}
           </AvatarFallback>

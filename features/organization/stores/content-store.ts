@@ -48,8 +48,14 @@ export const useContentStore = create<ContentStore>((set, get) => ({
   isCacheValid: false,
   
   // Setters
-  setNotes: (notes) => set({ notes }),
-  setChats: (chats) => set({ chats }),
+  setNotes: (notes) => {
+    console.log('ContentStore: Setting notes:', notes.length)
+    set({ notes })
+  },
+  setChats: (chats) => {
+    console.log('ContentStore: Setting chats:', chats.length)
+    set({ chats })
+  },
   clearContent: () => set({ notes: [], chats: [], lastFetchedCollection: null, isCacheValid: false }),
   
   // Create note

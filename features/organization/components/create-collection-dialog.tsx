@@ -124,7 +124,7 @@ export function CreateCollectionDialog({
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={loading}>
+            <Button type="submit" disabled={loading} variant="default">
               {loading ? 'Creating...' : 'Create Collection'}
             </Button>
           </DialogFooter>

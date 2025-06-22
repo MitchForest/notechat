@@ -26,7 +26,7 @@ import {
 import {
   sortableKeyboardCoordinates,
 } from '@dnd-kit/sortable'
-import useOrganizationStore from '../store/organization-store'
+import { useContentStore, useSpaceStore } from '../stores'
 import {
   DragItem,
   DropTarget,
@@ -38,7 +38,7 @@ import {
 } from '../types/drag-drop'
 
 export function useDragDrop() {
-  const { moveItem } = useOrganizationStore()
+  const { moveItem } = useContentStore()
   
   // Drag state
   const [dragOverlay, setDragOverlay] = useState<DragOverlay>({
@@ -145,7 +145,7 @@ export function useDragDrop() {
     // If dropping on a permanent "All" collection, find the default collection
     if (dropData.id === 'notes-all' || dropData.id === 'chats-all') {
       // For permanent spaces, items go to the first user collection or uncategorized
-      const space = useOrganizationStore.getState().spaces.find(s => s.id === dropData.spaceId)
+      const space = useSpaceStore.getState().spaces.find(s => s.id === dropData.spaceId)
       const firstUserCollection = space?.collections.find(c => c.type === 'user')
       targetCollectionId = firstUserCollection?.id || null
     }

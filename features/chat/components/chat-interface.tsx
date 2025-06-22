@@ -29,7 +29,7 @@ import { ExtractToNoteDialog } from './extract-to-note-dialog'
 import { VirtualMessageList } from './virtual-message-list'
 import { ChatSkeleton, TypingIndicator } from './chat-skeleton'
 import { useChatPersistence } from '../hooks/use-chat-persistence'
-import useOrganizationStore from '@/features/organization/store/organization-store'
+import { useContentStore, useCollectionStore } from '@/features/organization/stores'
 import { useNoteContext } from '../stores/note-context-store'
 import { toast } from 'sonner'
 import { FileText, MousePointer } from 'lucide-react'
@@ -50,7 +50,7 @@ interface ChatInterfaceProps {
 export function ChatInterface({ chatId, className, onClose, noteContext }: ChatInterfaceProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const { loadMessages, saveMessage } = useChatPersistence(chatId)
-  const { chats, updateChat, deleteChat, createChat } = useOrganizationStore()
+  const { chats, updateChat, deleteChat, createChat } = useContentStore()
   
   // Get note context from store
   const { currentNote, contextString, hasContext } = useNoteContext()
@@ -97,7 +97,7 @@ export function ChatInterface({ chatId, className, onClose, noteContext }: ChatI
     if (isTemporary && !hasBeenPersisted && input.trim()) {
       try {
         // Get the active collection from the organization store or default to null
-        const { activeCollectionId } = useOrganizationStore.getState()
+        const { activeCollectionId } = useCollectionStore.getState()
         
         // Check if it's a virtual collection (permanent collections)
         const virtualCollectionIds = [

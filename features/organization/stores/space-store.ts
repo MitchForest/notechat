@@ -1,8 +1,9 @@
 import { create } from 'zustand'
-import { Space as DbSpace } from '@/lib/db/schema'
+import { Space as DbSpace, Collection } from '@/lib/db/schema'
 import { toast } from 'sonner'
+import { useCollectionStore } from './collection-store'
 
-export type Space = DbSpace & { collections: any[] }
+export type Space = DbSpace & { collections: Collection[] }
 
 interface SpaceState {
   spaces: Space[]
@@ -22,6 +23,9 @@ interface SpaceActions {
   createSpace: (name: string, emoji: string) => Promise<void>
   updateSpace: (spaceId: string, data: Partial<DbSpace>) => Promise<void>
   deleteSpace: (spaceId: string) => Promise<void>
+  
+  // Helper to get collections for a space
+  getSpaceCollections: (spaceId: string) => Collection[]
 }
 
 type SpaceStore = SpaceState & SpaceActions
@@ -43,6 +47,10 @@ export const useSpaceStore = create<SpaceStore>((set, get) => ({
       
       const spaces: Space[] = await response.json()
       
+      // Extract all collections from spaces and update collection store
+      const allCollections = spaces.flatMap(space => space.collections || [])
+      useCollectionStore.getState().setCollections(allCollections)
+      
       // Set permanent-notes as the default active space if none is set
       const currentActiveId = get().activeSpaceId
       const activeSpaceId = currentActiveId || 'permanent-notes'
@@ -60,6 +68,10 @@ export const useSpaceStore = create<SpaceStore>((set, get) => ({
     const space = get().spaces.find(s => s.id === spaceId)
     if (space) {
       set({ activeSpaceId: spaceId })
+      
+      // Update collection store with this space's collections
+      const spaceCollections = space.collections || []
+      useCollectionStore.getState().setCollections(spaceCollections)
     }
   },
   
@@ -84,6 +96,14 @@ export const useSpaceStore = create<SpaceStore>((set, get) => ({
           ...state.spaces.filter(s => s.type !== 'static' && s.id !== newSpace.id)
         ]
       }))
+      
+      // Update collection store with new collections
+      if (newSpace.collections) {
+        const collectionStore = useCollectionStore.getState()
+        const currentCollections = collectionStore.collections
+        const newCollections = [...currentCollections, ...newSpace.collections]
+        collectionStore.setCollections(newCollections)
+      }
       
       toast.success(`Created space "${name}"`)
     } catch (error) {
@@ -155,5 +175,11 @@ export const useSpaceStore = create<SpaceStore>((set, get) => ({
       toast.error('Failed to delete space')
       throw error
     }
+  },
+  
+  // Get collections for a space
+  getSpaceCollections: (spaceId) => {
+    const space = get().spaces.find(s => s.id === spaceId)
+    return space?.collections || []
   },
 })) 

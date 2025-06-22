@@ -52,7 +52,13 @@ import {
 } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import type { User as UserType, Note, Chat, Collection, Space } from '@/lib/db/schema'
-import useOrganizationStore from '@/features/organization/store/organization-store'
+import { 
+  useSpaceStore, 
+  useCollectionStore, 
+  useContentStore, 
+  useSearchStore, 
+  useUIStore 
+} from '@/features/organization/stores'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
 import Image from 'next/image'
@@ -141,6 +147,15 @@ const CollectionItem = React.memo(({
     [getFilteredItems, collection, space.id, items]
   );
   const itemCount = filteredItems.length;
+  
+  console.log('CollectionItem render:', {
+    collectionId: collection.id,
+    collectionName: collection.name,
+    spaceId: space.id,
+    totalItems: items.length,
+    filteredItems: filteredItems.length,
+    isExpanded
+  });
 
   // Create drop data for this collection
   const dropData = dragDropHook.createDropData({
@@ -293,31 +308,55 @@ const SpaceSection = React.memo(({
 SpaceSection.displayName = 'SpaceSection';
 
 export function SidebarNav({ className, user }: SidebarNavProps) {
+  // Space store
   const {
     spaces,
+    activeSpaceId,
+    fetchSpaces,
+    setActiveSpace,
+    createSpace,
+  } = useSpaceStore()
+  
+  // Collection store
+  const {
+    collections,
+    activeCollectionId,
+    setActiveCollection,
+    createCollection,
+  } = useCollectionStore()
+  
+  // Content store
+  const {
     notes,
     chats,
-    activeSpaceId,
-    activeCollectionId,
-    fetchInitialData,
-    setActiveSpace,
-    setActiveCollection,
-    createSpace,
-    createCollection,
     updateNote,
     updateChat,
     deleteNote,
     deleteChat,
+    toggleNoteStar,
+    toggleChatStar,
+  } = useContentStore()
+  
+  // Search store
+  const {
     searchQuery,
     setSearchQuery,
     searchResults,
     isSearching,
-    toggleNoteStar,
-    toggleChatStar
-  } = useOrganizationStore()
+  } = useSearchStore()
+  
+  // UI store
+  const {
+    spaceExpansion,
+    collectionExpansion,
+    sidebarCollapsed,
+    setSidebarCollapsed,
+    toggleSpace,
+    toggleCollection,
+  } = useUIStore()
+  
   const { openChat, openNote } = useAppShell()
   const { theme, setTheme } = useTheme()
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   
   // Dialog states
   const [createSpaceOpen, setCreateSpaceOpen] = useState(false)
@@ -340,27 +379,13 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
   
   // Drag & drop state
   const dragDropHook = useDragDrop()
-  
-  // Track which spaces and collections are expanded
-  const [spaceExpansion, setSpaceExpansion] = useState<Record<string, boolean>>({
-    'permanent-notes': true,
-    'permanent-chats': true
-  })
-  const [collectionExpansion, setCollectionExpansion] = useState<Record<string, boolean>>({})
 
   useEffect(() => {
-    fetchInitialData()
-  }, [fetchInitialData])
-
-  const toggleSpace = useCallback((spaceId: string) => {
-    setSpaceExpansion(prev => ({ ...prev, [spaceId]: !prev[spaceId] }))
-  }, [])
-
-  const toggleCollection = useCallback((collectionId: string) => {
-    setCollectionExpansion(prev => ({ ...prev, [collectionId]: !prev[collectionId] }))
-  }, [])
+    fetchSpaces()
+  }, [fetchSpaces])
 
   const handleCollectionClick = useCallback((collectionId: string, spaceId: string) => {
+    console.log('Collection clicked:', { collectionId, spaceId })
     setActiveSpace(spaceId)
     setActiveCollection(collectionId, spaceId)
   }, [setActiveSpace, setActiveCollection])
@@ -370,9 +395,9 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
     const now = new Date()
     const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
 
-    let permanentCollection: any = null;
+    let permanentCollection: { type?: string; fetchConfig?: { api: string; filter: string } } | null = null;
     for (const space of PERMANENT_SPACES_DATA) {
-      const foundCollection = space.collections.find(c => c.id === collection.id);
+      const foundCollection = space.collections.find((c) => c.id === collection.id);
       if (foundCollection) {
         permanentCollection = foundCollection;
         break;
@@ -400,12 +425,15 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
   // Helper function to get items for a specific space
   const getItemsForSpace = useCallback((spaceId: string): (Note | Chat)[] => {
     if (spaceId === 'permanent-notes') {
+      console.log('Getting items for permanent-notes:', notes.length, 'notes')
       return notes
     } else if (spaceId === 'permanent-chats') {
+      console.log('Getting items for permanent-chats:', chats.length, 'chats')
       return chats
     } else {
       // User spaces - for now, return notes
       // TODO: In the future, spaces might contain mixed content
+      console.log('Getting items for user space:', spaceId, notes.length, 'notes')
       return notes
     }
   }, [notes, chats])
@@ -486,8 +514,7 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
         break
       case 'delete':
         if (confirm(`Delete space "${space.name}"? All collections and items will be moved to Uncategorized.`)) {
-          // TODO: Call deleteSpace API when available
-          console.log('Delete space:', spaceId)
+          useSpaceStore.getState().deleteSpace(spaceId)
         }
         break
       case 'changeEmoji':
@@ -506,7 +533,7 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
   }, [spaces])
 
   const handleCollectionAction = useCallback((action: string, collectionId: string) => {
-    const collection = spaces.flatMap(s => s.collections).find(c => c.id === collectionId)
+    const collection = collections.find(c => c.id === collectionId)
     if (!collection) return
 
     switch (action) {
@@ -520,8 +547,7 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
         break
       case 'delete':
         if (confirm(`Delete collection "${collection.name}"? All items will be moved to Uncategorized.`)) {
-          // TODO: Call deleteCollection API when available
-          console.log('Delete collection:', collectionId)
+          useCollectionStore.getState().deleteCollection(collectionId)
         }
         break
       case 'duplicate':
@@ -533,7 +559,7 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
         console.log('Move collection to space:', collectionId)
         break
     }
-  }, [spaces])
+  }, [collections])
 
   const handleItemAction = useCallback((action: string, itemId: string) => {
     const item = [...notes, ...chats].find(i => i.id === itemId)
@@ -860,6 +886,9 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
               {permanentSpaces.map((space) => {
                 const spaceItems = getItemsForSpace(space.id)
                 const isSpaceExpanded = spaceExpansion[space.id]
+                const spaceCollections = space.id === 'permanent-notes' || space.id === 'permanent-chats' 
+                  ? (PERMANENT_SPACES_DATA.find(s => s.id === space.id)?.collections || []) as Collection[]
+                  : collections.filter(c => c.spaceId === space.id)
                 
                 return (
                   <SpaceSection
@@ -868,9 +897,9 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
                     isExpanded={isSpaceExpanded}
                     onToggle={() => toggleSpace(space.id)}
                   >
-                    {space.collections && (
+                    {spaceCollections.length > 0 && (
                       <div className="mt-1 ml-6 space-y-0.5">
-                        {space.collections.map((collection) => {
+                        {spaceCollections.map((collection) => {
                           const isExpanded = collectionExpansion[collection.id]
                           const isActive = activeCollectionId === collection.id
                           
@@ -904,6 +933,7 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
               {userSpaces.map((space) => {
                 const spaceItems = getItemsForSpace(space.id)
                 const isSpaceExpanded = spaceExpansion[space.id]
+                const spaceCollections = collections.filter(c => c.spaceId === space.id)
                 
                 return (
                   <SpaceContextMenu
@@ -916,9 +946,9 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
                       isExpanded={isSpaceExpanded}
                       onToggle={() => toggleSpace(space.id)}
                     >
-                      {space.collections && (
+                      {spaceCollections.length > 0 && (
                         <div className="mt-1 ml-6 space-y-0.5">
-                          {space.collections.map((collection) => {
+                          {spaceCollections.map((collection) => {
                             const isExpanded = collectionExpansion[collection.id]
                             const isActive = activeCollectionId === collection.id
                             
@@ -1062,12 +1092,10 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
             
             switch (itemType) {
               case 'space':
-                // TODO: Call updateSpace API when available
-                console.log('Rename space:', itemId, newName)
+                await useSpaceStore.getState().updateSpace(itemId, { name: newName })
                 break
               case 'collection':
-                // TODO: Call updateCollection API when available
-                console.log('Rename collection:', itemId, newName)
+                await useCollectionStore.getState().updateCollection(itemId, { name: newName })
                 break
               case 'note':
                 await updateNote(itemId, { title: newName })

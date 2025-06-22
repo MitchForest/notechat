@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { Command, CommandInput, CommandList, CommandItem, CommandGroup, CommandSeparator } from '@/components/ui/command'
 import { Badge } from '@/components/ui/badge'
 import { useNoteContextStore } from '@/features/chat/stores/note-context-store'
-import useOrganizationStore from '@/features/organization/store/organization-store'
+import { useContentStore } from '@/features/organization/stores'
 import { Note } from '@/lib/db/schema'
 import { FileText, Clock, Star } from 'lucide-react'
 
@@ -29,7 +29,7 @@ export function NoteMentionDropdown({
   onClose 
 }: NoteMentionDropdownProps) {
   const { currentNote, recentNotes } = useNoteContextStore()
-  const { notes } = useOrganizationStore()
+  const { notes } = useContentStore()
   const [showAll, setShowAll] = useState(false)
 
   // Progressive search implementation

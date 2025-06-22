@@ -2,37 +2,72 @@ import { NextResponse } from 'next/server'
 import { getCurrentUser } from '@/lib/auth/session'
 import { db } from '@/lib/db'
 import { collections } from '@/lib/db/schema'
-import { and, eq, ne } from 'drizzle-orm'
+import { eq, and } from 'drizzle-orm'
 
-export async function PUT(
+export async function GET(
   request: Request,
-  context: { params: Promise<{ collectionId:string }> }
+  context: { params: Promise<{ collectionId: string }> }
 ) {
   const user = await getCurrentUser()
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  try {
-    const { name } = await request.json()
-    const { collectionId } = await context.params
+  const { collectionId } = await context.params
 
-    if (!name) {
-      return NextResponse.json({ error: 'Name is required' }, { status: 400 })
+  try {
+    const collection = await db.query.collections.findFirst({
+      where: and(
+        eq(collections.id, collectionId),
+        eq(collections.userId, user.id)
+      ),
+    })
+
+    if (!collection) {
+      return NextResponse.json({ error: 'Collection not found' }, { status: 404 })
     }
+
+    return NextResponse.json(collection)
+  } catch (error) {
+    console.error('Failed to fetch collection:', error)
+    return NextResponse.json({ error: 'Failed to fetch collection' }, { status: 500 })
+  }
+}
+
+export async function PUT(
+  request: Request,
+  context: { params: Promise<{ collectionId: string }> }
+) {
+  const user = await getCurrentUser()
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const { collectionId } = await context.params
+
+  try {
+    const data = await request.json()
+    
+    // Only allow updating name
+    const updateData: Partial<typeof collections.$inferInsert> = {}
+    if (data.name !== undefined) updateData.name = data.name
 
     const [updatedCollection] = await db
       .update(collections)
-      .set({ name, updatedAt: new Date() })
-      .where(and(
-        eq(collections.id, collectionId), 
-        eq(collections.userId, user.id),
-        ne(collections.type, 'static') // Prevent renaming static collections
-      ))
+      .set({
+        ...updateData,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(collections.id, collectionId),
+          eq(collections.userId, user.id)
+        )
+      )
       .returning()
 
     if (!updatedCollection) {
-      return NextResponse.json({ error: 'Collection not found or cannot be updated' }, { status: 404 })
+      return NextResponse.json({ error: 'Collection not found' }, { status: 404 })
     }
 
     return NextResponse.json(updatedCollection)
@@ -51,23 +86,36 @@ export async function DELETE(
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
+  const { collectionId } = await context.params
+
   try {
-    const { collectionId } = await context.params
+    // Don't allow deleting system collections
+    const collection = await db.query.collections.findFirst({
+      where: and(
+        eq(collections.id, collectionId),
+        eq(collections.userId, user.id)
+      ),
+    })
 
-    const [deletedCollection] = await db
-      .delete(collections)
-      .where(and(
-        eq(collections.id, collectionId), 
-        eq(collections.userId, user.id),
-        ne(collections.type, 'static') // Prevent deleting static collections
-      ))
-      .returning()
-
-    if (!deletedCollection) {
-      return NextResponse.json({ error: 'Collection not found or cannot be deleted' }, { status: 404 })
+    if (!collection) {
+      return NextResponse.json({ error: 'Collection not found' }, { status: 404 })
     }
-    
-    return NextResponse.json({ message: 'Collection deleted successfully' })
+
+    if (collection.type !== 'user') {
+      return NextResponse.json({ error: 'Cannot delete system collections' }, { status: 403 })
+    }
+
+    // Delete the collection (items will have their collectionId set to null)
+    await db
+      .delete(collections)
+      .where(
+        and(
+          eq(collections.id, collectionId),
+          eq(collections.userId, user.id)
+        )
+      )
+
+    return NextResponse.json({ success: true })
   } catch (error) {
     console.error('Failed to delete collection:', error)
     return NextResponse.json({ error: 'Failed to delete collection' }, { status: 500 })

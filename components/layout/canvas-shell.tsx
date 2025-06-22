@@ -2,7 +2,6 @@
 
 import React from 'react'
 import { SidebarNav } from "@/components/layout/sidebar-nav"
-import { CommandPalette } from "@/components/command-palette"
 import { AppShellProvider, useAppShell } from "@/components/layout/app-shell-context"
 import type { User } from '@/lib/db/schema'
 
@@ -23,7 +22,6 @@ function AppShellClientLayout({ children, user }: { children: React.ReactNode, u
             </main>
         </div>
       
-      <CommandPalette />
     </div>
   )
 }

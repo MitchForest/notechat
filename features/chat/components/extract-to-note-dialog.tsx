@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge'
 import { Loader2, FileText, Edit, Eye, X } from 'lucide-react'
 import { useExtractToNote, ExtractOptions, ExtractedNote } from '../hooks/use-extract-to-note'
-import useOrganizationStore from '@/features/organization/store/organization-store'
+import { useContentStore, useCollectionStore } from '@/features/organization/stores'
 import { toast } from 'sonner'
 import { useRouter } from 'next/navigation'
 
@@ -27,7 +27,8 @@ export function ExtractToNoteDialog({
 }: ExtractToNoteDialogProps) {
   const router = useRouter()
   const { extract, isExtracting, error } = useExtractToNote()
-  const { collections, createNote } = useOrganizationStore()
+  const { collections } = useCollectionStore()
+  const { createNote } = useContentStore()
   const [extracted, setExtracted] = useState<ExtractedNote | null>(null)
   const [isEditing, setIsEditing] = useState(false)
   const [isSaving, setIsSaving] = useState(false)

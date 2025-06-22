@@ -108,37 +108,40 @@ export function TestimonialsSection() {
         </motion.div>
 
         {/* Testimonials carousel */}
-        <div className="relative -mx-4 md:-mx-8 lg:-mx-12">
-          {/* Gradient masks for smooth edges */}
-          <div className="absolute left-0 top-0 bottom-0 w-20 bg-gradient-to-r from-background to-transparent z-10 pointer-events-none" />
-          <div className="absolute right-0 top-0 bottom-0 w-20 bg-gradient-to-l from-background to-transparent z-10 pointer-events-none" />
-          
-          <div
-            ref={scrollRef}
-            onMouseEnter={() => setIsPaused(true)}
-            onMouseLeave={() => setIsPaused(false)}
-            onTouchStart={() => setIsPaused(true)}
-            onTouchEnd={() => setIsPaused(false)}
-            className="flex gap-6 overflow-x-hidden px-4 md:px-8 lg:px-12 py-4"
-            style={{ 
-              scrollbarWidth: 'none', 
-              msOverflowStyle: 'none',
-              WebkitOverflowScrolling: 'touch' 
-            }}
-          >
-            {/* Duplicate testimonials for seamless loop */}
-            {[...testimonials, ...testimonials].map((testimonial, index) => (
-              <motion.div 
-                key={index} 
-                className="flex-none w-[350px] md:w-[400px]"
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: (index % testimonials.length) * 0.1 }}
-                viewport={{ once: true, margin: "-50px" }}
-              >
-                <TestimonialCard {...testimonial} />
-              </motion.div>
-            ))}
+        <div className="relative">
+          {/* Full width container that breaks out of parent padding */}
+          <div className="relative left-[50%] right-[50%] -mx-[50vw] w-[100vw]">
+            {/* Gradient masks for smooth edges */}
+            <div className="absolute left-0 top-0 bottom-0 w-20 bg-gradient-to-r from-background to-transparent z-10 pointer-events-none" />
+            <div className="absolute right-0 top-0 bottom-0 w-20 bg-gradient-to-l from-background to-transparent z-10 pointer-events-none" />
+            
+            <div
+              ref={scrollRef}
+              onMouseEnter={() => setIsPaused(true)}
+              onMouseLeave={() => setIsPaused(false)}
+              onTouchStart={() => setIsPaused(true)}
+              onTouchEnd={() => setIsPaused(false)}
+              className="flex gap-6 overflow-x-hidden px-4 md:px-8 lg:px-12 py-4"
+              style={{ 
+                scrollbarWidth: 'none', 
+                msOverflowStyle: 'none',
+                WebkitOverflowScrolling: 'touch' 
+              }}
+            >
+              {/* Duplicate testimonials for seamless loop */}
+              {[...testimonials, ...testimonials].map((testimonial, index) => (
+                <motion.div 
+                  key={index} 
+                  className="flex-none w-[350px] md:w-[400px]"
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.5, delay: (index % testimonials.length) * 0.1 }}
+                  viewport={{ once: true, margin: "-50px" }}
+                >
+                  <TestimonialCard {...testimonial} />
+                </motion.div>
+              ))}
+            </div>
           </div>
         </div>
 

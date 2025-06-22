@@ -31,12 +31,16 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const params = Object.fromEntries(searchParams)
   
+  console.log('Chats API - params:', params)
+  
   const validation = getChatsSchema.safeParse(params)
   if (!validation.success) {
+    console.error('Chats API - validation error:', validation.error.errors)
     return NextResponse.json({ error: validation.error.errors }, { status: 400 })
   }
   
   const { collectionId, filter, search } = validation.data
+  console.log('Chats API - validated params:', { collectionId, filter, search })
 
   try {
     const conditions: SQL[] = [eq(chats.userId, user.id)];
@@ -80,8 +84,16 @@ export async function GET(request: Request) {
       
     return NextResponse.json(results)
   } catch (error) {
-    console.error('Failed to fetch chats:', error)
-    return NextResponse.json({ error: 'Failed to fetch chats' }, { status: 500 })
+    console.error('Failed to fetch chats - Details:', {
+      error,
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+      params: { collectionId, filter, search, userId: user.id }
+    })
+    return NextResponse.json({ 
+      error: 'Failed to fetch chats',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    }, { status: 500 })
   }
 }
 

@@ -6,7 +6,7 @@ import { openai } from '@ai-sdk/openai'
 import { z } from 'zod'
 import { Message } from 'ai'
 import { formatNoteContent } from '../utils/note-formatter'
-import useOrganizationStore from '@/features/organization/store/organization-store'
+import { useCollectionStore } from '@/features/organization/stores'
 
 export interface ExtractOptions {
   source: 'highlight' | 'chat' | 'message' | 'selection'
@@ -44,7 +44,7 @@ const extractionSchema = z.object({
 export function useExtractToNote() {
   const [isExtracting, setIsExtracting] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const { collections } = useOrganizationStore()
+  const { collections } = useCollectionStore()
 
   const buildExtractionPrompt = useCallback((options: ExtractOptions) => {
     let prompt = `Extract and organize the following content into a well-structured note.\n\n`
