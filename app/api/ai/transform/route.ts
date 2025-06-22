@@ -1,6 +1,7 @@
 import { streamText } from 'ai'
 import { AI_MAX_TOKENS, AI_MODELS, AI_SYSTEM_PROMPTS, AI_TEMPERATURES } from '@/features/ai/lib/ai-config'
 import { NextRequest } from 'next/server'
+import { openai } from '@ai-sdk/openai'
 
 export const runtime = 'edge'
 
@@ -26,17 +27,9 @@ export async function POST(req: NextRequest) {
     }
 
     const result = await streamText({
-      model: AI_MODELS.fast,
-      messages: [
-        {
-          role: 'system',
-          content: systemPrompt
-        },
-        {
-          role: 'user',
-          content: text
-        }
-      ],
+      model: openai(AI_MODELS.fast),
+      system: systemPrompt,
+      prompt: text,
       temperature: AI_TEMPERATURES.transform,
       maxTokens: AI_MAX_TOKENS.transform
     })

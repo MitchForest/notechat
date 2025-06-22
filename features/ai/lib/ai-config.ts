@@ -1,23 +1,30 @@
 import { openai } from '@ai-sdk/openai'
+import { LanguageModelV1 } from 'ai'
 
 // Model configuration
 export const AI_MODELS = {
-  fast: openai('gpt-4o-mini'), // For quick operations
-  accurate: openai('gpt-4o-mini') // Same for now, can upgrade later
+  fast: 'gpt-4o-mini',
+  accurate: 'gpt-4-turbo',
+  'ghost-text': 'gpt-4o-mini',
+  completion: 'gpt-4o-mini'
 } as const
 
 // Temperature settings (0 = deterministic, 1 = creative)
 export const AI_TEMPERATURES = {
   continue: 0.7, // More creative for completions
   transform: 0.3, // More consistent for edits
-  assistant: 0.5 // Balanced for chat
+  assistant: 0.5, // Balanced for chat
+  'ghost-text': 0.7,
+  completion: 0.7
 } as const
 
 // Token limits to prevent runaway costs
 export const AI_MAX_TOKENS = {
   continue: 100, // Short completions
   transform: 1000, // Longer for rewrites
-  assistant: 1500 // Longest for chat
+  assistant: 1500, // Longest for chat
+  'ghost-text': 20,
+  completion: 100
 } as const
 
 // System prompts - instructions for the AI
@@ -43,6 +50,14 @@ export const AI_SYSTEM_PROMPTS = {
 
   casual: 'Rewrite this text in a more casual, conversational tone. Respond with only the casual text.',
 
+  happier: 'You are a cheerleader. Rewrite the following text to be more upbeat and positive.',
+
+  'ghost-text':
+    'You are a helpful writing assistant. Your task is to continue the text that the user has started. Keep the completion short and concise, ideally just a few words. Do not repeat the user-provided text. Your response should be a direct continuation of the user\'s text. For example, if the user writes "The quick brown fox", a good continuation would be "jumps over the lazy dog".',
+
+  completion:
+    'You are a helpful writing assistant. Your task is to continue the text that the user has started. Keep the completion short and concise, ideally just a few words. Do not repeat the user-provided text. Your response should be a direct continuation of the user\'s text. For example, if the user writes "The quick brown fox", a good continuation would be "jumps over the lazy dog".',
+
   custom: (instruction: string) =>
-    `Follow this instruction: "${instruction}". Respond with only the transformed text, no explanations.`
+    `You are a helpful writing assistant. Apply the following instruction to the text: "${instruction}"`
 } as const 

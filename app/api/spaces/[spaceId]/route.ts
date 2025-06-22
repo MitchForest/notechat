@@ -1,21 +1,21 @@
 import { NextResponse } from 'next/server'
-import { getSession } from '@/lib/auth/session'
+import { getCurrentUser } from '@/lib/auth/session'
 import { db } from '@/lib/db'
 import { spaces } from '@/lib/db/schema'
 import { and, eq } from 'drizzle-orm'
 
 export async function PUT(
   request: Request,
-  { params }: { params: { spaceId: string } }
+  context: { params: Promise<{ spaceId: string }> }
 ) {
-  const session = await getSession()
-  if (!session) {
+  const user = await getCurrentUser()
+  if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
   try {
     const { name, emoji } = await request.json()
-    const spaceId = params.spaceId
+    const { spaceId } = await context.params
 
     if (!name) {
       return NextResponse.json({ error: 'Name is required' }, { status: 400 })
@@ -24,7 +24,7 @@ export async function PUT(
     const [updatedSpace] = await db
       .update(spaces)
       .set({ name, emoji, updatedAt: new Date() })
-      .where(and(eq(spaces.id, spaceId), eq(spaces.userId, session.user.id)))
+      .where(and(eq(spaces.id, spaceId), eq(spaces.userId, user.id)))
       .returning()
 
     if (!updatedSpace) {
@@ -40,19 +40,19 @@ export async function PUT(
 
 export async function DELETE(
   request: Request,
-  { params }: { params: { spaceId: string } }
+  context: { params: Promise<{ spaceId: string }> }
 ) {
-  const session = await getSession()
-  if (!session) {
+  const user = await getCurrentUser()
+  if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
   try {
-    const spaceId = params.spaceId
+    const { spaceId } = await context.params
 
     const [deletedSpace] = await db
       .delete(spaces)
-      .where(and(eq(spaces.id, spaceId), eq(spaces.userId, session.user.id)))
+      .where(and(eq(spaces.id, spaceId), eq(spaces.userId, user.id)))
       .returning()
 
     if (!deletedSpace) {

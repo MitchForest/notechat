@@ -1,21 +1,21 @@
 import { NextResponse } from 'next/server'
-import { getSession } from '@/lib/auth/session'
+import { getCurrentUser } from '@/lib/auth/session'
 import { db } from '@/lib/db'
 import { collections } from '@/lib/db/schema'
 import { and, eq, ne } from 'drizzle-orm'
 
 export async function PUT(
   request: Request,
-  { params }: { params: { collectionId: string } }
+  context: { params: Promise<{ collectionId:string }> }
 ) {
-  const session = await getSession()
-  if (!session) {
+  const user = await getCurrentUser()
+  if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
   try {
     const { name } = await request.json()
-    const collectionId = params.collectionId
+    const { collectionId } = await context.params
 
     if (!name) {
       return NextResponse.json({ error: 'Name is required' }, { status: 400 })
@@ -26,7 +26,7 @@ export async function PUT(
       .set({ name, updatedAt: new Date() })
       .where(and(
         eq(collections.id, collectionId), 
-        eq(collections.userId, session.user.id),
+        eq(collections.userId, user.id),
         ne(collections.type, 'default') // Prevent renaming default collections
       ))
       .returning()
@@ -44,21 +44,21 @@ export async function PUT(
 
 export async function DELETE(
   request: Request,
-  { params }: { params: { collectionId: string } }
+  context: { params: Promise<{ collectionId: string }> }
 ) {
-  const session = await getSession()
-  if (!session) {
+  const user = await getCurrentUser()
+  if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
   try {
-    const collectionId = params.collectionId
+    const { collectionId } = await context.params
 
     const [deletedCollection] = await db
       .delete(collections)
       .where(and(
         eq(collections.id, collectionId), 
-        eq(collections.userId, session.user.id),
+        eq(collections.userId, user.id),
         ne(collections.type, 'default') // Prevent deleting default collections
       ))
       .returning()

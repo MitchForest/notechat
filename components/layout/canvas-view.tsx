@@ -12,7 +12,7 @@
 'use client'
 
 import React, { useState, useCallback } from 'react'
-import { useAppShell, OpenItem } from '@/lib/app-shell-context'
+import { useAppShell, OpenItem } from '@/components/layout/app-shell-context'
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable'
 import { X, Send, Bot, Info } from 'lucide-react'
 import { Button } from '@/components/ui/button'

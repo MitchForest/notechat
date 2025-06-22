@@ -3,13 +3,20 @@ import { Editor } from '@tiptap/core'
 import { useCompletion } from 'ai/react'
 import { toast } from 'sonner'
 import { handleAIError } from '../lib/ai-errors'
-import { debounce } from 'lodash'
 
 export function useGhostText(editor: Editor | null) {
   const positionRef = useRef<number | null>(null)
+  const isMountedRef = useRef(false)
   const lastCompletionRef = useRef<string>('')
 
   console.log('[useGhostText] Hook initialized. Editor exists:', !!editor)
+
+  useEffect(() => {
+    isMountedRef.current = true
+    return () => {
+      isMountedRef.current = false
+    }
+  }, [])
 
   const { complete, completion, isLoading, stop } = useCompletion({
     api: '/api/ai/completion',
@@ -21,9 +28,11 @@ export function useGhostText(editor: Editor | null) {
     },
     onError: error => {
       console.error('[useGhostText] AI Error:', error)
-      handleAIError(error)
-      if (editor) {
-        editor.commands.clearGhostText()
+      if (isMountedRef.current) {
+        handleAIError(error)
+        if (editor) {
+          editor.commands.clearGhostText()
+        }
       }
     }
   })
@@ -35,13 +44,17 @@ export function useGhostText(editor: Editor | null) {
   }, [completion])
 
   const updateGhostText = useCallback(
-    debounce((text: string, position: number) => {
+    (text: string, position: number) => {
       if (editor && text !== lastCompletionRef.current) {
-        console.log('[useGhostText] Setting ghost text in editor:', text)
         lastCompletionRef.current = text
-        editor.commands.setGhostText(text, position)
+        requestAnimationFrame(() => {
+          if (isMountedRef.current) {
+            console.log('[useGhostText] Setting ghost text in editor:', text)
+            editor.commands.setGhostText(text, position)
+          }
+        })
       }
-    }, 50),
+    },
     [editor]
   )
 
@@ -59,14 +72,14 @@ export function useGhostText(editor: Editor | null) {
 
     console.log('[useGhostText] Setting up event listeners')
 
-    const handleTrigger = ({ position, context }: { position: number; context: string }) => {
-      console.log('[useGhostText] Trigger event received! Position:', position, 'Context length:', context.length)
-      positionRef.current = position
+    const handleTrigger = (props: { position: number; context: string }) => {
+      console.log('[useGhostText] Trigger event received! Position:', props.position, 'Context length:', props.context.length)
+      positionRef.current = props.position
 
       editor.commands.clearGhostText()
 
       console.log('[useGhostText] Calling complete() with context')
-      complete(context, { body: { mode: 'ghost-text' } })
+      complete(props.context, { body: { mode: 'ghost-text' } })
     }
 
     const handleAccept = (text: string) => {
@@ -87,19 +100,19 @@ export function useGhostText(editor: Editor | null) {
       stop()
     }
 
-    editor.on('ghostTextTrigger', handleTrigger)
-    editor.on('ghostTextAccept', handleAccept)
-    editor.on('ghostTextReject', handleReject)
+    ;(editor as any).on('ghostTextTrigger', handleTrigger)
+    ;(editor as any).on('ghostTextAccept', handleAccept)
+    ;(editor as any).on('ghostTextReject', handleReject)
 
     console.log('[useGhostText] Event listeners registered')
 
     return () => {
       console.log('[useGhostText] Cleaning up event listeners')
-      editor.off('ghostTextTrigger', handleTrigger)
-      editor.off('ghostTextAccept', handleAccept)
-      editor.off('ghostTextReject', handleReject)
+      ;(editor as any).off('ghostTextTrigger', handleTrigger)
+      ;(editor as any).off('ghostTextAccept', handleAccept)
+      ;(editor as any).off('ghostTextReject', handleReject)
     }
-  }, [editor, complete, stop])
+  }, [editor, complete, stop, updateGhostText])
 
   return {
     isLoading,

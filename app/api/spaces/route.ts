@@ -1,18 +1,18 @@
 import { NextResponse } from 'next/server'
-import { getSession } from '@/lib/auth/session'
+import { getCurrentUser } from '@/lib/auth/session'
 import { db } from '@/lib/db'
 import { spaces, collections } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 
 export async function GET() {
-  const session = await getSession()
-  if (!session) {
+  const user = await getCurrentUser()
+  if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
   try {
     const userSpaces = await db.query.spaces.findMany({
-      where: eq(spaces.userId, session.user.id),
+      where: eq(spaces.userId, user.id),
       with: {
         collections: true,
       },
@@ -25,8 +25,8 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const session = await getSession()
-  if (!session) {
+  const user = await getCurrentUser()
+  if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
@@ -40,7 +40,7 @@ export async function POST(request: Request) {
     const [newSpace] = await db
       .insert(spaces)
       .values({
-        userId: session.user.id,
+        userId: user.id,
         name,
         emoji,
       })
@@ -49,19 +49,19 @@ export async function POST(request: Request) {
     // Create default collections for the new space
     await db.insert(collections).values([
         {
-            userId: session.user.id,
+            userId: user.id,
             spaceId: newSpace.id,
             name: 'All',
             type: 'default',
         },
         {
-            userId: session.user.id,
+            userId: user.id,
             spaceId: newSpace.id,
             name: 'Recent',
             type: 'smart',
         },
         {
-            userId: session.user.id,
+            userId: user.id,
             spaceId: newSpace.id,
             name: 'Saved',
             type: 'smart',

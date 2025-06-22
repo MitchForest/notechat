@@ -8,16 +8,16 @@
  * - Active chats display
  * - New item creation
  * 
- * Modified: 2024-12-19 - Initial implementation
+ * Modified: 2024-07-31 - Integrated with Zustand store
  */
 "use client"
 
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { ChevronDown, ChevronRight, Search, MessageSquare, FileText, Settings, User, LogOut, Moon, Sun, Hash, Menu, PanelLeft, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useTheme } from 'next-themes'
-import { useAppShell } from '@/lib/app-shell-context'
+import { useAppShell } from '@/components/layout/app-shell-context'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -33,6 +33,10 @@ import {
 } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import type { User as UserType } from '@/lib/db/schema'
+import useOrganizationStore, { Space } from '@/features/organization/store/organization-store'
+import { ScrollArea } from '@/components/ui/scroll-area'
+import { Separator } from '@/components/ui/separator'
+import Image from 'next/image'
 
 interface SidebarNavProps {
   className?: string
@@ -50,70 +54,56 @@ const getInitials = (name: string | null | undefined, email: string) => {
   return email.substring(0, 2).toUpperCase()
 }
 
+const PERMANENT_SPACES = [
+    { 
+      id: 'all_notes', 
+      name: 'All Notes', 
+      emoji: '📝', 
+      collections: [
+        { id: 'all_notes_all', name: 'All' },
+        { id: 'all_notes_recent', name: 'Recent' },
+        { id: 'all_notes_saved', name: 'Saved' },
+      ]
+    },
+    { 
+      id: 'chats', 
+      name: 'Chats', 
+      emoji: '💬', 
+      collections: [
+        { id: 'chats_all', name: 'All' },
+        { id: 'chats_recent', name: 'Recent' },
+        { id: 'chats_saved', name: 'Saved' },
+      ]
+    },
+]
+
 export function SidebarNav({ className, user }: SidebarNavProps) {
   const { theme, setTheme } = useTheme()
   const { sidebarCollapsed, setSidebarCollapsed, openChat, openNote } = useAppShell()
+  const { 
+    spaces, 
+    activeSpaceId,
+    collections,
+    activeCollectionId,
+    notes,
+    fetchInitialData, 
+    setActiveSpace,
+    setActiveCollection
+  } = useOrganizationStore()
+  
   const [activeChatsExpanded, setActiveChatsExpanded] = useState(true)
   const [allNotesExpanded, setAllNotesExpanded] = useState(true)
+  const [spaceExpansion, setSpaceExpansion] = useState<Record<string, boolean>>({})
 
-  // Mock data
-  const activeChats = [
-    { id: '1', title: 'Project Planning Discussion' },
-    { id: '2', title: 'Code Review Chat' },
-    { id: '3', title: 'Feature Implementation' },
-  ]
-
-  const allNotes = [
-    { id: 'n1', title: 'Meeting Notes 2024-07-29' },
-    { id: 'n2', title: 'Brainstorming new features' },
-    { id: 'n3', title: 'Personal Goals for Q3' },
-  ]
-
-  const spaces = [
-    { 
-      id: '1', 
-      name: 'Work Projects', 
-      emoji: '💼',
-      expanded: true,
-      collections: [
-        { id: 'recent-work', name: 'Recent', count: 5 },
-        { id: 'saved-work', name: 'Saved', count: 3 },
-        { id: 'meetings', name: 'Meetings', count: 12 },
-        { id: 'projects', name: 'Active Projects', count: 8 },
-      ]
-    },
-    { 
-      id: '2', 
-      name: 'Personal', 
-      emoji: '🏠',
-      expanded: false,
-      collections: [
-        { id: 'recent-personal', name: 'Recent', count: 2 },
-        { id: 'saved-personal', name: 'Saved', count: 1 },
-        { id: 'journal', name: 'Journal', count: 24 },
-        { id: 'ideas', name: 'Ideas', count: 11 },
-      ]
-    },
-    { 
-      id: '3', 
-      name: 'Research', 
-      emoji: '🔬',
-      expanded: false,
-      collections: [
-        { id: 'recent-research', name: 'Recent', count: 7 },
-        { id: 'saved-research', name: 'Saved', count: 4 },
-        { id: 'papers', name: 'Papers', count: 15 },
-        { id: 'experiments', name: 'Experiments', count: 6 },
-      ]
-    },
-  ]
-
-  const [spacesState, setSpacesState] = useState(spaces)
-
+  useEffect(() => {
+    fetchInitialData()
+  }, [fetchInitialData])
+  
   const toggleSpace = (spaceId: string) => {
-    setSpacesState(prev => prev.map(space => 
-      space.id === spaceId ? { ...space, expanded: !space.expanded } : space
-    ))
+    if (activeSpaceId !== spaceId) {
+        setActiveSpace(spaceId)
+    }
+    setSpaceExpansion(prev => ({ ...prev, [spaceId]: !prev[spaceId] }))
   }
 
   const handleNewChat = () => {
@@ -129,14 +119,6 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
       id: `note-${Date.now()}`, 
       type: 'note', 
       title: 'New Note' 
-    })
-  }
-
-  const handleChatClick = (chat: { id: string; title: string }) => {
-    openChat({ 
-      id: chat.id, 
-      type: 'chat', 
-      title: chat.title 
     })
   }
 
@@ -236,13 +218,32 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
 
           {/* Spaces Icons */}
           <div className="flex-1 p-2 space-y-2">
-            {spacesState.map((space) => (
+            {PERMANENT_SPACES.map((space) => (
+                 <Tooltip key={space.id}>
+                 <TooltipTrigger asChild>
+                   <Button
+                     variant={activeSpaceId === space.id ? "secondary" : "ghost"}
+                     size="sm"
+                     className="w-full h-8 p-0 text-base"
+                     onClick={() => setActiveSpace(space.id)}
+                   >
+                     {space.emoji}
+                   </Button>
+                 </TooltipTrigger>
+                 <TooltipContent side="right">
+                   <p>{space.name}</p>
+                 </TooltipContent>
+               </Tooltip>
+            ))}
+            <Separator />
+            {spaces.map((space) => (
               <Tooltip key={space.id}>
                 <TooltipTrigger asChild>
                   <Button
-                    variant="ghost"
+                    variant={activeSpaceId === space.id ? "secondary" : "ghost"}
                     size="sm"
                     className="w-full h-8 p-0 text-base"
+                    onClick={() => setActiveSpace(space.id)}
                   >
                     {space.emoji}
                   </Button>
@@ -255,22 +256,33 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
           </div>
 
           {/* User Avatar */}
-          <div className="p-2 border-t">
+          <div className="p-3 border-t">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" className="w-full h-8 p-0">
-                  {user.avatarUrl ? (
-                    <img src={user.avatarUrl} alt={user.name || user.email} className="w-6 h-6 rounded-full" />
-                  ) : (
-                    <div className="w-6 h-6 rounded-full bg-primary flex items-center justify-center">
-                      <span className="text-xs font-semibold text-primary-foreground">
+                <Button variant="ghost" className="w-full justify-start text-left">
+                  <div className="flex items-center">
+                    {user.avatarUrl ? (
+                      <Image
+                        src={user.avatarUrl}
+                        alt={user.name || user.email}
+                        width={24}
+                        height={24}
+                        className="h-6 w-6 rounded-full mr-2"
+                      />
+                    ) : (
+                      <div className="h-6 w-6 rounded-full bg-muted flex items-center justify-center mr-2 text-xs font-bold">
                         {getInitials(user.name, user.email)}
+                      </div>
+                    )}
+                    <div className="flex flex-col truncate">
+                      <span className="text-sm font-medium truncate">
+                        {user.name || user.email}
                       </span>
                     </div>
-                  )}
+                  </div>
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent side="right" align="end" className="w-56">
+              <DropdownMenuContent className="w-56" align="end" forceMount>
                 <DropdownMenuItem>
                   <User className="mr-2 h-4 w-4" />
                   Profile
@@ -296,7 +308,7 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleSignOut}>
                   <LogOut className="mr-2 h-4 w-4" />
-                  Sign out
+                  <span>Log out</span>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -383,16 +395,16 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
           </Button>
           {activeChatsExpanded && (
             <div className="pl-2 space-y-1 mt-1">
-              {activeChats.map((chat) => (
+              {spaces.map((space) => (
                 <Button
-                  key={chat.id}
+                  key={space.id}
                   variant="ghost"
                   size="sm"
-                  onClick={() => handleChatClick(chat)}
+                  onClick={() => setActiveSpace(space.id)}
                   className="w-full justify-start truncate"
                 >
                   <MessageSquare className="mr-2 h-4 w-4" />
-                  {chat.title}
+                  {space.name}
                 </Button>
               ))}
             </div>
@@ -415,16 +427,16 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
           </Button>
           {allNotesExpanded && (
             <div className="pl-2 space-y-1 mt-1">
-              {allNotes.map((note) => (
+              {spaces.map((space) => (
                 <Button
-                  key={note.id}
+                  key={space.id}
                   variant="ghost"
                   size="sm"
-                  onClick={() => handleNoteClick(note)}
+                  onClick={() => setActiveSpace(space.id)}
                   className="w-full justify-start truncate"
                 >
-                  <FileText className="mr-2 h-4 w-4" />
-                  {note.title}
+                  <MessageSquare className="mr-2 h-4 w-4" />
+                  {space.name}
                 </Button>
               ))}
             </div>
@@ -432,82 +444,147 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
         </div>
 
         {/* Spaces */}
-        <div className="space-y-1">
-          {spacesState.map((space) => (
-            <div key={space.id}>
-              <Button
-                onClick={() => toggleSpace(space.id)}
-                variant="ghost"
-                size="sm"
-                className="w-full justify-start"
-              >
-                {space.expanded ? (
-                  <ChevronDown className="mr-1 h-4 w-4" />
-                ) : (
-                  <ChevronRight className="mr-1 h-4 w-4" />
-                )}
-                <span className="mr-2">{space.emoji}</span>
-                {space.name}
-              </Button>
-              {space.expanded && (
-                <div className="pl-6 space-y-1 mt-1">
-                  {space.collections.map((collection) => (
-                    <Button
-                      key={collection.id}
-                      variant="ghost"
-                      size="sm"
-                      className="w-full justify-start text-muted-foreground"
-                    >
-                      <Hash className="mr-2 h-4 w-4" />
-                      {collection.name}
-                    </Button>
-                  ))}
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="w-full justify-start text-muted-foreground"
+        <ScrollArea className="flex-1">
+          <div className="px-2">
+            {/* Permanent Spaces */}
+            {PERMANENT_SPACES.map((space) => (
+                 <div key={space.id} className="mt-2">
+                 <div 
+                     className="flex items-center justify-between rounded-md px-2 py-1.5 text-sm font-medium cursor-pointer hover:bg-accent"
+                     onClick={() => toggleSpace(space.id)}
+                 >
+                     <div className="flex items-center">
+                         <span className='text-base'>{space.emoji}</span>
+                         <span className="ml-2">{space.name}</span>
+                     </div>
+                     {spaceExpansion[space.id] ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                 </div>
+                 {spaceExpansion[space.id] && (
+                     <div className="pl-4 mt-1 space-y-1">
+                         {space.collections.map((collection) => (
+                             <div 
+                                 key={collection.id} 
+                                 className={cn(
+                                     "flex items-center justify-between rounded-md px-2 py-1.5 text-sm cursor-pointer hover:bg-accent",
+                                     activeCollectionId === collection.id && "bg-accent"
+                                 )}
+                                 onClick={() => setActiveCollection(collection.id, space.id)}
+                             >
+                                 <div className='flex items-center'>
+                                     <Hash className="mr-2 h-3 w-3" />
+                                     <span>{collection.name}</span>
+                                 </div>
+                             </div>
+                         ))}
+                     </div>
+                 )}
+             </div>
+              ))}
+
+              <Separator className="my-4" />
+
+                {/* User Spaces */}
+                {spaces.map((space: Space) => (
+                    <div key={space.id} className="mt-2">
+                        <div 
+                            className="flex items-center justify-between rounded-md px-2 py-1.5 text-sm font-medium cursor-pointer hover:bg-accent"
+                            onClick={() => toggleSpace(space.id)}
+                        >
+                            <div className="flex items-center">
+                                <span className='text-base'>{space.emoji}</span>
+                                <span className="ml-2">{space.name}</span>
+                            </div>
+                            <div className='flex items-center'>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <Button variant='ghost' size='sm' className='h-6 w-6 p-0'>
+                                            <Plus className='h-3 w-3' />
+                                        </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="right">
+                                        <p>New collection</p>
+                                    </TooltipContent>
+                                </Tooltip>
+                                {spaceExpansion[space.id] ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                            </div>
+                        </div>
+                        {spaceExpansion[space.id] && (
+                            <div className="pl-4 mt-1 space-y-1">
+                                {space.collections.map((collection) => (
+                                    <div 
+                                        key={collection.id} 
+                                        className={cn(
+                                            "flex items-center justify-between rounded-md px-2 py-1.5 text-sm cursor-pointer hover:bg-accent",
+                                            activeCollectionId === collection.id && "bg-accent"
+                                        )}
+                                        onClick={() => setActiveCollection(collection.id, space.id)}
+                                    >
+                                        <div className='flex items-center'>
+                                            <Hash className="mr-2 h-3 w-3" />
+                                            <span>{collection.name}</span>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                ))}
+          </div>
+          
+          {/* Notes List */}
+          {activeCollectionId && (
+            <div className='mt-4 px-2'>
+              <h3 className='text-xs font-semibold text-muted-foreground mb-2 px-2'>
+                {collections.find(c => c.id === activeCollectionId)?.name} Notes
+              </h3>
+              <div className='space-y-1'>
+                {notes.map(note => (
+                  <div 
+                    key={note.id}
+                    className='flex items-center rounded-md px-2 py-1.5 text-sm cursor-pointer hover:bg-accent'
+                    onClick={() => handleNoteClick(note)}
                   >
-                    <Plus className="mr-2 h-4 w-4" />
-                    New Collection
-                  </Button>
-                </div>
-              )}
+                    <FileText className="mr-2 h-3 w-3" />
+                    <span className='truncate'>{note.title}</span>
+                  </div>
+                ))}
+              </div>
             </div>
-          ))}
-          <Button
-            variant="ghost"
-            size="sm"
-            className="w-full justify-start text-muted-foreground"
-          >
-            <Plus className="mr-2 h-4 w-4" />
-            New Space
-          </Button>
-        </div>
+          )}
+        </ScrollArea>
       </div>
 
       {/* Footer */}
-      <div className="p-2 border-t">
+      <div className="p-3 border-t">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="w-full justify-start">
-              <div className="flex items-center gap-2 w-full">
+            <Button variant="ghost" className="w-full justify-start text-left">
+              <div className="flex items-center">
                 {user.avatarUrl ? (
-                  <img src={user.avatarUrl} alt={user.name || user.email} className="w-8 h-8 rounded-md" />
+                  <Image
+                    src={user.avatarUrl}
+                    alt={user.name || user.email}
+                    width={32}
+                    height={32}
+                    className="h-8 w-8 rounded-full mr-2"
+                  />
                 ) : (
-                  <div className="w-8 h-8 rounded-md bg-primary flex items-center justify-center">
-                    <span className="font-semibold text-primary-foreground">
-                      {getInitials(user.name, user.email)}
-                    </span>
+                  <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center mr-2 text-sm font-bold">
+                    {getInitials(user.name, user.email)}
                   </div>
                 )}
-                <div className="flex-1 text-left">
-                  <p className="font-semibold text-sm truncate">{user.name || 'User'}</p>
-                  <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+                <div className="flex flex-col truncate">
+                  <span className="text-sm font-medium truncate">
+                    {user.name || user.email}
+                  </span>
+                  <span className="text-xs text-muted-foreground truncate">
+                    Free Plan
+                  </span>
                 </div>
               </div>
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent side="right" align="end" className="w-56">
+          <DropdownMenuContent className="w-56" align="end" forceMount>
             <DropdownMenuItem>
               <User className="mr-2 h-4 w-4" />
               Profile

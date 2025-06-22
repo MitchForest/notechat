@@ -11,41 +11,34 @@ import {
 export const runtime = 'edge'
 
 export async function POST(req: NextRequest) {
-  console.log('[API /ai/completion] Request received')
+  const {
+    prompt,
+    context,
+    mode = 'completion'
+  }: { prompt?: string; context?: string; mode?: 'completion' | 'ghost-text' } = await req.json()
+
+  const systemPrompt = AI_SYSTEM_PROMPTS[mode]
+  const fullPrompt = context ? `${context}\n\n${prompt}` : prompt
+
+  if (!fullPrompt) {
+    return new Response('Prompt is required', { status: 400 })
+  }
 
   try {
-    const { prompt: text, mode } = await req.json()
-    console.log('[API /ai/completion] Body:', { textLength: text?.length, mode })
-
-    if (!text) {
-      console.error('[API /ai/completion] No text provided')
-      return new Response('No text provided', { status: 400 })
-    }
-
-    const isGhostText = mode === 'ghost-text'
-
     const result = await streamText({
-      model: AI_MODELS.fast,
-      messages: [
-        {
-          role: 'system',
-          content: isGhostText
-            ? 'You are a helpful writing assistant. Continue the text naturally. Keep it brief, around 50-100 characters.'
-            : AI_SYSTEM_PROMPTS.continue
-        },
-        {
-          role: 'user',
-          content: text
-        }
-      ],
-      temperature: AI_TEMPERATURES.continue,
-      maxTokens: isGhostText ? 50 : AI_MAX_TOKENS.continue
+      model: openai(AI_MODELS[mode]),
+      system: systemPrompt,
+      prompt: fullPrompt,
+      temperature: AI_TEMPERATURES[mode],
+      maxTokens: AI_MAX_TOKENS[mode]
     })
 
-    console.log('[API /ai/completion] Streaming response started')
     return result.toDataStreamResponse()
-  } catch (error) {
-    console.error('[API /ai/completion] Error:', error)
-    return new Response('Internal error', { status: 500 })
+  } catch (error: unknown) {
+    console.error('[AI COMPLETION] Error:', error)
+    if (error instanceof Error && error.name === 'RateLimitError') {
+      return new Response('Rate limit exceeded', { status: 429 })
+    }
+    return new Response('An unexpected error occurred', { status: 500 })
   }
 } 

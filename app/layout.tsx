@@ -4,7 +4,7 @@ import "@/app/globals.css";
 import "@/features/editor/styles/spellcheck.css";
 import { ThemeProvider } from "@/components/theme/theme-provider";
 import { cn } from "@/lib/utils";
-import { AppShellProvider } from "@/lib/app-shell-context";
+import { AppShellProvider } from "@/components/layout/app-shell-context";
 import { Toaster } from "@/components/ui/sonner";
 
 const inter = Inter({

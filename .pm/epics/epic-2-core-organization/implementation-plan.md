@@ -1,134 +1,92 @@
-# Implementation Plan: Epic 2 - Core Organization
+# Epic: Core Organization - Implementation Plan
 
-This document outlines the detailed technical plan for implementing the core organizational features, including persistent spaces, collections, and notes, backed by a database.
+## Overview
+This document outlines the implementation plan for the "Core Organization" epic. The goal is to transition the application from a static, mock-data-driven interface to a fully persistent, user-configurable system for organizing notes and chats within Spaces and Collections.
 
-### Guiding Principles
-- **User-Centric Data:** All organizational entities (`spaces`, `collections`, `notes`) will be tied to a `userId`.
-- **Scalable by Default:** The database schema and state management will be designed to support future features like persistent chats and advanced smart collections with minimal refactoring.
-- **Optimistic UI:** State will be updated optimistically for a fluid user experience, with backend validation and error handling.
+## Sprint 2.1: Backend Foundation & Data Modeling (Completed)
 
----
+- [x] **Task 2.1.1:** Update Database Schema (`lib/db/schema.ts`)
+  - ~~Status: In Progress~~
+  - ~~Notes: Added `spaces`, `collections`, and `notes` tables.~~
+  - **Status: Completed.**
+- [x] **Task 2.1.2:** Implement Database Migrations
+  - ~~Status: In Progress~~
+  - ~~Notes: Encountered issues with `drizzle-kit db push`. Created a temporary script to apply the migration. The database schema is now up-to-date.~~
+  - **Status: Completed.**
+- [x] **Task 2.1.3:** Create Backend API Routes
+  - ~~Status: In Progress~~
+  - ~~Notes: Created all necessary `GET`, `POST`, `PUT`, `DELETE` endpoints for spaces, collections, and notes.~~
+  - **Status: Completed.**
+- [x] **Task 2.1.4:** Implement State Management with Zustand
+  - ~~Status: In Progress~~
+  - ~~Notes: Created the `organization-store` to manage the client-side state for spaces, collections, and notes.~~
+  - **Status: Completed.**
+- [x] **Task 2.1.5:** Fix All Linter and Type-Checking Errors
+  - **Status: Completed.**
+  - Notes: Corrected all type errors in API routes (including the Next.js 15 `params` Promise pattern) and Zustand store. The build is now successful.
 
-## Sprint 2.1: Foundational Backend & State Management
+## Sprint 2.2: Comprehensive Sidebar Overhaul & Interactivity
 
-**Goal**: Build the data models, API endpoints, and client-side state management foundation for the entire organization system.
+This sprint focuses on completely rebuilding the sidebar UI and implementing all related user interaction features as per the new requirements.
 
-### **Step 1: Database Schema Definition**
-*   **File to Modify**: `lib/db/schema.ts`
-*   **Actions**:
-    1.  **Create `notes` table**:
-        -   `id` (uuid, pk)
-        -   `userId` (uuid, fk to `users.id`, not null)
-        -   `title` (text, default "Untitled Note")
-        -   `content` (jsonb, for TipTap editor content)
-        -   `spaceId` (uuid, fk to `spaces.id`, not null)
-        -   `isStarred` (boolean, default false)
-        -   `createdAt`, `updatedAt` (timestamps)
-    2.  **Create `spaces` table**:
-        -   `id` (uuid, pk)
-        -   `userId` (uuid, fk to `users.id`, not null)
-        -   `name` (text, not null)
-        -   `emoji` (text)
-        -   `isDefault` (boolean, default false)
-        -   `createdAt`, `updatedAt` (timestamps)
-    3.  **Create `collections` table**:
-        -   `id` (uuid, pk)
-        -   `userId` (uuid, fk to `users.id`, not null)
-        -   `spaceId` (uuid, fk to `spaces.id`, not null)
-        -   `name` (text, not null)
-        -   `type` (enum: 'manual', 'smart', 'default', not null)
-        -   `smartRules` (jsonb, nullable, for future use)
-        -   `createdAt`, `updatedAt` (timestamps)
-    4.  **Create `notes_to_collections` join table**:
-        -   `noteId` (uuid, fk to `notes.id`)
-        -   `collectionId` (uuid, fk to `collections.id`)
-        -   Primary key on (`noteId`, `collectionId`)
-    5.  **Define relations** for all new tables using `drizzle-orm/relations`.
-*   **Task**: Run `bun drizzle:generate` to create the migration file and `bun drizzle:push` to apply it to the database.
+### Phase 1: Backend & Data Model Enhancements
+- **Task 2.2.1:** Enhance Database Schema (`lib/db/schema.ts`)
+  - **Status: Not Started**
+  - **Details:**
+    - Add a `title` column to the `notes` table.
+    - Create a new `chats` table with a similar structure (`id`, `userId`, `title`, `collectionId`, `createdAt`, `updatedAt`).
+    - Add a `collectionId` (nullable) to both `notes` and `chats` tables for categorization.
+    - Add a `type` enum column (`static`, `seeded`, `user`) to `spaces` and `collections` tables.
+- **Task 2.2.2:** Refactor API Endpoints
+  - **Status: Not Started**
+  - **Details:**
+    - Update `POST /api/notes` (and create for chats) to assign a default title.
+    - Update `PUT /api/notes/[noteId]` (and create for chats) to handle `title` and `collectionId` updates.
+    - Rewrite `GET /api/spaces` to return a nested structure: `spaces -> collections -> notes/chats`.
+- **Task 2.2.3:** Implement User Account Seeding
+  - **Status: Not Started**
+  - **Details:** Create a function to run on new user signup that populates their account with `Personal` and `Work` spaces, each containing `All`, `Recent`, and `Saved` collections.
 
-### **Step 2: Install Dependencies**
-*   **File to Modify**: `package.json`
-*   **Action**: Add `zustand` for global state management.
-    ```bash
-    bun add zustand
-    ```
+### Phase 2: Global Styling & UI Implementation
+- **Task 2.2.4:** Define & Apply Consistent Global Styles
+  - **Status: Not Started**
+  - **Details:**
+    - Audit `app/globals.css` for existing patterns.
+    - Add new utility classes for subtle `hover`, `active`, and `focus` states directly into `app/globals.css`.
+    - Refactor all interactive components (`sidebar-nav`, `dropdown-menu`, `user-menu`, etc.) to use these new styles.
+- **Task 2.2.5:** Rebuild Sidebar UI (`sidebar-nav.tsx`)
+  - **Status: Not Started**
+  - **Details:**
+    - Rebuild the component to render the new nested data structure from the API.
+    - Integrate a `Collapsible` component for expandable/collapsible spaces and collections.
+    - Position `+ New Space` and `+ New Collection` buttons correctly.
 
-### **Step 3: Backend API Development**
-*   **Create Files**:
-    -   `/app/api/spaces/route.ts` (GET, POST)
-    -   `/app/api/spaces/[spaceId]/route.ts` (PUT, DELETE)
-    -   `/app/api/collections/route.ts` (GET, POST)
-    -   `/app/api/collections/[collectionId]/route.ts` (PUT, DELETE)
-    -   `/app/api/notes/route.ts` (GET, POST)
-    -   `/app/api/notes/[noteId]/route.ts` (GET, PUT, DELETE)
-*   **Actions**:
-    -   Implement standard CRUD logic for each route.
-    -   Ensure all operations are authenticated and authorized, checking `userId` on every query.
-    -   The `GET /spaces` endpoint should eagerly load its `collections`.
-    -   The `GET /notes` endpoint for a space/collection should handle filtering for smart collections (initially, `isStarred` and `updatedAt`).
+### Phase 3: Core Interactivity
+- **Task 2.2.6:** Implement Right-Click Context Menus
+  - **Status: Not Started**
+  - **Details:**
+    - Use a `ContextMenu` component from `shadcn/ui`.
+    - Wrap sidebar items to trigger the menu on right-click.
+    - Hook up "Edit" and "Delete" actions to the appropriate APIs.
+- **Task 2.2.7:** Implement Drag-and-Drop
+  - **Status: Not Started**
+  - **Details:**
+    - Install and configure `dnd-kit`.
+    - Make notes/chats `Draggable` and collections/spaces `Droppable`.
+    - Implement the `onDragEnd` handler to update state optimistically and call the API to persist the move (`collectionId` change).
 
-### **Step 4: Global State Management**
-*   **File to Create**: `features/organization/store/organization-store.ts`
-*   **Actions**:
-    1.  Create a Zustand store (`useOrganizationStore`).
-    2.  Define the store's state:
-        -   `spaces`: `Space[]`
-        -   `notes`: `Note[]`
-        -   `activeSpaceId`: `string | null`
-        -   `loading`: `boolean`
-    3.  Define actions:
-        -   `fetchInitialData(userId)`: Action to fetch all spaces, collections, and notes for a user.
-        -   CRUD actions for `spaces`, `collections`, and `notes` that perform optimistic updates and then call the backend API.
+### Phase 4: Advanced Features
+- **Task 2.2.8:** Implement Editable Titles
+  - **Status: Not Started**
+  - **Details:** Add an editable title input to the main note/chat view that syncs with the database.
+- **Task 2.2.9:** Implement Intelligent Auto-Naming
+  - **Status: Not Started**
+  - **Details:**
+    - Use a debounced hook on the editor content.
+    - On pause, extract the first line of text from a new note/chat.
+    - Call the API to update the item's `title` automatically, providing a seamless "auto-naming" experience.
 
-### **Step 5: Default Data Seeding**
-*   **File to Modify**: `lib/auth/session.ts` (or wherever user session is first created/checked).
-*   **Action**:
-    -   After a new user is created, create their default data:
-        1.  "All Notes" Space (special, non-deletable)
-        2.  "Work" Space
-        3.  "Personal" Space
-    -   For each space, create the three default collections: "All," "Recent," and "Saved."
-
----
-
-## Sprint 2.2: Frontend Integration & Note Persistence
-
-**Goal**: Connect the frontend UI to the new backend, enable note persistence, and implement core organizational interactions.
-
-### **Step 1: Connect Sidebar to State**
-*   **File to Modify**: `components/layout/sidebar-nav.tsx`
-*   **Actions**:
-    1.  Remove all mock data (`spacesState`, etc.).
-    2.  Integrate `useOrganizationStore` to get spaces and collections.
-    3.  On component mount, call the store's `fetchInitialData` action.
-    4.  Render the dynamic list of spaces and their collections from the store.
-    5.  Implement UI for creating a new space (e.g., a modal triggered by the '+' button).
-    6.  Implement UI for creating new manual collections within a space.
-
-### **Step 2: Note Persistence**
-*   **File to Modify**: `features/editor/components/editor.tsx`
-*   **Actions**:
-    1.  When a note is opened, use an effect to fetch its full content using the `/api/notes/[noteId]` endpoint.
-    2.  Display a loading state while the note content is being fetched.
-    3.  Implement a debounced `save` function that is called on editor content changes (`onUpdate`).
-    4.  The `save` function will make a `PUT` request to `/api/notes/[noteId]` with the updated title and content.
-    5.  Integrate the `isStarred` status with a star icon/button in the editor toolbar, which updates the note via the API.
-
-### **Step 3: Note Organization Logic**
-*   **File to Modify**: `components/layout/sidebar-nav.tsx`
-*   **Actions**:
-    1.  **Displaying Notes**: When a collection is clicked, fetch and display the notes belonging to it.
-        -   For **manual** collections, show notes from the `notes_to_collections` table.
-        -   For the **"All"** collection, show all notes in that `spaceId`.
-        -   For the **"Saved"** collection, show all notes in the space where `isStarred` is true.
-        -   For the **"Recent"** collection, show all notes in the space modified in the last 7 days.
-    2.  **Adding to Collections**: Implement a context menu or drag-and-drop functionality to add the currently open note to a manual collection. This will call an endpoint to create an entry in the `notes_to_collections` table.
-
-### **Step 4: Final Polish & Testing**
-*   **Actions**:
-    -   Ensure loading states are handled gracefully across the UI (sidebar, editor).
-    -   Implement empty states (e.g., "No notes in this collection").
-    -   Allow users to rename and delete spaces and manual collections.
-    -   When a manual collection is deleted, ensure notes are unaffected and simply removed from that collection.
-    -   When a space is deleted, confirm with the user that all nested notes and collections will also be deleted.
-    -   Thoroughly test all CRUD operations and user flows. 
+## Sprint 2.3: Editor Integration (Pending Approval)
+- **Task 2.3.1:** Connect Editor to Persistence Layer
+  - **Status: Blocked**
+  - **Notes:** This task is pending a full review and approval of the new sidebar implementation. The goal is to integrate note creation, saving, and updating directly with the editor component, using the new API and state management structure. 

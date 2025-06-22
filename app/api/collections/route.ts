@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server'
-import { getSession } from '@/lib/auth/session'
+import { getCurrentUser } from '@/lib/auth/session'
 import { db } from '@/lib/db'
 import { collections } from '@/lib/db/schema'
 import { and, eq } from 'drizzle-orm'
 
 export async function GET(request: Request) {
-  const session = await getSession()
-  if (!session) {
+  const user = await getCurrentUser()
+  if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
   
@@ -20,7 +20,7 @@ export async function GET(request: Request) {
   try {
     const spaceCollections = await db.query.collections.findMany({
       where: and(
-        eq(collections.userId, session.user.id),
+        eq(collections.userId, user.id),
         eq(collections.spaceId, spaceId)
       ),
     })
@@ -32,8 +32,8 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const session = await getSession()
-  if (!session) {
+  const user = await getCurrentUser()
+  if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
@@ -52,7 +52,7 @@ export async function POST(request: Request) {
     const [newCollection] = await db
       .insert(collections)
       .values({
-        userId: session.user.id,
+        userId: user.id,
         spaceId,
         name,
         type,

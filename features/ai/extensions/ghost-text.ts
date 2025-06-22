@@ -56,9 +56,7 @@ export const GhostText = Extension.create({
                 'position:',
                 storage.position
               )
-            }
 
-            if (meta) {
               if (storage.isActive && storage.ghostText && storage.position !== null) {
                 const decoration = Decoration.inline(
                   storage.position,
@@ -72,17 +70,24 @@ export const GhostText = Extension.create({
                 return {
                   decorations: DecorationSet.create(newState.doc, [decoration])
                 }
-              } else {
-                return { decorations: DecorationSet.empty }
               }
+              return { decorations: DecorationSet.empty }
             }
 
             const decorations = value.decorations.map(tr.mapping, newState.doc)
 
-            if (storage.isActive && storage.position !== null) {
+            if (!decorations.find().length) {
+              return { decorations }
+            }
+
+            if (
+              storage.isActive &&
+              storage.position !== null &&
+              (tr.docChanged || oldState.selection.from !== newState.selection.from)
+            ) {
               const { from } = newState.selection
               if (from !== storage.position) {
-                extension.editor.emit('ghostTextReject')
+                ;(extension.editor as any).emit('ghostTextReject')
                 return { decorations: DecorationSet.empty }
               }
             }
@@ -97,33 +102,25 @@ export const GhostText = Extension.create({
           },
 
           handleTextInput(view, from, to, text) {
-            console.log('[GhostText] handleTextInput:', text, 'from:', from, 'to:', to)
-
             const { state } = view
             const storage = extension.storage as GhostTextStorage
 
             if (storage.isActive) {
-              extension.editor.emit('ghostTextReject')
+              ;(extension.editor as any).emit('ghostTextReject')
               return false
             }
 
             if (text === '+') {
               const before = state.doc.textBetween(Math.max(0, from - 1), from)
 
-              console.log('[GhostText] Checking for ++ trigger. Before text:', before)
-
               if (before === '+') {
-                console.log('[GhostText] ++ DETECTED! Triggering...')
-
                 const tr = state.tr.delete(from - 1, to)
                 view.dispatch(tr)
 
                 const contextStart = Math.max(0, from - 500)
                 const context = state.doc.textBetween(contextStart, from - 1)
 
-                console.log('[GhostText] Emitting trigger event with context length:', context.length)
-
-                extension.editor.emit('ghostTextTrigger', {
+                ;(extension.editor as any).emit('ghostTextTrigger', {
                   position: from - 1,
                   context
                 })
@@ -142,13 +139,13 @@ export const GhostText = Extension.create({
 
             if (event.key === 'Tab') {
               event.preventDefault()
-              extension.editor.emit('ghostTextAccept', storage.ghostText)
+              ;(extension.editor as any).emit('ghostTextAccept', storage.ghostText)
               return true
             }
 
             if (event.key === 'Escape') {
               event.preventDefault()
-              extension.editor.emit('ghostTextReject')
+              ;(extension.editor as any).emit('ghostTextReject')
               return true
             }
 
@@ -172,8 +169,6 @@ export const GhostText = Extension.create({
       setGhostText:
         (text: string, position: number) =>
         ({ editor, dispatch }) => {
-          console.log('[GhostText] setGhostText command called. Text:', text, 'Position:', position)
-
           const storage = this.storage as GhostTextStorage
           storage.ghostText = text
           storage.position = position
@@ -190,8 +185,6 @@ export const GhostText = Extension.create({
       clearGhostText:
         () =>
         ({ editor, dispatch }) => {
-          console.log('[GhostText] clearGhostText command called')
-
           const storage = this.storage as GhostTextStorage
           storage.ghostText = ''
           storage.isActive = false
