@@ -3,7 +3,7 @@ import { relations } from 'drizzle-orm'
 
 // --- Enums ---
 
-export const entityTypeEnum = pgEnum('entity_type', ['static', 'seeded', 'user'])
+export const entityTypeEnum = pgEnum('entity_type', ['static', 'seeded', 'user', 'system'])
 
 // --- Tables ---
 
@@ -77,6 +77,8 @@ export const spacesRelations = relations(spaces, ({ one, many }) => ({
         references: [users.id],
     }),
     collections: many(collections),
+    notes: many(notes),
+    chats: many(chats),
 }))
 
 export const collections = pgTable('collections', {
@@ -84,6 +86,7 @@ export const collections = pgTable('collections', {
     userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
     spaceId: uuid('space_id').references(() => spaces.id, { onDelete: 'cascade' }).notNull(),
     name: text('name').notNull(),
+    icon: text('icon').default('folder'),
     type: entityTypeEnum('type').notNull(),
     createdAt: timestamp('created_at').defaultNow().notNull(),
     updatedAt: timestamp('updated_at').defaultNow().notNull(),
@@ -105,6 +108,7 @@ export const collectionsRelations = relations(collections, ({ one, many }) => ({
 export const notes = pgTable('notes', {
     id: uuid('id').defaultRandom().primaryKey(),
     userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+    spaceId: uuid('space_id').references(() => spaces.id, { onDelete: 'set null' }),
     collectionId: uuid('collection_id').references(() => collections.id, { onDelete: 'set null' }),
     title: text('title').default('Untitled Note').notNull(),
     content: jsonb('content'),
@@ -118,6 +122,10 @@ export const notesRelations = relations(notes, ({ one }) => ({
         fields: [notes.userId],
         references: [users.id],
     }),
+    space: one(spaces, {
+        fields: [notes.spaceId],
+        references: [spaces.id],
+    }),
     collection: one(collections, {
         fields: [notes.collectionId],
         references: [collections.id],
@@ -127,6 +135,7 @@ export const notesRelations = relations(notes, ({ one }) => ({
 export const chats = pgTable('chats', {
     id: uuid('id').defaultRandom().primaryKey(),
     userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+    spaceId: uuid('space_id').references(() => spaces.id, { onDelete: 'set null' }),
     collectionId: uuid('collection_id').references(() => collections.id, { onDelete: 'set null' }),
     title: text('title').default('Untitled Chat').notNull(),
     content: jsonb('content'),
@@ -140,9 +149,38 @@ export const chatsRelations = relations(chats, ({ one }) => ({
         fields: [chats.userId],
         references: [users.id],
     }),
+    space: one(spaces, {
+        fields: [chats.spaceId],
+        references: [spaces.id],
+    }),
     collection: one(collections, {
         fields: [chats.collectionId],
         references: [collections.id],
+    }),
+}))
+
+// --- Smart Collections ---
+
+export const smartCollections = pgTable('smart_collections', {
+    id: uuid('id').defaultRandom().primaryKey(),
+    userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+    spaceId: uuid('space_id').references(() => spaces.id, { onDelete: 'cascade' }).notNull(),
+    name: text('name').notNull(),
+    icon: text('icon').notNull(),
+    filterConfig: jsonb('filter_config').notNull(),
+    isProtected: boolean('is_protected').default(false),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+})
+
+export const smartCollectionsRelations = relations(smartCollections, ({ one }) => ({
+    user: one(users, {
+        fields: [smartCollections.userId],
+        references: [users.id],
+    }),
+    space: one(spaces, {
+        fields: [smartCollections.spaceId],
+        references: [spaces.id],
     }),
 }))
 
@@ -161,4 +199,6 @@ export type NewCollection = typeof collections.$inferInsert
 export type Note = typeof notes.$inferSelect
 export type NewNote = typeof notes.$inferInsert
 export type Chat = typeof chats.$inferSelect
-export type NewChat = typeof chats.$inferInsert 
+export type NewChat = typeof chats.$inferInsert
+export type SmartCollection = typeof smartCollections.$inferSelect
+export type NewSmartCollection = typeof smartCollections.$inferInsert 

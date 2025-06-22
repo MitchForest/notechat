@@ -1,6 +1,17 @@
 import { create } from 'zustand'
-import { Note, Chat } from '@/lib/db/schema'
+import { Note, Chat, SmartCollection } from '@/lib/db/schema'
 import { toast } from 'sonner'
+
+interface FilterConfig {
+  type?: 'all' | 'note' | 'chat'
+  timeRange?: {
+    unit: 'days' | 'weeks' | 'months'
+    value: number
+  }
+  isStarred?: boolean
+  orderBy?: 'updatedAt' | 'createdAt' | 'title'
+  orderDirection?: 'asc' | 'desc'
+}
 
 interface ContentState {
   // Data
@@ -18,9 +29,12 @@ interface ContentActions {
   setChats: (chats: Chat[]) => void
   clearContent: () => void
   
+  // Fetch content based on smart collection filters
+  fetchSmartCollectionContent: (smartCollection: SmartCollection) => Promise<void>
+  
   // CRUD operations
-  createNote: (title: string, collectionId: string | null, id?: string) => Promise<Note | null>
-  createChat: (title: string, collectionId: string | null, id?: string) => Promise<Chat | null>
+  createNote: (title: string, spaceId: string | null, collectionId: string | null, id?: string) => Promise<Note | null>
+  createChat: (title: string, spaceId: string | null, collectionId: string | null, id?: string) => Promise<Chat | null>
   updateNote: (noteId: string, data: Partial<Note>) => Promise<void>
   updateChat: (chatId: string, data: Partial<Chat>) => Promise<void>
   deleteNote: (noteId: string) => Promise<void>
@@ -58,10 +72,130 @@ export const useContentStore = create<ContentStore>((set, get) => ({
   },
   clearContent: () => set({ notes: [], chats: [], lastFetchedCollection: null, isCacheValid: false }),
   
+  // Fetch content based on smart collection filters
+  fetchSmartCollectionContent: async (smartCollection) => {
+    const filterConfig = smartCollection.filterConfig as FilterConfig
+    
+    // Build query parameters from filter config
+    const params = new URLSearchParams()
+    
+    // Type filter
+    if (filterConfig.type) {
+      params.append('type', filterConfig.type)
+    }
+    
+    // Time range filter
+    if (filterConfig.timeRange) {
+      const date = new Date()
+      const { unit, value } = filterConfig.timeRange
+      
+      switch (unit) {
+        case 'days':
+          date.setDate(date.getDate() - value)
+          break
+        case 'weeks':
+          date.setDate(date.getDate() - (value * 7))
+          break
+        case 'months':
+          date.setMonth(date.getMonth() - value)
+          break
+      }
+      
+      params.append('since', date.toISOString())
+    }
+    
+    // Starred filter
+    if (filterConfig.isStarred !== undefined) {
+      params.append('starred', String(filterConfig.isStarred))
+    }
+    
+    // Sorting
+    if (filterConfig.orderBy) {
+      params.append('orderBy', filterConfig.orderBy)
+    }
+    if (filterConfig.orderDirection) {
+      params.append('order', filterConfig.orderDirection)
+    }
+    
+    // Space filter
+    if (smartCollection.spaceId) {
+      params.append('spaceId', smartCollection.spaceId)
+    }
+    
+    try {
+      // Fetch based on type
+      let notesData: Note[] = []
+      let chatsData: Chat[] = []
+      
+      if (!filterConfig.type || filterConfig.type === 'all' || filterConfig.type === 'note') {
+        const notesResponse = await fetch(`/api/notes?${params}`)
+        if (!notesResponse.ok) throw new Error('Failed to fetch notes')
+        notesData = await notesResponse.json()
+      }
+      
+      if (!filterConfig.type || filterConfig.type === 'all' || filterConfig.type === 'chat') {
+        const chatsResponse = await fetch(`/api/chats?${params}`)
+        if (!chatsResponse.ok) throw new Error('Failed to fetch chats')
+        chatsData = await chatsResponse.json()
+      }
+      
+      // Combine and sort if needed
+      if (filterConfig.type === 'all') {
+        // Combine and sort by the specified field
+        const combined = [...notesData, ...chatsData]
+        const orderBy = filterConfig.orderBy || 'updatedAt'
+        const orderDirection = filterConfig.orderDirection || 'desc'
+        
+        combined.sort((a, b) => {
+          let aValue: any
+          let bValue: any
+          
+          if (orderBy === 'title') {
+            aValue = a.title
+            bValue = b.title
+          } else if (orderBy === 'createdAt') {
+            aValue = new Date(a.createdAt).getTime()
+            bValue = new Date(b.createdAt).getTime()
+          } else {
+            // updatedAt
+            aValue = new Date(a.updatedAt).getTime()
+            bValue = new Date(b.updatedAt).getTime()
+          }
+          
+          if (orderDirection === 'asc') {
+            return aValue > bValue ? 1 : -1
+          } else {
+            return aValue < bValue ? 1 : -1
+          }
+        })
+        
+        // Separate back into notes and chats
+        set({
+          notes: combined.filter(item => 'content' in item && !('messages' in item)) as Note[],
+          chats: combined.filter(item => 'messages' in item || ('content' in item && item.id.startsWith('chat-'))) as Chat[],
+          lastFetchedCollection: smartCollection.id,
+          isCacheValid: true
+        })
+      } else {
+        set({
+          notes: notesData,
+          chats: chatsData,
+          lastFetchedCollection: smartCollection.id,
+          isCacheValid: true
+        })
+      }
+    } catch (error) {
+      console.error('Failed to fetch smart collection content:', error)
+      toast.error('Failed to load collection items')
+      throw error
+    }
+  },
+  
   // Create note
-  createNote: async (title, collectionId, id) => {
+  createNote: async (title, spaceId, collectionId, id) => {
     try {
       const noteData: any = { title }
+      if (spaceId) noteData.spaceId = spaceId
       if (collectionId) noteData.collectionId = collectionId
       if (id) noteData.id = id
       
@@ -84,9 +218,9 @@ export const useContentStore = create<ContentStore>((set, get) => ({
   },
   
   // Create chat
-  createChat: async (title, collectionId, id) => {
+  createChat: async (title, spaceId, collectionId, id) => {
     try {
-      const chatData: any = { title, collectionId }
+      const chatData: any = { title, spaceId, collectionId }
       if (id) chatData.id = id
       
       const response = await fetch('/api/chats', {

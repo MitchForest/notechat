@@ -1,0 +1,207 @@
+/**
+ * Chat Selection Styles
+ * Purpose: Styles for text selection and note creation flow
+ * Features:
+ * - Selection highlighting
+ * - Menu positioning
+ * - Note preview animations
+ * - Mobile selection handles
+ * 
+ * Created: December 2024
+ */
+
+/* Enable text selection in chat messages */
+.chat-message-content {
+  user-select: text;
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
+}
+
+/* Selection highlighting */
+.chat-message-content::selection {
+  background: var(--primary);
+  opacity: 0.3;
+  color: inherit;
+}
+
+.chat-message-content::-moz-selection {
+  background: var(--primary);
+  opacity: 0.3;
+  color: inherit;
+}
+
+/* Selection menu styles */
+.selection-menu {
+  position: fixed;
+  z-index: 1000;
+  min-width: 180px;
+  max-width: 240px;
+  background: var(--popover);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  padding: 4px;
+  overflow: hidden;
+}
+
+.selection-menu-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 8px 12px;
+  font-size: 14px;
+  color: var(--foreground);
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 150ms ease-out;
+}
+
+.selection-menu-item:hover {
+  background: var(--accent);
+  color: var(--accent-foreground);
+}
+
+.selection-menu-item:focus {
+  outline: none;
+  background: var(--accent);
+  color: var(--accent-foreground);
+}
+
+.selection-menu-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 4px 0;
+}
+
+/* Note preview card animations */
+.note-preview-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+}
+
+.note-preview-card {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 51;
+  width: 90%;
+  max-width: 600px;
+  max-height: 90vh;
+  overflow: auto;
+}
+
+/* Mobile selection enhancements */
+@media (max-width: 640px) {
+  /* Larger touch targets */
+  .selection-menu-item {
+    padding: 12px 16px;
+    font-size: 16px;
+  }
+  
+  /* Better mobile positioning */
+  .selection-menu {
+    min-width: 200px;
+  }
+  
+  /* Touch-friendly selection handles */
+  .chat-message-content {
+    -webkit-touch-callout: default;
+  }
+}
+
+/* Code block selection */
+.chat-message-content pre {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.chat-message-content code {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+/* Prevent selection in UI elements */
+.chat-avatar,
+.chat-message-actions,
+.chat-input-container {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Selection visual feedback */
+.selection-active {
+  position: relative;
+}
+
+.selection-active::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border: 2px solid var(--primary);
+  border-radius: 4px;
+  opacity: 0.2;
+  pointer-events: none;
+}
+
+/* Smooth transitions for selection */
+.selection-transition {
+  transition: background-color 200ms ease-out;
+}
+
+/* Quote block styles for "Ask AI" feature */
+.chat-quote-block {
+  position: relative;
+  padding-left: 16px;
+  margin: 8px 0;
+  border-left: 3px solid var(--primary);
+  background: var(--muted);
+  border-radius: 4px;
+  padding: 8px 12px 8px 16px;
+}
+
+.chat-quote-block::before {
+  content: '"';
+  position: absolute;
+  left: 4px;
+  top: 0;
+  font-size: 24px;
+  color: var(--primary);
+  opacity: 0.3;
+}
+
+/* Loading state for note creation */
+.note-creating {
+  position: relative;
+  overflow: hidden;
+}
+
+.note-creating::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--primary),
+    transparent
+  );
+  opacity: 0.1;
+  animation: shimmer 1.5s infinite;
+}
+
+@keyframes shimmer {
+  to {
+    left: 100%;
+  }
+} 

@@ -17,12 +17,14 @@ import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/componen
 import { Card, CardContent } from '@/components/ui/card'
 import { Editor } from "@/features/editor/components/editor"
 import { ChatInterface } from '@/features/chat/components/chat-interface'
+import { ErrorBoundary } from '@/features/chat/components/error-boundary'
 import { PanelHeader } from '@/components/shared/panel-header'
 import { ConfirmationDialog } from '@/components/shared/confirmation-dialog'
 import { useContentStore, useCollectionStore } from '@/features/organization/stores'
 import { useNoteContextStore } from '@/features/chat/stores/note-context-store'
 import { toast } from 'sonner'
 import type { Note } from '@/lib/db/schema'
+import { useSpaceStore } from '@/features/organization/stores/space-store'
 
 // Chat component wrapper
 function ChatComponent({
@@ -32,7 +34,11 @@ function ChatComponent({
   chat: { id: string; title?: string }
   onClose?: () => void
 }) {
-  return <ChatInterface chatId={chat.id} onClose={onClose} />
+  return (
+    <ErrorBoundary>
+      <ChatInterface chatId={chat.id} onClose={onClose} />
+    </ErrorBoundary>
+  )
 }
 
 function NoteComponent({
@@ -158,18 +164,23 @@ function NoteComponent({
         // Create the note in the database
         // Get the active collection from the organization store or default to null (uncategorized)
         const { activeCollectionId } = useCollectionStore.getState();
+        const { activeSpaceId } = useSpaceStore.getState();
         
         // Check if it's a virtual collection (permanent collections)
         const virtualCollectionIds = [
           'notes-all', 'notes-recent', 'notes-saved', 'notes-uncategorized',
-          'chats-all', 'chats-recent', 'chats-saved', 'chats-uncategorized'
+          'chats-all', 'chats-recent', 'chats-saved', 'chats-uncategorized',
+          'inbox-all', 'inbox-recent', 'inbox-saved'
         ];
         
         const collectionId = virtualCollectionIds.includes(activeCollectionId || '') 
           ? null 
           : activeCollectionId;
         
-        const createdNote = await createNote(noteTitle, collectionId);
+        // Don't use permanent space IDs - they're virtual
+        const spaceId = activeSpaceId?.startsWith('permanent-') ? null : activeSpaceId;
+        
+        const createdNote = await createNote(noteTitle, spaceId, collectionId);
         if (createdNote) {
           realNoteIdRef.current = createdNote.id; // Store the real UUID
           setIsTemporary(false);
@@ -267,6 +278,7 @@ function NoteComponent({
         <CardContent className="flex-1 p-0 overflow-y-auto">
           <Editor 
             noteId={note.id}
+            noteTitle={noteTitle}
             onChange={handleUpdate}
             content={content}
           />

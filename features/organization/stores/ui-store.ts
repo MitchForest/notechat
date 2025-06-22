@@ -64,14 +64,13 @@ export const useUIStore = create<UIStore>((set, get) => ({
   
   // Toggle collection expansion
   toggleCollection: (collectionId) => {
-    console.log('Toggling collection:', collectionId, 'Current state:', get().collectionExpansion[collectionId])
+    const currentState = get().collectionExpansion[collectionId]
     set(state => ({
       collectionExpansion: {
         ...state.collectionExpansion,
-        [collectionId]: !state.collectionExpansion[collectionId]
+        [collectionId]: currentState === undefined ? false : !currentState  // If undefined, set to false (collapse)
       }
     }))
-    console.log('New state:', get().collectionExpansion[collectionId])
   },
   
   // Set space expansion

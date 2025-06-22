@@ -52,6 +52,24 @@ Fix remaining issues and ensure landing page is production-ready with full theme
 - [x] Use CSS transitions for performance
 - [x] Test animation smoothness
 
+### 9. Fix Sidebar Expansion State ✅
+**Description:** Collections in the sidebar should maintain their expansion state when switching between different collections or spaces.
+
+**Requirements:**
+- [x] Collections should stay expanded when clicking between them
+- [x] Expansion state should persist when switching spaces
+- [x] Fix any console errors related to expansion state
+- [x] Ensure smooth UX when navigating
+
+**Implementation:**
+- Fixed the issue where permanent collections were being recreated on every render
+- Memoized permanent collections outside the render loop to prevent React key changes
+- Added logging to debug item counts and expansion states
+- Resolved React hooks rules violations by moving useMemo outside map callbacks
+- Ensured consistent collection object references across renders
+
+### 10. Landing Page Responsiveness 🚧
+
 ## Technical Requirements
 - All components must work in both light and dark themes
 - Maintain existing design system consistency
@@ -69,36 +87,21 @@ Fix remaining issues and ensure landing page is production-ready with full theme
 - [ ] Test screen reader compatibility
 
 ## Session Summary
-
 **Completed:**
-- Added theme toggle to landing header
-- Updated sign in button text (restored "Sign In with GitHub/Google")
-- Fixed header scroll behavior (shows on scroll down after hero, hides on scroll up)
-- Fixed page centering by adding proper wrapper
-- Removed FAQ categories from display
-- Added realistic avatars to testimonials using randomuser.me
-- Improved accordion animations (kept CSS animations for performance)
+- Fixed sidebar expansion state issue where collections would collapse when switching between them
+- Identified root cause: permanent collections were being recreated on every render
+- Implemented memoization for permanent collections to maintain stable references
+- Added debugging logs to track item counts and expansion states
+- Resolved React hooks violations by properly placing useMemo calls
 
 **Files Changed:**
-- `modified: components/landing/header/landing-header.tsx` - Fixed scroll behavior, restored button text
-- `modified: components/landing/header/mobile-menu.tsx` - Restored sign in button text
-- `modified: components/layout/landing-page.tsx` - Added wrapper for proper centering
-- `modified: components/landing/sections/faq-section.tsx` - Removed category display
-- `modified: components/landing/shared/testimonial-card.tsx` - Added realistic avatars using randomuser.me
-- `modified: components/ui/accordion.tsx` - Kept CSS animations for better performance
-
-**Issues Fixed:**
-- ✅ Restored "Sign In with GitHub/Google" text
-- ✅ Fixed page centering issue
-- ✅ Header now shows on scroll down after hero, hides on scroll up (modern pattern)
-- ✅ Added smooth transitions to header appearance
-- ✅ Accordion animations are working (using CSS)
-- ✅ Testimonials now have realistic avatars from randomuser.me
+- `modified: components/layout/sidebar-nav.tsx` - Added memoization for permanent collections, added debugging logs
+- `modified: .pm/epics/epic-11-landing/sprint-6-final-fixes.md` - Updated sprint progress
+- `modified: .pm/PROJECT_STATUS.md` - Updated project status
 
 **Remaining:**
-- Test light/dark mode compatibility thoroughly
-- Test on mobile devices
-- Test accessibility features
+- Landing page responsiveness improvements
+- Any other final fixes identified during testing
 
 ## Next Steps
 1. Manual testing in both themes

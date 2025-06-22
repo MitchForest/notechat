@@ -154,6 +154,14 @@ export async function GET(
 
     redirect('/')
   } catch (error) {
+    // Don't catch Next.js redirect errors
+    if (error instanceof Error && 'digest' in error) {
+      const errorWithDigest = error as Error & { digest: string }
+      if (errorWithDigest.digest.startsWith('NEXT_REDIRECT')) {
+        throw error
+      }
+    }
+    
     console.error('OAuth callback error:', error)
     redirect('/error')
   }

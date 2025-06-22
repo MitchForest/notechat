@@ -15,6 +15,20 @@
       "when": 1750552868050,
       "tag": "0001_massive_hannibal_king",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1750616715834,
+      "tag": "0002_abandoned_alex_wilder",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1750619499830,
+      "tag": "0003_new_vanisher",
+      "breakpoints": true
     }
   ]
 }

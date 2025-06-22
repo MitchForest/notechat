@@ -16,9 +16,8 @@ import { InlineAI } from '@/features/ai/extensions/inline-ai';
 import { GhostText } from '@/features/ai/extensions/ghost-text'
 import { BlockId } from '../extensions/block-id'
 
-// Import Novel extensions
-import GlobalDragHandle from 'tiptap-extension-global-drag-handle'
-import AutoJoiner from 'tiptap-extension-auto-joiner'
+// Import official Tiptap drag handle
+import { DragHandle } from '@tiptap/extension-drag-handle'
 
 const lowlight = createLowlight(common)
 
@@ -26,8 +25,6 @@ export const getEditorExtensions = (
   errorRegistry: ErrorRegistry, 
   container?: HTMLElement
 ) => {
-  console.log('[Extensions] Loading editor extensions...', { container: !!container, containerClass: container?.className })
-
   const extensions = [
     // Configure StarterKit with all default nodes enabled
     StarterKit.configure({
@@ -36,6 +33,7 @@ export const getEditorExtensions = (
         color: 'oklch(var(--primary))',
         width: 2,
       },
+      codeBlock: false, // Disable because we use CodeBlockLowlight
     }),
     
     // Code block with syntax highlighting
@@ -100,22 +98,56 @@ export const getEditorExtensions = (
     // Add BlockId extension
     BlockId,
     
-    // ALWAYS add Novel drag handle - no conditions
-    GlobalDragHandle.configure({
-      dragHandleWidth: 20,
-      scrollTreshold: 100, // Note: typo in the library, should be "threshold"
-      // Let the extension handle all blocks by default
-      excludedTags: [],
-      // Remove customNodes - let the extension auto-detect
-    }),
-    
-    // Add auto-joiner for lists
-    AutoJoiner.configure({
-      elementsToJoin: ['bulletList', 'orderedList'],
+    // Add drag handle - using official Tiptap extension
+    DragHandle.configure({
+      render: () => {
+        console.log('[DragHandle] render() called')
+        const handle = document.createElement('div')
+        handle.className = 'tiptap-drag-handle'
+        handle.innerHTML = `
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+            <circle cx="4" cy="4" r="1.5"/>
+            <circle cx="4" cy="8" r="1.5"/>
+            <circle cx="4" cy="12" r="1.5"/>
+            <circle cx="12" cy="4" r="1.5"/>
+            <circle cx="12" cy="8" r="1.5"/>
+            <circle cx="12" cy="12" r="1.5"/>
+          </svg>
+        `
+        console.log('[DragHandle] Created element:', handle)
+        return handle
+      },
+      tippyOptions: {
+        duration: 0,
+        placement: 'left',
+        offset: [0, 0],
+        hideOnClick: false,
+        animation: false,
+        appendTo: () => document.getElementById('tiptap-editor-wrapper') || document.body,
+        onShow: (instance: any) => {
+          console.log('[DragHandle] Tippy onShow:', instance)
+        },
+        onHide: (instance: any) => {
+          console.log('[DragHandle] Tippy onHide')
+        },
+        onMount: (instance: any) => {
+          console.log('[DragHandle] Tippy onMount:', instance)
+        },
+        onDestroy: (instance: any) => {
+          console.log('[DragHandle] Tippy onDestroy - THIS SHOULD NOT HAPPEN!')
+          console.trace('[DragHandle] Tippy destroy stack trace')
+        },
+      },
+      onNodeChange: (data: any) => {
+        console.log('[DragHandle] onNodeChange:', {
+          node: data.node?.type?.name,
+          editor: !!data.editor,
+          hasPos: 'pos' in data,
+          data,
+        })
+      },
     }),
   ]
-
-  console.log('[Extensions] Loaded', extensions.length, 'extensions')
 
   // Add spell check only if container exists
   if (container) {

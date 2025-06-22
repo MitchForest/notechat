@@ -11,7 +11,6 @@ import {
 import { 
   Edit2, 
   Trash2, 
-  Copy,
   FolderOpen
 } from 'lucide-react'
 import { Collection } from '@/lib/db/schema'
@@ -42,22 +41,11 @@ export function CollectionContextMenu({
               Rename Collection
             </ContextMenuItem>
             
-            <ContextMenuSeparator />
-          </>
-        )}
-        
-        <ContextMenuItem onClick={() => onAction('duplicate', collection.id)}>
-          <Copy className="mr-2 h-4 w-4" />
-          Duplicate Collection
-        </ContextMenuItem>
-        
-        <ContextMenuItem onClick={() => onAction('moveToSpace', collection.id)}>
-          <FolderOpen className="mr-2 h-4 w-4" />
-          Move to Space...
-        </ContextMenuItem>
-        
-        {!isSystemCollection && (
-          <>
+            <ContextMenuItem onClick={() => onAction('moveToSpace', collection.id)}>
+              <FolderOpen className="mr-2 h-4 w-4" />
+              Move to Space...
+            </ContextMenuItem>
+            
             <ContextMenuSeparator />
             
             <ContextMenuItem 

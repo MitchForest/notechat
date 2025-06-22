@@ -25,13 +25,27 @@ import {
   LogOut, 
   Moon, 
   Sun, 
-  Hash, 
   Menu, 
   PanelLeft, 
   Plus,
   Star,
   Clock,
-  Inbox
+  Inbox,
+  Lock,
+  Folder,
+  Files,
+  Archive,
+  Briefcase,
+  Home,
+  Book,
+  Lightbulb,
+  List,
+  Calendar,
+  Tag,
+  Filter,
+  Send,
+  Users,
+  LucideIcon
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -51,13 +65,14 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
-import type { User as UserType, Note, Chat, Collection, Space } from '@/lib/db/schema'
+import type { User as UserType, Note, Chat, Collection, Space, SmartCollection } from '@/lib/db/schema'
 import { 
   useSpaceStore, 
   useCollectionStore, 
   useContentStore, 
   useSearchStore, 
-  useUIStore 
+  useUIStore,
+  useSmartCollectionStore 
 } from '@/features/organization/stores'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
@@ -68,23 +83,29 @@ import { SpaceContextMenu } from '@/features/organization/components/space-conte
 import { CollectionContextMenu } from '@/features/organization/components/collection-context-menu'
 import { ItemContextMenu } from '@/features/organization/components/item-context-menu'
 import { RenameDialog } from '@/features/organization/components/rename-dialog'
+import { ChangeEmojiDialog } from '@/features/organization/components/change-emoji-dialog'
 import { SearchResults } from '@/features/organization/components/search-results'
 import { DragPreview } from '@/features/organization/components/drag-overlay'
 import { DraggableItem } from '@/features/organization/components/draggable-item'
 import { DroppableCollection } from '@/features/organization/components/droppable-collection'
-import { 
+import { useDragDrop } from '@/features/organization/hooks/use-drag-drop'
+
+import {
   DndContext,
 } from '@dnd-kit/core'
 import {
   SortableContext,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
-import { useDragDrop } from '@/features/organization/hooks/use-drag-drop'
-import { PERMANENT_SPACES_DATA } from '@/features/organization/lib/permanent-space-config'
 
 interface SidebarNavProps {
   className?: string
   user: UserType
+}
+
+interface SmartCollectionFilter {
+  type?: string
+  filterConfig?: Record<string, unknown>
 }
 
 const getInitials = (name: string | null | undefined, email: string) => {
@@ -99,19 +120,31 @@ const getInitials = (name: string | null | undefined, email: string) => {
 }
 
 // Collection icon mapping
-const getCollectionIcon = (collectionName: string) => {
-  switch (collectionName.toLowerCase()) {
-    case 'all':
-      return <Hash className="h-3 w-3" />
-    case 'recent':
-      return <Clock className="h-3 w-3" />
-    case 'saved':
-      return <Star className="h-3 w-3" />
-    case 'uncategorized':
-      return <Inbox className="h-3 w-3" />
-    default:
-      return <Hash className="h-3 w-3" />
+const getCollectionIcon = (iconName: string): LucideIcon => {
+  const icons: Record<string, LucideIcon> = {
+    'folder': Folder,
+    'files': Files,
+    'file-text': FileText,
+    'message-square': MessageSquare,
+    'star': Star,
+    'clock': Clock,
+    'archive': Archive,
+    'briefcase': Briefcase,
+    'home': Home,
+    'book': Book,
+    'lightbulb': Lightbulb,
+    'list': List,
+    'calendar': Calendar,
+    'tag': Tag,
+    'search': Search,
+    'filter': Filter,
+    'inbox': Inbox,
+    'send': Send,
+    'users': Users,
+    'lock': Lock
   }
+  
+  return icons[iconName] || Folder
 }
 
 // Memoized collection component to prevent unnecessary re-renders
@@ -124,8 +157,8 @@ const CollectionItem = React.memo(({
   onItemClick,
   onItemAction,
   getFilteredItems,
-  getCollectionIcon,
   dragDropHook,
+  chats,
 }: {
   collection: Collection;
   space: Space;
@@ -135,16 +168,19 @@ const CollectionItem = React.memo(({
   onItemClick: (item: Note | Chat, type: 'note' | 'chat') => void;
   onItemAction: (action: string, itemId: string) => void;
   getFilteredItems: (collection: Collection, spaceId: string, items: (Note | Chat)[]) => (Note | Chat)[];
-  getCollectionIcon: (name: string) => React.ReactNode;
   dragDropHook: ReturnType<typeof useDragDrop>;
+  chats: Chat[];
 }) => {
+  // Helper to determine if an item is a chat or note
+  const getItemType = (item: Note | Chat): 'note' | 'chat' => {
+    return chats.some(chat => chat.id === item.id) ? 'chat' : 'note'
+  }
+  
   const filteredItems = useMemo(
     () => getFilteredItems(collection, space.id, items),
     [getFilteredItems, collection, space.id, items]
   );
   const itemCount = filteredItems.length;
-  
-  console.log(`Collection ${collection.id} - items: ${items.length}, filtered: ${filteredItems.length}, isExpanded: ${isExpanded}`)
   
   // Create drop data for this collection
   const dropData = dragDropHook.createDropData({
@@ -153,9 +189,11 @@ const CollectionItem = React.memo(({
     spaceId: space.id,
     spaceType: space.type,
     collectionType: collection.type,
-    acceptsType: space.id === 'permanent-chats' ? 'chat' : 'note',
+    acceptsType: 'both', // Collections can now accept both notes and chats
     name: collection.name,
   });
+
+  const Icon = getCollectionIcon(collection.icon || 'folder')
 
   return (
     <DroppableCollection 
@@ -174,7 +212,7 @@ const CollectionItem = React.memo(({
         }}
       >
         <div className="flex items-center gap-2">
-          {getCollectionIcon(collection.name)}
+          <Icon className="h-3 w-3" />
           <span>{collection.name}</span>
           {itemCount > 0 && (
             <span className="text-xs text-muted-foreground">({itemCount})</span>
@@ -200,7 +238,10 @@ const CollectionItem = React.memo(({
               strategy={verticalListSortingStrategy}
             >
               {filteredItems.map((item) => {
-                const itemType = space.id === 'permanent-chats' ? 'chat' : 'note'
+                // Determine item type by checking if it has chat-specific properties
+                // In the future, we might add a 'type' field to the schema
+                const itemType = getItemType(item)
+                  
                 const dragData = dragDropHook.createDragData({
                   id: item.id,
                   type: itemType,
@@ -231,7 +272,12 @@ const CollectionItem = React.memo(({
                           onItemClick(item, itemType);
                         }}
                       >
-                        {item.isStarred && <Star className="h-3 w-3 fill-current" />}
+                        {itemType === 'chat' ? (
+                          <MessageSquare className="h-3 w-3 flex-shrink-0" />
+                        ) : (
+                          <FileText className="h-3 w-3 flex-shrink-0" />
+                        )}
+                        {item.isStarred && <Star className="h-3 w-3 fill-current flex-shrink-0" />}
                         <span className="truncate">{item.title}</span>
                       </button>
                     </ItemContextMenu>
@@ -295,31 +341,38 @@ const SpaceSection = React.memo(({
 SpaceSection.displayName = 'SpaceSection';
 
 export function SidebarNav({ className, user }: SidebarNavProps) {
-  // Space store
-  const {
-    spaces,
-    activeSpaceId,
-    fetchSpaces,
-    setActiveSpace,
+  const { theme, setTheme } = useTheme()
+  
+  // Organizational state
+  const { 
+    spaces, 
+    activeSpaceId, 
+    setActiveSpace, 
     createSpace,
+    fetchSpaces 
   } = useSpaceStore()
   
-  // Collection store
-  const {
-    collections,
-    createCollection,
+  const { 
+    collections, 
+    createCollection
   } = useCollectionStore()
   
-  // Content store
   const {
-    notes,
-    chats,
-    updateNote,
+    activeSmartCollectionId,
+    setActiveSmartCollection,
+    setSmartCollections
+  } = useSmartCollectionStore()
+  
+  const { 
+    notes, 
+    chats, 
+    updateNote, 
     updateChat,
     deleteNote,
     deleteChat,
     toggleNoteStar,
     toggleChatStar,
+    fetchSmartCollectionContent
   } = useContentStore()
   
   // Search store
@@ -341,7 +394,6 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
   } = useUIStore()
   
   const { openChat, openNote } = useAppShell()
-  const { theme, setTheme } = useTheme()
   
   // Dialog states
   const [createSpaceOpen, setCreateSpaceOpen] = useState(false)
@@ -360,6 +412,19 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
     itemId: '',
     itemType: 'note',
     currentName: ''
+  })
+  
+  // Change emoji dialog state
+  const [changeEmojiDialog, setChangeEmojiDialog] = useState<{
+    open: boolean
+    spaceId: string
+    spaceName: string
+    currentEmoji: string
+  }>({
+    open: false,
+    spaceId: '',
+    spaceName: '',
+    currentEmoji: ''
   })
   
   // Drag & drop state
@@ -394,52 +459,72 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
     fetchInitialData()
   }, [])
 
+  // When active space changes, update smart collections
+  useEffect(() => {
+    const activeSpace = spaces.find(s => s.id === activeSpaceId)
+    if (activeSpace && activeSpace.smartCollections) {
+      setSmartCollections(activeSpace.smartCollections)
+    }
+  }, [activeSpaceId, spaces, setSmartCollections])
+
   // Helper function to filter items based on collection type
   const getFilteredItems = useCallback((collection: Collection, spaceId: string, items: (Note | Chat)[]) => {
     const now = new Date()
     const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
 
-    let permanentCollection: { type?: string; fetchConfig?: { api: string; filter: string } } | null = null;
-    for (const space of PERMANENT_SPACES_DATA) {
-      const foundCollection = space.collections.find((c) => c.id === collection.id);
+    let permanentCollection: SmartCollectionFilter | null = null;
+    const systemSpace = spaces.find(s => s.type === 'system')
+    if (systemSpace && systemSpace.smartCollections) {
+      const foundCollection = systemSpace.smartCollections.find((c: SmartCollection) => c.id === collection.id);
       if (foundCollection) {
-        permanentCollection = foundCollection;
-        break;
+        permanentCollection = {
+          type: foundCollection.name.toLowerCase().replace(' ', '-'),
+          filterConfig: foundCollection.filterConfig as Record<string, unknown>
+        };
       }
     }
       
     const collectionType = permanentCollection ? permanentCollection.type : 'user'
 
+    let filteredItems: (Note | Chat)[] = []
+    
     switch (collectionType) {
       case 'static-all':
-        return items
+        filteredItems = items
+        break
       case 'static-recent':
-        return items.filter(item => new Date(item.updatedAt) > sevenDaysAgo)
+        filteredItems = items.filter(item => new Date(item.updatedAt) > sevenDaysAgo)
+        break
       case 'static-starred':
-        return items.filter(item => item.isStarred)
+        filteredItems = items.filter(item => item.isStarred)
+        break
       case 'static-uncategorized':
-        return items.filter(item => !item.collectionId)
+        filteredItems = items.filter(item => !item.collectionId)
+        break
       case 'user':
       default:
         // Regular user collection - filter by collection ID
-        return items.filter(item => item.collectionId === collection.id)
+        filteredItems = items.filter(item => item.collectionId === collection.id)
+        break
     }
-  }, [])
+    
+    // Sort all items by updatedAt in descending order (most recent first)
+    return filteredItems.sort((a, b) => 
+      new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+    )
+  }, [spaces])
 
   // Helper function to get items for a specific space
   const getItemsForSpace = useCallback((spaceId: string): (Note | Chat)[] => {
-    if (spaceId === 'permanent-notes') {
-      console.log('Getting items for permanent-notes:', notes.length, 'notes')
-      return notes
-    } else if (spaceId === 'permanent-chats') {
-      console.log('Getting items for permanent-chats:', chats.length, 'chats')
-      return chats
-    } else {
-      // User spaces - for now, return notes
-      // TODO: In the future, spaces might contain mixed content
-      console.log('Getting items for user space:', spaceId, notes.length, 'notes')
-      return notes
-    }
+    // Simply filter by spaceId - much cleaner!
+    const spaceNotes = notes.filter(note => note.spaceId === spaceId)
+    const spaceChats = chats.filter(chat => chat.spaceId === spaceId)
+    const allItems = [...spaceNotes, ...spaceChats]
+    
+    // Sort by updatedAt in descending order (most recent first)
+    return allItems.sort((a, b) => 
+      new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+    )
   }, [notes, chats])
 
   const handleNewChat = useCallback(() => {
@@ -517,21 +602,17 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
         })
         break
       case 'delete':
-        if (confirm(`Delete space "${space.name}"? All collections and items will be moved to Uncategorized.`)) {
+        if (confirm(`Delete space "${space.name}"? All collections and items will be moved to Inbox.`)) {
           useSpaceStore.getState().deleteSpace(spaceId)
         }
         break
       case 'changeEmoji':
-        // TODO: Open emoji picker dialog
-        console.log('Change emoji for space:', spaceId)
-        break
-      case 'duplicate':
-        // TODO: Implement space duplication
-        console.log('Duplicate space:', spaceId)
-        break
-      case 'export':
-        // TODO: Implement space export
-        console.log('Export space:', spaceId)
+        setChangeEmojiDialog({
+          open: true,
+          spaceId: spaceId,
+          spaceName: space.name,
+          currentEmoji: space.emoji || '📁'
+        })
         break
     }
   }, [spaces])
@@ -550,13 +631,9 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
         })
         break
       case 'delete':
-        if (confirm(`Delete collection "${collection.name}"? All items will be moved to Uncategorized.`)) {
+        if (confirm(`Delete collection "${collection.name}"? All items will be moved to the space root.`)) {
           useCollectionStore.getState().deleteCollection(collectionId)
         }
-        break
-      case 'duplicate':
-        // TODO: Implement collection duplication
-        console.log('Duplicate collection:', collectionId)
         break
       case 'moveToSpace':
         // TODO: Implement move to space dialog
@@ -603,45 +680,19 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
         // TODO: Implement move to collection dialog
         console.log('Move item:', itemId)
         break
-      case 'duplicate':
-        // TODO: Implement item duplication
-        console.log('Duplicate item:', itemId)
-        break
     }
   }, [notes, chats, handleItemClick, toggleNoteStar, toggleChatStar, deleteNote, deleteChat])
 
   // Separate permanent and user spaces
-  const permanentSpaces = spaces.filter(s => s.type === 'static')
-  const userSpaces = spaces.filter(s => s.type !== 'static')
+  const permanentSpaces = spaces.filter(s => s.type === 'system')
+  const userSpaces = spaces.filter(s => s.type === 'user')
 
   // Memoize permanent collections to prevent recreation on every render
-  const permanentNotesCollections = useMemo(() => {
-    const space = PERMANENT_SPACES_DATA.find(s => s.id === 'permanent-notes')
+  const permanentInboxCollections = useMemo(() => {
+    const space = spaces.find((s: Space) => s.type === 'system' && s.name === 'Inbox')
     if (!space) return []
-    return space.collections.map(c => ({
-      id: c.id,
-      name: c.name,
-      type: 'static' as const,
-      userId: user.id,
-      spaceId: 'permanent-notes',
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    }))
-  }, [user.id])
-
-  const permanentChatsCollections = useMemo(() => {
-    const space = PERMANENT_SPACES_DATA.find(s => s.id === 'permanent-chats')
-    if (!space) return []
-    return space.collections.map(c => ({
-      id: c.id,
-      name: c.name,
-      type: 'static' as const,
-      userId: user.id,
-      spaceId: 'permanent-chats',
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    }))
-  }, [user.id])
+    return space.collections || []
+  }, [spaces])
 
   if (sidebarCollapsed) {
     // Collapsed sidebar - icon only view
@@ -922,56 +973,10 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
                 
                 // Use pre-memoized collections for permanent spaces
                 const spaceCollections: Collection[] = 
-                  space.id === 'permanent-notes' ? permanentNotesCollections :
-                  space.id === 'permanent-chats' ? permanentChatsCollections :
+                  space.id === 'permanent-inbox' ? permanentInboxCollections :
                   collections.filter(c => c.spaceId === space.id)
                 
-                return (
-                  <SpaceSection
-                    key={space.id}
-                    space={space}
-                    isExpanded={isSpaceExpanded}
-                    onToggle={() => toggleSpace(space.id)}
-                  >
-                    {spaceCollections.length > 0 && (
-                      <div className="mt-1 ml-6 space-y-0.5">
-                        {spaceCollections.map((collection) => {
-                          const isExpanded = collectionExpansion[collection.id]
-                          
-                          return (
-                            <CollectionContextMenu
-                              key={collection.id}
-                              collection={collection}
-                              onAction={handleCollectionAction}
-                            >
-                              <CollectionItem
-                                collection={collection}
-                                space={space}
-                                items={spaceItems}
-                                isExpanded={isExpanded}
-                                onToggle={toggleCollection}
-                                onItemClick={handleItemClick}
-                                onItemAction={handleItemAction}
-                                getFilteredItems={getFilteredItems}
-                                getCollectionIcon={getCollectionIcon}
-                                dragDropHook={dragDropHook}
-                              />
-                            </CollectionContextMenu>
-                          )
-                        })}
-                      </div>
-                    )}
-                  </SpaceSection>
-                )
-              })}
-
-              {userSpaces.length > 0 && <Separator className="my-3" />}
-
-              {/* User Spaces */}
-              {userSpaces.map((space) => {
-                const spaceItems = getItemsForSpace(space.id)
-                const isSpaceExpanded = spaceExpansion[space.id]
-                const spaceCollections: Collection[] = collections.filter(c => c.spaceId === space.id)
+                const spaceSmartCollections = space.smartCollections || []
                 
                 return (
                   <SpaceContextMenu
@@ -984,10 +989,40 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
                       isExpanded={isSpaceExpanded}
                       onToggle={() => toggleSpace(space.id)}
                     >
-                      {spaceCollections.length > 0 && (
+                      {(spaceSmartCollections.length > 0 || spaceCollections.length > 0) && (
                         <div className="mt-1 ml-6 space-y-0.5">
+                          {/* Smart Collections */}
+                          {spaceSmartCollections.map((smartCollection) => {
+                            const Icon = getCollectionIcon(smartCollection.icon)
+                            
+                            return (
+                              <button
+                                key={smartCollection.id}
+                                className={cn(
+                                  "w-full flex items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-hover-1",
+                                  activeSmartCollectionId === smartCollection.id && "bg-hover-2"
+                                )}
+                                onClick={() => {
+                                  setActiveSmartCollection(smartCollection.id)
+                                  fetchSmartCollectionContent(smartCollection)
+                                }}
+                                onContextMenu={(e) => {
+                                  e.preventDefault()
+                                  // Smart collections in permanent spaces are always protected
+                                }}
+                              >
+                                <Icon className="h-4 w-4" />
+                                <span>{smartCollection.name}</span>
+                                {smartCollection.isProtected && (
+                                  <Lock className="h-3 w-3 ml-auto text-muted-foreground" />
+                                )}
+                              </button>
+                            )
+                          })}
+                          
+                          {/* Regular Collections */}
                           {spaceCollections.map((collection) => {
-                            const isExpanded = collectionExpansion[collection.id]
+                            const isExpanded = collectionExpansion[collection.id] ?? false
                             
                             return (
                               <CollectionContextMenu
@@ -1004,8 +1039,91 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
                                   onItemClick={handleItemClick}
                                   onItemAction={handleItemAction}
                                   getFilteredItems={getFilteredItems}
-                                  getCollectionIcon={getCollectionIcon}
                                   dragDropHook={dragDropHook}
+                                  chats={chats}
+                                />
+                              </CollectionContextMenu>
+                            )
+                          })}
+                        </div>
+                      )}
+                    </SpaceSection>
+                  </SpaceContextMenu>
+                )
+              })}
+
+              {/* User Spaces */}
+              {userSpaces.map((space) => {
+                const spaceItems = getItemsForSpace(space.id)
+                const isSpaceExpanded = spaceExpansion[space.id]
+                const spaceCollections: Collection[] = collections.filter(c => c.spaceId === space.id)
+                const spaceSmartCollections = space.smartCollections || []
+                
+                return (
+                  <SpaceContextMenu
+                    key={space.id}
+                    space={space}
+                    onAction={handleSpaceAction}
+                  >
+                    <SpaceSection
+                      space={space}
+                      isExpanded={isSpaceExpanded}
+                      onToggle={() => toggleSpace(space.id)}
+                    >
+                      {(spaceSmartCollections.length > 0 || spaceCollections.length > 0) && (
+                        <div className="mt-1 ml-6 space-y-0.5">
+                          {/* Smart Collections */}
+                          {spaceSmartCollections.map((smartCollection) => {
+                            const Icon = getCollectionIcon(smartCollection.icon)
+                            
+                            return (
+                              <button
+                                key={smartCollection.id}
+                                className={cn(
+                                  "w-full flex items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-hover-1",
+                                  activeSmartCollectionId === smartCollection.id && "bg-hover-2"
+                                )}
+                                onClick={() => {
+                                  setActiveSmartCollection(smartCollection.id)
+                                  fetchSmartCollectionContent(smartCollection)
+                                }}
+                                onContextMenu={(e) => {
+                                  e.preventDefault()
+                                  if (!smartCollection.isProtected) {
+                                    // Handle smart collection context menu
+                                  }
+                                }}
+                              >
+                                <Icon className="h-4 w-4" />
+                                <span>{smartCollection.name}</span>
+                                {smartCollection.isProtected && (
+                                  <Lock className="h-3 w-3 ml-auto text-muted-foreground" />
+                                )}
+                              </button>
+                            )
+                          })}
+                          
+                          {/* Regular Collections */}
+                          {spaceCollections.map((collection) => {
+                            const isExpanded = collectionExpansion[collection.id] ?? false
+                            
+                            return (
+                              <CollectionContextMenu
+                                key={collection.id}
+                                collection={collection}
+                                onAction={handleCollectionAction}
+                              >
+                                <CollectionItem
+                                  collection={collection}
+                                  space={space}
+                                  items={spaceItems}
+                                  isExpanded={isExpanded}
+                                  onToggle={toggleCollection}
+                                  onItemClick={handleItemClick}
+                                  onItemAction={handleItemAction}
+                                  getFilteredItems={getFilteredItems}
+                                  dragDropHook={dragDropHook}
+                                  chats={chats}
                                 />
                               </CollectionContextMenu>
                             )
@@ -1141,10 +1259,20 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
             }
           }}
         />
+        
+        <ChangeEmojiDialog
+          open={changeEmojiDialog.open}
+          onOpenChange={(open) => setChangeEmojiDialog(prev => ({ ...prev, open }))}
+          currentEmoji={changeEmojiDialog.currentEmoji}
+          spaceName={changeEmojiDialog.spaceName}
+          onChangeEmoji={async (newEmoji) => {
+            await useSpaceStore.getState().updateSpace(changeEmojiDialog.spaceId, { emoji: newEmoji })
+          }}
+        />
       </div>
       
-      {/* Drag Preview */}
-      <DragPreview item={dragDropHook.dragOverlay.item} />
+              {/* Drag Preview */}
+        <DragPreview item={dragDropHook.dragOverlay.item} />
     </DndContext>
   )
 } 

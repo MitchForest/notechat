@@ -93,23 +93,23 @@ export async function DELETE(
   const { spaceId } = await context.params
 
   try {
-    // Don't allow deleting permanent or seeded spaces
-    const space = await db.query.spaces.findFirst({
+    // Check if space exists and is not a system space
+    const existingSpace = await db.query.spaces.findFirst({
       where: and(
         eq(spaces.id, spaceId),
         eq(spaces.userId, user.id)
       ),
     })
-
-    if (!space) {
+    
+    if (!existingSpace) {
       return NextResponse.json({ error: 'Space not found' }, { status: 404 })
     }
-
-    if (space.type !== 'user') {
-      return NextResponse.json({ error: 'Cannot delete system spaces' }, { status: 403 })
+    
+    if (existingSpace.type === 'system') {
+      return NextResponse.json({ error: 'Cannot delete system space' }, { status: 403 })
     }
-
-    // Delete the space (collections will be cascade deleted)
+    
+    // Delete space (collections, notes, and chats will cascade)
     await db
       .delete(spaces)
       .where(
@@ -123,5 +123,60 @@ export async function DELETE(
   } catch (error) {
     console.error('Failed to delete space:', error)
     return NextResponse.json({ error: 'Failed to delete space' }, { status: 500 })
+  }
+}
+
+export async function PATCH(
+  request: Request,
+  context: { params: Promise<{ spaceId: string }> }
+) {
+  const user = await getCurrentUser()
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const { spaceId } = await context.params
+
+  try {
+    const { name, emoji } = await request.json()
+    
+    // Check if space exists and belongs to user
+    const existingSpace = await db.query.spaces.findFirst({
+      where: and(
+        eq(spaces.id, spaceId),
+        eq(spaces.userId, user.id)
+      ),
+    })
+    
+    if (!existingSpace) {
+      return NextResponse.json({ error: 'Space not found' }, { status: 404 })
+    }
+    
+    const updates: Record<string, string | Date> = {}
+    if (name !== undefined) updates.name = name
+    if (emoji !== undefined) updates.emoji = emoji
+    
+    if (Object.keys(updates).length === 0) {
+      return NextResponse.json({ error: 'No updates provided' }, { status: 400 })
+    }
+    
+    const [updatedSpace] = await db
+      .update(spaces)
+      .set({
+        ...updates,
+        updatedAt: new Date()
+      })
+      .where(
+        and(
+          eq(spaces.id, spaceId),
+          eq(spaces.userId, user.id)
+        )
+      )
+      .returning()
+
+    return NextResponse.json(updatedSpace)
+  } catch (error) {
+    console.error('Failed to update space:', error)
+    return NextResponse.json({ error: 'Failed to update space' }, { status: 500 })
   }
 } 

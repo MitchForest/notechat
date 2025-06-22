@@ -1,9 +1,12 @@
 import { create } from 'zustand'
-import { Space as DbSpace, Collection } from '@/lib/db/schema'
+import { Space as DbSpace, Collection, SmartCollection } from '@/lib/db/schema'
 import { toast } from 'sonner'
 import { useCollectionStore } from './collection-store'
 
-export type Space = DbSpace & { collections: Collection[] }
+export type Space = DbSpace & { 
+  collections: Collection[]
+  smartCollections?: SmartCollection[]
+}
 
 interface SpaceState {
   spaces: Space[]
@@ -51,9 +54,9 @@ export const useSpaceStore = create<SpaceStore>((set, get) => ({
       const allCollections = spaces.flatMap(space => space.collections || [])
       useCollectionStore.getState().setCollections(allCollections)
       
-      // Set permanent-notes as the default active space if none is set
+      // Set permanent-inbox as the default active space if none is set
       const currentActiveId = get().activeSpaceId
-      const activeSpaceId = currentActiveId || 'permanent-notes'
+      const activeSpaceId = currentActiveId || 'permanent-inbox'
       
       set({ spaces, activeSpaceId, loading: false })
     } catch (error) {
@@ -156,8 +159,8 @@ export const useSpaceStore = create<SpaceStore>((set, get) => ({
     // Optimistic update
     set(state => ({
       spaces: state.spaces.filter(s => s.id !== spaceId),
-      // If we're deleting the active space, switch to permanent-notes
-      activeSpaceId: state.activeSpaceId === spaceId ? 'permanent-notes' : state.activeSpaceId
+      // If we're deleting the active space, switch to permanent-inbox
+      activeSpaceId: state.activeSpaceId === spaceId ? 'permanent-inbox' : state.activeSpaceId
     }))
     
     try {

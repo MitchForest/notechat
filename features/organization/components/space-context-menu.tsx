@@ -11,8 +11,6 @@ import {
 import { 
   Edit2, 
   Trash2, 
-  Copy,
-  Download,
   Palette
 } from 'lucide-react'
 import { Space } from '@/lib/db/schema'
@@ -28,7 +26,7 @@ export function SpaceContextMenu({
   onAction,
   children
 }: SpaceContextMenuProps) {
-  const isSystemSpace = space.type === 'static'
+  const isSystemSpace = space.type === 'system'
   
   return (
     <ContextMenu>
@@ -48,22 +46,6 @@ export function SpaceContextMenu({
               Change Emoji
             </ContextMenuItem>
             
-            <ContextMenuSeparator />
-          </>
-        )}
-        
-        <ContextMenuItem onClick={() => onAction('duplicate', space.id)}>
-          <Copy className="mr-2 h-4 w-4" />
-          Duplicate Space
-        </ContextMenuItem>
-        
-        <ContextMenuItem onClick={() => onAction('export', space.id)}>
-          <Download className="mr-2 h-4 w-4" />
-          Export Space
-        </ContextMenuItem>
-        
-        {!isSystemSpace && (
-          <>
             <ContextMenuSeparator />
             
             <ContextMenuItem 

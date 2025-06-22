@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge'
 import { Loader2, FileText, Edit, Eye, X } from 'lucide-react'
 import { useExtractToNote, ExtractOptions, ExtractedNote } from '../hooks/use-extract-to-note'
-import { useContentStore, useCollectionStore } from '@/features/organization/stores'
+import { useContentStore, useCollectionStore, useSpaceStore } from '@/features/organization/stores'
 import { toast } from 'sonner'
 import { useRouter } from 'next/navigation'
 
@@ -73,8 +73,14 @@ export function ExtractToNoteDialog({
     setIsSaving(true)
     try {
       const noteId = `note-${Date.now()}`
+      const { activeSpaceId } = useSpaceStore.getState()
+      
+      // Don't use permanent space IDs - they're virtual
+      const spaceId = activeSpaceId?.startsWith('permanent-') ? null : activeSpaceId
+      
       const createdNote = await createNote(
         extracted.title,
+        spaceId,
         selectedCollectionId || null,
         noteId
       )

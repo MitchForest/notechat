@@ -10,6 +10,7 @@ const updateNoteSchema = z.object({
   content: z.any().optional(),
   isStarred: z.boolean().optional(),
   collectionId: z.string().uuid().nullable().optional(),
+  spaceId: z.string().uuid().nullable().optional(),
 })
 
 export async function GET(

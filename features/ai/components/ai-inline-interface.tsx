@@ -1,16 +1,20 @@
 'use client'
 
 import { NodeViewWrapper, NodeViewProps } from '@tiptap/react'
-import { useState, useCallback, FormEvent, useEffect } from 'react'
+import { useState, useCallback, FormEvent, useEffect, useMemo } from 'react'
 import { Wand2, X, CornerDownLeft, RefreshCw, ArrowDown, Check } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { useAICompletion } from '../hooks/use-ai-completion'
+import { SmartInsert } from '../utils/smart-insert'
 
 const SUGGESTIONS = [
-  'Continue writing',
+  'Write a JavaScript function',
+  'Create a Python class',
+  'Make a todo list',
+  'Write a React component',
+  'Create a smart contract',
   'Add a summary',
-  'Make a bullet list',
   'Improve writing style'
 ]
 
@@ -19,6 +23,9 @@ export function AIInlineInterface({ editor, node, getPos }: NodeViewProps) {
   const [showSuggestions, setShowSuggestions] = useState(true)
 
   const { completion, triggerCompletion, isLoading, stop } = useAICompletion()
+  
+  // Create SmartInsert instance
+  const smartInsert = useMemo(() => new SmartInsert(editor), [editor])
 
   const position = typeof getPos === 'function' ? getPos() : 0
 
@@ -48,14 +55,36 @@ export function AIInlineInterface({ editor, node, getPos }: NodeViewProps) {
     editor.chain().focus().deleteRange({ from: position, to: position + node.nodeSize }).run()
   }, [editor, position, node.nodeSize])
 
-  const handleAccept = useCallback(() => {
-    editor.chain().focus().deleteRange({ from: position, to: position + node.nodeSize }).insertContent(completion).run()
-  }, [editor, position, node.nodeSize, completion])
+  const handleAccept = useCallback(async () => {
+    // Delete the inline AI node first
+    editor.chain().focus().deleteRange({ from: position, to: position + node.nodeSize }).run()
+    
+    // Use SmartInsert to intelligently insert the content
+    await smartInsert.insertContent(completion, {
+      userPrompt: input,
+      operation: 'generate'
+    })
+  }, [editor, position, node.nodeSize, completion, smartInsert, input])
 
-  const handleInsertBelow = useCallback(() => {
+  const handleInsertBelow = useCallback(async () => {
     const endPos = position + node.nodeSize
-    editor.chain().focus().deleteRange({ from: position, to: position + node.nodeSize }).insertContentAt(endPos, completion).run()
-  }, [editor, position, node.nodeSize, completion])
+    
+    // Delete the inline AI node
+    editor.chain().focus().deleteRange({ from: position, to: position + node.nodeSize }).run()
+    
+    // Move cursor to end position and create new paragraph
+    editor.chain()
+      .focus()
+      .insertContentAt(endPos, '<p></p>')
+      .setTextSelection(endPos + 1)
+      .run()
+    
+    // Use SmartInsert to intelligently insert the content
+    await smartInsert.insertContent(completion, {
+      userPrompt: input,
+      operation: 'generate'
+    })
+  }, [editor, position, node.nodeSize, completion, smartInsert, input])
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -77,7 +106,7 @@ export function AIInlineInterface({ editor, node, getPos }: NodeViewProps) {
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2 text-sm font-medium">
             <Wand2 className="h-4 w-4" />
-            <span>Ask AI anything...</span>
+            <span>Ask AI to write anything...</span>
           </div>
           <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleClose}>
             <X className="h-4 w-4" />
@@ -86,7 +115,9 @@ export function AIInlineInterface({ editor, node, getPos }: NodeViewProps) {
 
         {completion || isLoading ? (
           <div className="response-area min-h-[100px]">
-            <div className="prose prose-sm dark:prose-invert max-w-full">{completion}</div>
+            <div className="prose prose-sm dark:prose-invert max-w-full whitespace-pre-wrap font-mono text-sm bg-background p-3 rounded-md">
+              {completion}
+            </div>
             {isLoading && !completion && <div className="text-muted-foreground">AI is thinking...</div>}
           </div>
         ) : (
@@ -94,19 +125,20 @@ export function AIInlineInterface({ editor, node, getPos }: NodeViewProps) {
             <Textarea
               value={input}
               onChange={handleInputChange}
-              placeholder="e.g., 'Create a poem about coding'"
+              placeholder="e.g., 'Write a JavaScript function to sort an array' or 'Create a todo list'"
               className="w-full bg-background resize-none"
               rows={2}
+              autoFocus
             />
             {showSuggestions && (
               <div className="mt-2 text-sm text-muted-foreground">
-                <strong>Suggested:</strong>
+                <strong>Try these:</strong>
                 <div className="flex flex-wrap gap-2 mt-1">
                   {SUGGESTIONS.map(s => (
                     <button
                       key={s}
                       type="button"
-                      className="px-2 py-1 rounded-md bg-background hover:bg-neutral-100 dark:hover:bg-neutral-800 border"
+                      className="px-2 py-1 rounded-md bg-background hover:bg-neutral-100 dark:hover:bg-neutral-800 border text-xs"
                       onClick={() => handleSuggestionClick(s)}
                     >
                       {s}

@@ -1,13 +1,14 @@
 /**
  * Store: Note Context Store
- * Purpose: Manage note context for AI chat integration
+ * Purpose: Manage multiple note contexts for AI chat integration
  * Features:
- * - Track current note being edited
- * - Maintain recent notes history
- * - Store referenced notes from @mentions
- * - Format context for AI prompts
+ * - Track multiple active notes in chat
+ * - Visual highlighting when AI references notes
+ * - Drag & drop support
+ * - Format combined context for AI prompts
  * 
  * Created: December 2024
+ * Updated: December 2024 - Multi-note context support
  */
 
 import { create } from 'zustand'
@@ -25,21 +26,51 @@ interface Note {
   updatedAt: Date
 }
 
+interface NoteContext extends Note {
+  addedAt: Date
+  isHighlighted?: boolean
+}
+
+interface ContextMetadata {
+  noteId: string
+  title: string
+  snippet: string
+}
+
 interface NoteContextStore {
-  // State
-  currentNote: Note | null
-  recentNotes: Note[] // Last 5 viewed notes
-  referencedNotes: Note[] // Notes referenced via @mentions
+  // State - Now using Map for multiple notes
+  contextNotes: Map<string, NoteContext>
+  highlightedNoteId: string | null
+  maxContextNotes: number
   
-  // Actions
+  // Legacy support (will phase out)
+  currentNote: Note | null
+  recentNotes: Note[]
+  referencedNotes: Note[]
+  
+  // Actions - Multi-note support
+  addNote: (note: Note) => void
+  addNotes: (notes: Note[]) => void
+  removeNote: (noteId: string) => void
+  clearContext: () => void
+  hasNote: (noteId: string) => boolean
+  getNoteCount: () => number
+  
+  // AI integration
+  getContextString: () => string
+  getContextMetadata: () => ContextMetadata[]
+  
+  // UI state
+  setHighlightedNote: (noteId: string | null) => void
+  highlightNoteTemporarily: (noteId: string, duration?: number) => void
+  
+  // Legacy actions (keep for compatibility)
   setCurrentNote: (note: Note | null) => void
   addRecentNote: (note: Note) => void
   addReferencedNote: (note: Note) => void
   removeReferencedNote: (noteId: string) => void
   getContextForChat: () => string
   clearReferences: () => void
-  
-  // Utility
   isNoteReferenced: (noteId: string) => boolean
   getRecentNoteIds: () => string[]
 }
@@ -48,19 +79,145 @@ export const useNoteContextStore = create<NoteContextStore>()(
   persist(
     (set, get) => ({
       // Initial state
+      contextNotes: new Map(),
+      highlightedNoteId: null,
+      maxContextNotes: 10,
+      
+      // Legacy state
       currentNote: null,
       recentNotes: [],
       referencedNotes: [],
       
-      // Set the current note and add to recent history
+      // Add a single note to context
+      addNote: (note) => {
+        set((state) => {
+          const newMap = new Map(state.contextNotes)
+          
+          // Check max limit
+          if (newMap.size >= state.maxContextNotes && !newMap.has(note.id)) {
+            // Remove oldest note
+            const oldestKey = Array.from(newMap.entries())
+              .sort((a, b) => a[1].addedAt.getTime() - b[1].addedAt.getTime())[0]?.[0]
+            if (oldestKey) {
+              newMap.delete(oldestKey)
+            }
+          }
+          
+          // Add or update note
+          newMap.set(note.id, {
+            ...note,
+            addedAt: new Date(),
+            isHighlighted: false,
+          })
+          
+          return { contextNotes: newMap }
+        })
+      },
+      
+      // Add multiple notes at once
+      addNotes: (notes) => {
+        notes.forEach(note => get().addNote(note))
+      },
+      
+      // Remove a note from context
+      removeNote: (noteId) => {
+        set((state) => {
+          const newMap = new Map(state.contextNotes)
+          newMap.delete(noteId)
+          return { 
+            contextNotes: newMap,
+            highlightedNoteId: state.highlightedNoteId === noteId ? null : state.highlightedNoteId
+          }
+        })
+      },
+      
+      // Clear all context
+      clearContext: () => {
+        set({ 
+          contextNotes: new Map(),
+          highlightedNoteId: null
+        })
+      },
+      
+      // Check if note is in context
+      hasNote: (noteId) => {
+        return get().contextNotes.has(noteId)
+      },
+      
+      // Get number of notes in context
+      getNoteCount: () => {
+        return get().contextNotes.size
+      },
+      
+      // Get formatted context string for AI
+      getContextString: () => {
+        const { contextNotes } = get()
+        
+        if (contextNotes.size === 0) {
+          return ''
+        }
+        
+        let context = '=== Active Note Context ===\n\n'
+        
+        // Sort by added time
+        const sortedNotes = Array.from(contextNotes.values())
+          .sort((a, b) => a.addedAt.getTime() - b.addedAt.getTime())
+        
+        sortedNotes.forEach((note, index) => {
+          context += `--- Note ${index + 1}: "${note.title}" ---\n`
+          
+          if (note.content) {
+            const maxLength = Math.floor(2000 / contextNotes.size) // Dynamic length based on note count
+            const content = note.content.slice(0, maxLength)
+            const truncated = note.content.length > maxLength
+            context += `${content}${truncated ? '\n[... truncated]' : ''}\n\n`
+          } else {
+            context += '[No content]\n\n'
+          }
+        })
+        
+        return context.trim()
+      },
+      
+      // Get metadata for all context notes
+      getContextMetadata: () => {
+        const { contextNotes } = get()
+        
+        return Array.from(contextNotes.values()).map(note => ({
+          noteId: note.id,
+          title: note.title,
+          snippet: note.content ? note.content.slice(0, 100) + '...' : 'No content',
+        }))
+      },
+      
+      // UI state management
+      setHighlightedNote: (noteId) => {
+        set({ highlightedNoteId: noteId })
+      },
+      
+      // Highlight a note temporarily (for AI references)
+      highlightNoteTemporarily: (noteId, duration = 2000) => {
+        const { contextNotes } = get()
+        if (!contextNotes.has(noteId)) return
+        
+        set({ highlightedNoteId: noteId })
+        
+        setTimeout(() => {
+          set((state) => ({
+            highlightedNoteId: state.highlightedNoteId === noteId ? null : state.highlightedNoteId
+          }))
+        }, duration)
+      },
+      
+      // Legacy methods for compatibility
       setCurrentNote: (note) => {
         set({ currentNote: note })
         if (note) {
           get().addRecentNote(note)
+          get().addNote(note) // Also add to new context
         }
       },
       
-      // Add a note to recent history (max 5, no duplicates)
       addRecentNote: (note) => {
         set((state) => {
           const filtered = state.recentNotes.filter(n => n.id !== note.id)
@@ -69,7 +226,6 @@ export const useNoteContextStore = create<NoteContextStore>()(
         })
       },
       
-      // Add a referenced note (max 5, no duplicates)
       addReferencedNote: (note) => {
         set((state) => {
           if (state.referencedNotes.find(n => n.id === note.id)) {
@@ -78,68 +234,37 @@ export const useNoteContextStore = create<NoteContextStore>()(
           const updated = [...state.referencedNotes, note].slice(-5)
           return { referencedNotes: updated }
         })
+        get().addNote(note) // Also add to new context
       },
       
-      // Remove a referenced note
       removeReferencedNote: (noteId) => {
         set((state) => ({
           referencedNotes: state.referencedNotes.filter(n => n.id !== noteId)
         }))
+        get().removeNote(noteId) // Also remove from new context
       },
       
-      // Format context for AI chat
       getContextForChat: () => {
-        const { currentNote, referencedNotes } = get()
-        let context = ''
-        
-        // Add current note context
-        if (currentNote) {
-          context += `=== Current Note ===\n`
-          context += `Title: "${currentNote.title}"\n`
-          if (currentNote.content) {
-            // Limit content to prevent token overflow
-            const maxLength = 1500
-            const content = currentNote.content.slice(0, maxLength)
-            const truncated = currentNote.content.length > maxLength
-            context += `Content:\n${content}${truncated ? '\n[... truncated]' : ''}\n\n`
-          }
-        }
-        
-        // Add referenced notes
-        if (referencedNotes.length > 0) {
-          context += `=== Referenced Notes ===\n`
-          referencedNotes.forEach((note, index) => {
-            context += `\n${index + 1}. "${note.title}"\n`
-            if (note.content) {
-              const maxLength = 300
-              const preview = note.content.slice(0, maxLength)
-              const truncated = note.content.length > maxLength
-              context += `${preview}${truncated ? '...' : ''}\n`
-            }
-          })
-        }
-        
-        return context.trim()
+        // Use new method
+        return get().getContextString()
       },
       
-      // Clear all referenced notes
       clearReferences: () => {
         set({ referencedNotes: [] })
+        get().clearContext() // Also clear new context
       },
       
-      // Check if a note is referenced
       isNoteReferenced: (noteId) => {
-        return get().referencedNotes.some(n => n.id === noteId)
+        return get().referencedNotes.some(n => n.id === noteId) || get().hasNote(noteId)
       },
       
-      // Get IDs of recent notes
       getRecentNoteIds: () => {
         return get().recentNotes.map(n => n.id)
       },
     }),
     {
       name: 'note-context',
-      // Only persist recent notes, not current or referenced
+      // Only persist recent notes
       partialize: (state) => ({
         recentNotes: state.recentNotes,
       }),
@@ -149,25 +274,57 @@ export const useNoteContextStore = create<NoteContextStore>()(
 
 // Helper hook to get formatted context
 export const useNoteContext = () => {
-  const { currentNote, referencedNotes, getContextForChat } = useNoteContextStore()
+  const store = useNoteContextStore()
+  const { contextNotes, currentNote, referencedNotes } = store
+  
+  // Use new context if available, fallback to legacy
+  const hasNewContext = contextNotes.size > 0
+  const hasLegacyContext = Boolean(currentNote || referencedNotes.length > 0)
   
   return {
     currentNote,
     referencedNotes,
-    hasContext: Boolean(currentNote || referencedNotes.length > 0),
-    contextString: getContextForChat(),
+    contextNotes: Array.from(contextNotes.values()),
+    hasContext: hasNewContext || hasLegacyContext,
+    contextString: store.getContextString() || store.getContextForChat(),
+    noteCount: contextNotes.size,
+  }
+}
+
+// Hook for multi-note context
+export const useMultiNoteContext = () => {
+  const store = useNoteContextStore()
+  const { contextNotes, highlightedNoteId } = store
+  
+  return {
+    notes: Array.from(contextNotes.values()),
+    noteCount: contextNotes.size,
+    highlightedNoteId,
+    addNote: store.addNote,
+    addNotes: store.addNotes,
+    removeNote: store.removeNote,
+    clearContext: store.clearContext,
+    hasNote: store.hasNote,
+    highlightNote: store.highlightNoteTemporarily,
   }
 }
 
 // Selector for getting all contextual notes
 export const useContextualNotes = () => {
-  const { currentNote, recentNotes, referencedNotes } = useNoteContextStore()
+  const { currentNote, recentNotes, referencedNotes, contextNotes } = useNoteContextStore()
   
   // Combine and deduplicate notes
   const allNotes: Note[] = []
   const seenIds = new Set<string>()
   
-  // Priority order: current > referenced > recent
+  // Priority: context notes > current > referenced > recent
+  Array.from(contextNotes.values()).forEach(note => {
+    if (!seenIds.has(note.id)) {
+      allNotes.push(note)
+      seenIds.add(note.id)
+    }
+  })
+  
   if (currentNote && !seenIds.has(currentNote.id)) {
     allNotes.push(currentNote)
     seenIds.add(currentNote.id)

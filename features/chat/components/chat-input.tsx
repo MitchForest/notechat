@@ -9,9 +9,10 @@
  * - Character count for long messages
  * - Stop generation button
  * - @mention support for notes
+ * - Primary color send button
  * 
  * Created: December 2024
- * Updated: December 2024 - Added @mention support
+ * Updated: December 2024 - Added primary color send button
  */
 
 import { useRef, useEffect, KeyboardEvent, useState, useCallback } from 'react'
@@ -22,6 +23,7 @@ import { NoteMentionDropdown } from './note-mention-dropdown'
 import { Note } from '@/lib/db/schema'
 import { useNoteContextStore } from '@/features/chat/stores/note-context-store'
 import '../styles/animations.css'
+import '../styles/chat.css'
 
 interface ChatInputProps {
   input: string
@@ -204,11 +206,13 @@ export function ChatInput({
     }
   }
 
+  const hasInput = input.trim().length > 0
+
   return (
-    <div className="border-t bg-background">
-      <form onSubmit={onSubmit} className="relative max-w-3xl mx-auto">
-        <div className="flex items-end gap-2 p-4">
-          <div className="flex-1 relative chat-input">
+    <div className="chat-input-container">
+      <form onSubmit={onSubmit} className="chat-input-wrapper">
+        <div className="flex items-end gap-2">
+          <div className="flex-1 relative">
             <textarea
               ref={textareaRef}
               value={input}
@@ -224,7 +228,8 @@ export function ChatInput({
                 'focus:outline-none focus:ring-2 focus:ring-ring',
                 'disabled:cursor-not-allowed disabled:opacity-50',
                 'min-h-[52px] max-h-[200px]',
-                'pr-12' // Space for character count
+                'pr-12', // Space for character count
+                'transition-all duration-200'
               )}
             />
             
@@ -238,9 +243,13 @@ export function ChatInput({
           <Button
             type={isLoading ? 'button' : 'submit'}
             size="icon"
-            disabled={!input.trim() && !isLoading}
+            disabled={!hasInput && !isLoading}
             onClick={isLoading ? onStop : undefined}
-            className="h-[52px] w-[52px]"
+            className={cn(
+              'h-[52px] w-[52px] chat-send-button',
+              hasInput && !isLoading && 'animate-in'
+            )}
+            data-has-input={hasInput}
           >
             {isLoading ? (
               <Square className="h-4 w-4" />
@@ -250,7 +259,7 @@ export function ChatInput({
           </Button>
         </div>
         
-        <div className="px-4 pb-2 text-xs text-muted-foreground">
+        <div className="pt-2 text-xs text-muted-foreground">
           {isLoading ? 'Stop generation' : 'Enter to send, Shift + Enter for new line, @ to mention notes'}
         </div>
       </form>

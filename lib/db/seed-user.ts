@@ -1,28 +1,20 @@
 /**
  * User Account Seeding
- * Purpose: Automatically create default spaces and collections for new users
+ * Purpose: Automatically create default spaces and smart collections for new users
  * Features:
- * - Seeds Personal and Work spaces on first access
- * - Defines permanent Notes and Chats spaces
- * - Creates default collections (All, Recent, Saved) in each space
+ * - Seeds Inbox (system), Personal, and Work spaces on first access
+ * - Creates default smart collections (Recent, Saved, All) in each space
  * 
  * Created: 2024-12-19
+ * Updated: 2024-12-20 - Refactored to use smart collections
  */
 
 import { db } from '@/lib/db'
-import { spaces, collections } from '@/lib/db/schema'
-
-// Seeded spaces that are created for each new user
-const SEEDED_SPACES = [
-  { name: 'Personal', emoji: '👤' },
-  { name: 'Work', emoji: '💼' }
-]
-
-// Default collections for each seeded space
-const DEFAULT_COLLECTIONS = ['All', 'Recent', 'Saved']
+import { spaces, smartCollections } from '@/lib/db/schema'
+import { DEFAULT_SMART_COLLECTIONS } from '@/features/organization/lib/collection-icons'
 
 /**
- * Seeds a new user account with default spaces and collections
+ * Seeds a new user account with default spaces and smart collections
  * @param userId - The ID of the user to seed
  * @returns Promise that resolves when seeding is complete
  */
@@ -30,28 +22,74 @@ export async function seedUserAccount(userId: string) {
   try {
     // Use a transaction to ensure atomicity
     await db.transaction(async (tx) => {
-      // Create each seeded space
-      for (const spaceData of SEEDED_SPACES) {
-        const [space] = await tx
-          .insert(spaces)
-          .values({
-            userId,
-            name: spaceData.name,
-            emoji: spaceData.emoji,
-            type: 'seeded'
-          })
-          .returning()
-        
-        // Create default collections for this space
-        const collectionValues = DEFAULT_COLLECTIONS.map(name => ({
+      // Create Inbox (system space)
+      const [inbox] = await tx
+        .insert(spaces)
+        .values({
           userId,
-          spaceId: space.id,
-          name,
-          type: 'seeded' as const
-        }))
-        
-        await tx.insert(collections).values(collectionValues)
-      }
+          name: 'Inbox',
+          emoji: '📥',
+          type: 'system'
+        })
+        .returning()
+      
+      // Create smart collections for Inbox
+      const inboxCollections = DEFAULT_SMART_COLLECTIONS.map(col => ({
+        userId,
+        spaceId: inbox.id,
+        name: col.name,
+        icon: col.icon,
+        filterConfig: col.filterConfig,
+        isProtected: col.isProtected
+      }))
+      
+      await tx.insert(smartCollections).values(inboxCollections)
+      
+      // Create Personal space
+      const [personal] = await tx
+        .insert(spaces)
+        .values({
+          userId,
+          name: 'Personal',
+          emoji: '🏠',
+          type: 'seeded'
+        })
+        .returning()
+      
+      // Create smart collections for Personal
+      const personalCollections = DEFAULT_SMART_COLLECTIONS.map(col => ({
+        userId,
+        spaceId: personal.id,
+        name: col.name,
+        icon: col.icon,
+        filterConfig: col.filterConfig,
+        isProtected: col.isProtected
+      }))
+      
+      await tx.insert(smartCollections).values(personalCollections)
+      
+      // Create Work space
+      const [work] = await tx
+        .insert(spaces)
+        .values({
+          userId,
+          name: 'Work',
+          emoji: '💼',
+          type: 'seeded'
+        })
+        .returning()
+      
+      // Create smart collections for Work
+      const workCollections = DEFAULT_SMART_COLLECTIONS.map(col => ({
+        userId,
+        spaceId: work.id,
+        name: col.name,
+        icon: col.icon,
+        filterConfig: col.filterConfig,
+        isProtected: col.isProtected
+      }))
+      
+      await tx.insert(smartCollections).values(workCollections)
     })
     
     console.log(`Successfully seeded account for user ${userId}`)

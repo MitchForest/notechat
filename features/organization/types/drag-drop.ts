@@ -21,8 +21,8 @@ export interface DropTarget {
   id: string
   type: 'collection'
   spaceId: string
-  spaceType: 'static' | 'seeded' | 'user'
-  collectionType: 'static' | 'seeded' | 'user'
+  spaceType: 'static' | 'seeded' | 'user' | 'system'
+  collectionType: 'static' | 'seeded' | 'user' | 'system'
   acceptsType: 'note' | 'chat' | 'both'
   name: string
 }

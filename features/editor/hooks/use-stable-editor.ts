@@ -13,6 +13,7 @@ export const useStableEditor = ({
   const editorServiceRef = useRef<EditorService | null>(null)
   const [, forceUpdate] = useState({})
   const isInitializedRef = useRef(false)
+  const initializationInProgressRef = useRef(false)
   
   // Store callbacks in refs to avoid dependency issues
   const onEditorReadyRef = useRef(onEditorReady)
@@ -24,9 +25,14 @@ export const useStableEditor = ({
 
   // Use useLayoutEffect to ensure DOM is ready before creating editor
   useLayoutEffect(() => {
+    // Prevent double initialization
+    if (initializationInProgressRef.current || isInitializedRef.current) {
+      return
+    }
+    
     // Only initialize once
-    if (elementRef.current && !editorServiceRef.current && !isInitializedRef.current) {
-      isInitializedRef.current = true
+    if (elementRef.current && !editorServiceRef.current) {
+      initializationInProgressRef.current = true
       
       try {
         // Create editor service with container
@@ -34,6 +40,9 @@ export const useStableEditor = ({
           elementRef.current, 
           []
         )
+        
+        // Mark as initialized
+        isInitializedRef.current = true
         
         // Notify that editor is ready
         onEditorReadyRef.current?.(editorServiceRef.current)
@@ -43,12 +52,16 @@ export const useStableEditor = ({
       } catch (error) {
         console.error('Failed to initialize EditorService:', error)
         isInitializedRef.current = false // Allow retry on error
+        initializationInProgressRef.current = false
         throw error // Let error boundary catch it
+      } finally {
+        initializationInProgressRef.current = false
       }
     }
 
     return () => {
-      if (editorServiceRef.current) {
+      // Only destroy if we're unmounting for real (not StrictMode re-render)
+      if (editorServiceRef.current && !elementRef.current) {
         editorServiceRef.current.destroy()
         editorServiceRef.current = null
         isInitializedRef.current = false

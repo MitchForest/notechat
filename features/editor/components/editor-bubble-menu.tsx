@@ -6,19 +6,27 @@ import {
   Underline,
   Strikethrough,
   Code,
-  Wand2
+  Wand2,
+  MessageSquare
 } from 'lucide-react'
 import { Toggle } from '@/components/ui/toggle'
 import { Separator } from '@/components/ui/separator'
 import { Button } from '@/components/ui/button'
 import { AIBubbleMenuCommands } from '@/features/ai/components/ai-bubble-menu-commands'
+import { useHighlightContext } from '@/features/chat/stores/highlight-context-store'
+import { useAppShell } from '@/components/layout/app-shell-context'
+import { toast } from 'sonner'
 
 interface EditorBubbleMenuProps {
   editor: Editor
+  noteId?: string
+  noteTitle?: string
 }
 
-export function EditorBubbleMenu({ editor }: EditorBubbleMenuProps) {
+export function EditorBubbleMenu({ editor, noteId, noteTitle }: EditorBubbleMenuProps) {
   const [view, setView] = useState<'format' | 'ai'>('format')
+  const { setHighlight } = useHighlightContext()
+  const { openChat } = useAppShell()
 
   const formatItems = [
     { name: 'bold', icon: Bold, action: () => editor.chain().focus().toggleBold().run() },
@@ -30,6 +38,30 @@ export function EditorBubbleMenu({ editor }: EditorBubbleMenuProps) {
 
   const handleAiClick = () => {
     setView('ai')
+  }
+
+  const handleChatClick = () => {
+    const { from, to } = editor.state.selection
+    const selectedText = editor.state.doc.textBetween(from, to)
+    
+    if (selectedText && noteId && noteTitle) {
+      // Set highlight context
+      setHighlight({
+        text: selectedText,
+        noteId,
+        noteTitle,
+        selectionRange: { start: from, end: to }
+      })
+      
+      // Open new chat
+      openChat({
+        id: `chat-${Date.now()}`,
+        type: 'chat',
+        title: 'AI Chat'
+      })
+      
+      toast.info('Selected text added to chat context')
+    }
   }
 
   const handleBack = () => {
@@ -57,6 +89,15 @@ export function EditorBubbleMenu({ editor }: EditorBubbleMenuProps) {
           >
             <Wand2 className="h-4 w-4" />
             Use AI
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="gap-1.5"
+            onClick={handleChatClick}
+          >
+            <MessageSquare className="h-4 w-4" />
+            Chat
           </Button>
           <Separator orientation="vertical" className="h-6" />
           {formatItems.map(item => (

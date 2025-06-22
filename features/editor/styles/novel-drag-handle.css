@@ -1,68 +1,40 @@
-/* Novel Global Drag Handle Styles */
-
-/* The extension creates an empty div with class 'drag-handle' */
-.drag-handle {
-  /* Position is set by the extension dynamically */
-  position: absolute;
+/* Official Tiptap Drag Handle Styles */
+.tiptap-drag-handle {
   width: 20px;
   height: 20px;
-  cursor: grab;
-  opacity: 1; /* Changed from 0 to 1 for visibility */
-  transition: opacity 0.2s ease;
-  z-index: 1000;
-  pointer-events: auto;
-  
-  /* Visual styling */
+  min-width: 20px;
+  min-height: 20px;
   display: flex;
   align-items: center;
   justify-content: center;
+  cursor: grab;
+  color: oklch(var(--muted-foreground));
+  transition: all 0.15s ease;
   border-radius: 4px;
-  background-color: rgba(0, 0, 0, 0.08);
 }
 
-/* The extension adds a 'hide' class when it should be hidden */
-.drag-handle.hide {
-  opacity: 0;
-  pointer-events: none;
+.tiptap-drag-handle:hover {
+  color: oklch(var(--foreground));
+  background-color: oklch(var(--muted));
 }
 
-/* Hover state */
-.drag-handle:hover {
-  background-color: rgba(0, 0, 0, 0.12);
-}
-
-.dark .drag-handle {
-  background-color: rgba(255, 255, 255, 0.08);
-}
-
-.dark .drag-handle:hover {
-  background-color: rgba(255, 255, 255, 0.12);
-}
-
-/* Icon styling - using CSS to create the drag dots */
-.drag-handle::before {
-  content: '⋮⋮';
-  font-size: 12px;
-  line-height: 0.5;
-  color: #666;
-  font-weight: bold;
-  letter-spacing: -2px;
-}
-
-.dark .drag-handle::before {
-  color: #999;
-}
-
-/* Active drag state */
-.drag-handle:active,
-.drag-handle.dragging {
+.tiptap-drag-handle:active {
   cursor: grabbing;
-  background-color: rgba(0, 0, 0, 0.16);
+  color: oklch(var(--foreground));
+  background-color: oklch(var(--muted) / 0.8);
 }
 
-.dark .drag-handle:active,
-.dark .drag-handle.dragging {
-  background-color: rgba(255, 255, 255, 0.16);
+/* SVG icon sizing */
+.tiptap-drag-handle svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+/* Ensure handle doesn't interfere with text selection */
+.tiptap-drag-handle {
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 /* Editor dragging state */
@@ -75,27 +47,16 @@
   opacity: 0 !important;
 }
 
-/* Element being dragged */
-.ProseMirror.dragging .ProseMirror-selectednode {
-  opacity: 0.5;
-}
-
-/* Drop cursor from ProseMirror */
-.ProseMirror-dropcursor {
-  border-left: 2px solid oklch(var(--primary));
-}
-
-/* Accessibility */
-.drag-handle:focus {
-  outline: 2px solid oklch(var(--ring));
+/* Selected node during drag */
+.ProseMirror .ProseMirror-selectednode {
+  outline: 2px solid oklch(var(--primary) / 0.3);
   outline-offset: 2px;
+  border-radius: 4px;
 }
 
-/* Debug helper - uncomment to force visibility */
-/*
-.drag-handle {
-  opacity: 1 !important;
-  background-color: red !important;
-  border: 2px solid blue !important;
-}
-*/ 
+/* Tippy tooltip container adjustments */
+.tippy-box[data-theme~='drag-handle'] {
+  background-color: transparent;
+  border: none;
+  box-shadow: none;
+} 

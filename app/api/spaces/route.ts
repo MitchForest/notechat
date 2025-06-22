@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server'
 import { getCurrentUser } from '@/lib/auth/session'
 import { db } from '@/lib/db'
-import { spaces, collections } from '@/lib/db/schema'
+import { spaces, smartCollections } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
-import { seedUserAccount, getPermanentSpacesForUser } from '@/lib/db/seed-user'
+import { seedUserAccount } from '@/lib/db/seed-user'
+import { DEFAULT_SMART_COLLECTIONS } from '@/features/organization/lib/collection-icons'
 
 export async function GET() {
   const user = await getCurrentUser()
@@ -12,14 +13,37 @@ export async function GET() {
   }
 
   try {
-    // Fetch user's spaces from database
+    // Fetch user's spaces from database with smart collections
     const userSpaces = await db.query.spaces.findMany({
       where: eq(spaces.userId, user.id),
       with: {
         collections: true,
       },
-      orderBy: (spaces, { asc }) => [asc(spaces.createdAt)],
+      orderBy: (spaces, { asc, desc }) => [
+        // Inbox (system) first, then others by creation date
+        desc(spaces.type),
+        asc(spaces.createdAt)
+      ],
     })
+    
+    // Also fetch smart collections for each space
+    const spacesWithSmartCollections = await Promise.all(
+      userSpaces.map(async (space) => {
+        const spaceSmartCollections = await db.query.smartCollections.findMany({
+          where: eq(smartCollections.spaceId, space.id),
+          orderBy: (smartCollections, { desc, asc }) => [
+            // Protected collections first (All), then by name
+            desc(smartCollections.isProtected),
+            asc(smartCollections.name)
+          ],
+        })
+        
+        return {
+          ...space,
+          smartCollections: spaceSmartCollections
+        }
+      })
+    )
     
     // Check if user needs seeding (no spaces exist)
     if (userSpaces.length === 0) {
@@ -31,17 +55,34 @@ export async function GET() {
         with: {
           collections: true,
         },
-        orderBy: (spaces, { asc }) => [asc(spaces.createdAt)],
+        orderBy: (spaces, { asc, desc }) => [
+          desc(spaces.type),
+          asc(spaces.createdAt)
+        ],
       })
       
-      // Combine permanent spaces with seeded spaces
-      const permanentSpaces = getPermanentSpacesForUser(user.id)
-      return NextResponse.json([...permanentSpaces, ...seededSpaces])
+      // Fetch smart collections for seeded spaces
+      const seededSpacesWithSmartCollections = await Promise.all(
+        seededSpaces.map(async (space) => {
+          const spaceSmartCollections = await db.query.smartCollections.findMany({
+            where: eq(smartCollections.spaceId, space.id),
+            orderBy: (smartCollections, { desc, asc }) => [
+              desc(smartCollections.isProtected),
+              asc(smartCollections.name)
+            ],
+          })
+          
+          return {
+            ...space,
+            smartCollections: spaceSmartCollections
+          }
+        })
+      )
+      
+      return NextResponse.json(seededSpacesWithSmartCollections)
     }
     
-    // Combine permanent spaces with existing user spaces
-    const permanentSpaces = getPermanentSpacesForUser(user.id)
-    return NextResponse.json([...permanentSpaces, ...userSpaces])
+    return NextResponse.json(spacesWithSmartCollections)
   } catch (error) {
     console.error('Failed to fetch spaces:', error)
     return NextResponse.json({ error: 'Failed to fetch spaces' }, { status: 500 })
@@ -71,27 +112,17 @@ export async function POST(request: Request) {
       })
       .returning()
       
-    // Create default collections for the new space
-    await db.insert(collections).values([
-        {
-            userId: user.id,
-            spaceId: newSpace.id,
-            name: 'All',
-            type: 'user',
-        },
-        {
-            userId: user.id,
-            spaceId: newSpace.id,
-            name: 'Recent',
-            type: 'user',
-        },
-        {
-            userId: user.id,
-            spaceId: newSpace.id,
-            name: 'Saved',
-            type: 'user',
-        }
-    ])
+    // Create default smart collections for the new space
+    const smartCollectionValues = DEFAULT_SMART_COLLECTIONS.map(col => ({
+      userId: user.id,
+      spaceId: newSpace.id,
+      name: col.name,
+      icon: col.icon,
+      filterConfig: col.filterConfig,
+      isProtected: col.isProtected
+    }))
+    
+    await db.insert(smartCollections).values(smartCollectionValues)
 
     const newSpaceWithCollections = await db.query.spaces.findFirst({
         where: eq(spaces.id, newSpace.id),
@@ -99,8 +130,20 @@ export async function POST(request: Request) {
             collections: true
         }
     })
+    
+    // Fetch smart collections
+    const spaceSmartCollections = await db.query.smartCollections.findMany({
+      where: eq(smartCollections.spaceId, newSpace.id),
+      orderBy: (smartCollections, { desc, asc }) => [
+        desc(smartCollections.isProtected),
+        asc(smartCollections.name)
+      ],
+    })
 
-    return NextResponse.json(newSpaceWithCollections, { status: 201 })
+    return NextResponse.json({
+      ...newSpaceWithCollections,
+      smartCollections: spaceSmartCollections
+    }, { status: 201 })
   } catch (error) {
     console.error('Failed to create space:', error)
     return NextResponse.json({ error: 'Failed to create space' }, { status: 500 })
