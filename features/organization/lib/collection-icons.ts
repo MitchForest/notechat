@@ -1,3 +1,27 @@
+import {
+  Folder,
+  Files,
+  FileText,
+  MessageSquare,
+  Star,
+  Clock,
+  Archive,
+  Briefcase,
+  Home,
+  Book,
+  Lightbulb,
+  List,
+  Calendar,
+  Tag,
+  Search,
+  Filter,
+  Inbox,
+  Send,
+  Users,
+  Lock,
+  LucideIcon
+} from 'lucide-react'
+
 export const COLLECTION_ICONS = [
   { name: 'folder', label: 'Folder' },
   { name: 'files', label: 'Files' },
@@ -56,4 +80,32 @@ export const DEFAULT_SMART_COLLECTIONS = [
   }
 ] as const
 
-export type CollectionIconName = typeof COLLECTION_ICONS[number]['name'] 
+export type CollectionIconName = typeof COLLECTION_ICONS[number]['name']
+
+// Icon mapping function
+export const getCollectionIcon = (iconName: string): LucideIcon => {
+  const icons: Record<string, LucideIcon> = {
+    'folder': Folder,
+    'files': Files,
+    'file-text': FileText,
+    'message-square': MessageSquare,
+    'star': Star,
+    'clock': Clock,
+    'archive': Archive,
+    'briefcase': Briefcase,
+    'home': Home,
+    'book': Book,
+    'lightbulb': Lightbulb,
+    'list': List,
+    'calendar': Calendar,
+    'tag': Tag,
+    'search': Search,
+    'filter': Filter,
+    'inbox': Inbox,
+    'send': Send,
+    'users': Users,
+    'lock': Lock
+  }
+  
+  return icons[iconName] || Folder
+} 
