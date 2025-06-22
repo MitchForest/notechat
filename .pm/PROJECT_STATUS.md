@@ -1,28 +1,42 @@
 # PROJECT STATUS
 
-**Last Updated:** 2024-12-20
-**Current Sprint:** Epic 11 - Landing Page - Sprint 2 (COMPLETED)
-**Status:** Sprint 2 completed, ready for Sprint 3
+**Last Updated:** 2024-12-30
+**Current Sprint:** Epic 11 - Landing Page - Sprint 6 (In Progress)
+**Status:** In Progress (80% complete)
 
 ## Current Work
 - ✅ Sprint 1: Foundation & Header (COMPLETED)
 - ✅ Sprint 2: Hero & Features Sections (COMPLETED)
-- 🔄 Sprint 3: How It Works & Testimonials (NEXT)
-- ⏳ Sprint 4: Pricing & FAQ
-- ⏳ Sprint 5: Polish & Optimization
+- ✅ Sprint 3: How It Works & Testimonials (COMPLETED)
+- ✅ Sprint 4: Pricing, FAQ & Footer (COMPLETED)
+- ✅ Sprint 5: Performance optimizations and accessibility (COMPLETED)
+- 🔄 Sprint 6: Final Fixes and Polish (IN PROGRESS)
+
+## Completed Today
+- Added theme toggle to landing header
+- Updated sign in buttons to show just "Sign In" (removed provider names)
+- Fixed header scroll behavior - now hidden initially, appears after hero
+- Fixed page left cutoff by removing negative margin from testimonials
+- Removed FAQ categories from display
+- Added avatar images to testimonials using ui-avatars.com
+- Improved accordion animations with spring easing
+- All tests passing (lint, typecheck, build)
+
+## Remaining Tasks
+- Test light/dark mode compatibility thoroughly
+- Test on mobile devices
+- Test accessibility features (keyboard navigation, screen readers)
+
+## Next Sprint
+Manual testing and any final adjustments based on testing results.
 
 ## Recent Accomplishments
-- Implemented hero section with AI-powered messaging
-- Created detailed app mockup showing block editor features
-- Built 6-feature grid highlighting core capabilities
-- Fixed routing approach to use existing structure
-- All animations and interactions working smoothly
-
-## Next Steps
-1. Sprint 3: How It Works section with visual steps
-2. Sprint 3: Testimonials carousel with real feedback
-3. Sprint 4: Pricing tiers and FAQ accordion
-4. Sprint 5: Performance optimization and final polish
+- Completed Sprint 1: Foundation & Header (sticky header with mobile menu)
+- Completed Sprint 2: Hero & Features sections
+- Completed Sprint 3: How It Works & Testimonials
+- Completed Sprint 4: Pricing, FAQ & Footer
+- Completed Sprint 5: Performance optimizations and accessibility
+- Sprint 6: 80% complete - Final fixes and polish
 
 ## Key Decisions Made
 - Use existing app/page.tsx conditional rendering instead of route groups
@@ -38,7 +52,7 @@
 ## Notes
 - Landing page now shows when user is not logged in
 - All tests passing (lint, typecheck, build)
-- Ready to continue with Sprint 3
+- Ready to continue with Sprint 6
 
 ## Key Features to Highlight (Updated)
 1. **Notion-Style Block Editor** - Drag-and-drop blocks with slash commands
@@ -70,4 +84,10 @@
 - Using existing design tokens from globals.css
 - No new dependencies needed (all available)
 - Hero subheadline: "A Notion-style editor with deep AI integration that learns how you write and helps you think better"
-- Final CTA: "Ready to write smarter, not harder?" 
+- Final CTA: "Ready to write smarter, not harder?"
+
+## Tech Stack Updates
+- No new dependencies added
+- Using existing Radix UI components
+- Leveraging Framer Motion for animations
+- Following Claude.ai-inspired minimal design system 

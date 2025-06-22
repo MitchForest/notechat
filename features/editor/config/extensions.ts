@@ -15,6 +15,8 @@ import { Extension } from '@tiptap/core'
 import { InlineAI } from '@/features/ai/extensions/inline-ai';
 import { GhostText } from '@/features/ai/extensions/ghost-text'
 import { BlockId } from '../extensions/block-id'
+
+// Import Novel extensions
 import GlobalDragHandle from 'tiptap-extension-global-drag-handle'
 import AutoJoiner from 'tiptap-extension-auto-joiner'
 
@@ -98,14 +100,13 @@ export const getEditorExtensions = (
     // Add BlockId extension
     BlockId,
     
-    // Add Novel drag handle - must be after all node definitions
+    // ALWAYS add Novel drag handle - no conditions
     GlobalDragHandle.configure({
       dragHandleWidth: 20,
       scrollTreshold: 100, // Note: typo in the library, should be "threshold"
-      // Don't make certain elements draggable
-      excludedTags: ['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON'],
-      // Add custom styling class
-      dragHandleSelector: undefined, // Let it create default handle
+      // Let the extension handle all blocks by default
+      excludedTags: [],
+      // Remove customNodes - let the extension auto-detect
     }),
     
     // Add auto-joiner for lists
@@ -116,6 +117,7 @@ export const getEditorExtensions = (
 
   console.log('[Extensions] Loaded', extensions.length, 'extensions')
 
+  // Add spell check only if container exists
   if (container) {
     extensions.push(
       SpellCheckExtension.configure({

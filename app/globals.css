@@ -451,9 +451,30 @@
 }
 
 .animate-accordion-down {
-  animation: accordion-down 0.2s ease-out;
+  animation: accordion-down 0.3s cubic-bezier(0.87, 0, 0.13, 1) !important;
 }
 
 .animate-accordion-up {
-  animation: accordion-up 0.2s ease-out;
+  animation: accordion-up 0.3s cubic-bezier(0.87, 0, 0.13, 1) !important;
+}
+
+/* Ensure accordion content transitions work */
+[data-state="open"],
+[data-state="closed"] {
+  animation-fill-mode: forwards !important;
+}
+
+/* Accordion chevron rotation */
+@keyframes rotate-chevron {
+  to {
+    transform: rotate(180deg);
+  }
+}
+
+.accordion-chevron {
+  transition: transform 300ms cubic-bezier(0.87, 0, 0.13, 1) !important;
+}
+
+[data-state="open"] .accordion-chevron {
+  transform: rotate(180deg);
 }

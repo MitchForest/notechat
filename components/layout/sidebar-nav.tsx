@@ -115,27 +115,23 @@ const getCollectionIcon = (collectionName: string) => {
 }
 
 // Memoized collection component to prevent unnecessary re-renders
-const CollectionItem = React.memo(({ 
-  collection, 
+const CollectionItem = React.memo(({
+  collection,
   space,
   items,
   isExpanded,
-  isActive,
   onToggle,
-  onSelect,
   onItemClick,
   onItemAction,
   getFilteredItems,
   getCollectionIcon,
-  dragDropHook
+  dragDropHook,
 }: {
   collection: Collection;
   space: Space;
   items: (Note | Chat)[];
   isExpanded: boolean;
-  isActive: boolean;
-  onToggle: (id: string) => void;
-  onSelect: (collectionId: string, spaceId: string) => void;
+  onToggle: (collectionId: string) => void;
   onItemClick: (item: Note | Chat, type: 'note' | 'chat') => void;
   onItemAction: (action: string, itemId: string) => void;
   getFilteredItems: (collection: Collection, spaceId: string, items: (Note | Chat)[]) => (Note | Chat)[];
@@ -148,15 +144,8 @@ const CollectionItem = React.memo(({
   );
   const itemCount = filteredItems.length;
   
-  console.log('CollectionItem render:', {
-    collectionId: collection.id,
-    collectionName: collection.name,
-    spaceId: space.id,
-    totalItems: items.length,
-    filteredItems: filteredItems.length,
-    isExpanded
-  });
-
+  console.log(`Collection ${collection.id} - items: ${items.length}, filtered: ${filteredItems.length}, isExpanded: ${isExpanded}`)
+  
   // Create drop data for this collection
   const dropData = dragDropHook.createDropData({
     id: collection.id,
@@ -177,12 +166,10 @@ const CollectionItem = React.memo(({
       <button
         className={cn(
           "w-full flex items-center justify-between rounded-md px-2 py-1.5 text-sm",
-          "hover:bg-hover-1",
-          isActive && "bg-hover-2"
+          "hover:bg-hover-1"
         )}
         onClick={(event) => {
           event.stopPropagation();
-          onSelect(collection.id, space.id);
           onToggle(collection.id);
         }}
       >
@@ -320,8 +307,6 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
   // Collection store
   const {
     collections,
-    activeCollectionId,
-    setActiveCollection,
     createCollection,
   } = useCollectionStore()
   
@@ -384,11 +369,30 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
     fetchSpaces()
   }, [fetchSpaces])
 
-  const handleCollectionClick = useCallback((collectionId: string, spaceId: string) => {
-    console.log('Collection clicked:', { collectionId, spaceId })
-    setActiveSpace(spaceId)
-    setActiveCollection(collectionId, spaceId)
-  }, [setActiveSpace, setActiveCollection])
+  // Fetch initial notes and chats
+  useEffect(() => {
+    const fetchInitialData = async () => {
+      try {
+        // Fetch all notes
+        const notesResponse = await fetch('/api/notes?filter=all')
+        if (notesResponse.ok) {
+          const notesData = await notesResponse.json()
+          useContentStore.getState().setNotes(notesData)
+        }
+        
+        // Fetch all chats
+        const chatsResponse = await fetch('/api/chats?filter=all')
+        if (chatsResponse.ok) {
+          const chatsData = await chatsResponse.json()
+          useContentStore.getState().setChats(chatsData)
+        }
+      } catch (error) {
+        console.error('Failed to fetch initial data:', error)
+      }
+    }
+    
+    fetchInitialData()
+  }, [])
 
   // Helper function to filter items based on collection type
   const getFilteredItems = useCallback((collection: Collection, spaceId: string, items: (Note | Chat)[]) => {
@@ -609,6 +613,35 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
   // Separate permanent and user spaces
   const permanentSpaces = spaces.filter(s => s.type === 'static')
   const userSpaces = spaces.filter(s => s.type !== 'static')
+
+  // Memoize permanent collections to prevent recreation on every render
+  const permanentNotesCollections = useMemo(() => {
+    const space = PERMANENT_SPACES_DATA.find(s => s.id === 'permanent-notes')
+    if (!space) return []
+    return space.collections.map(c => ({
+      id: c.id,
+      name: c.name,
+      type: 'static' as const,
+      userId: user.id,
+      spaceId: 'permanent-notes',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    }))
+  }, [user.id])
+
+  const permanentChatsCollections = useMemo(() => {
+    const space = PERMANENT_SPACES_DATA.find(s => s.id === 'permanent-chats')
+    if (!space) return []
+    return space.collections.map(c => ({
+      id: c.id,
+      name: c.name,
+      type: 'static' as const,
+      userId: user.id,
+      spaceId: 'permanent-chats',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    }))
+  }, [user.id])
 
   if (sidebarCollapsed) {
     // Collapsed sidebar - icon only view
@@ -886,9 +919,12 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
               {permanentSpaces.map((space) => {
                 const spaceItems = getItemsForSpace(space.id)
                 const isSpaceExpanded = spaceExpansion[space.id]
-                const spaceCollections = space.id === 'permanent-notes' || space.id === 'permanent-chats' 
-                  ? (PERMANENT_SPACES_DATA.find(s => s.id === space.id)?.collections || []) as Collection[]
-                  : collections.filter(c => c.spaceId === space.id)
+                
+                // Use pre-memoized collections for permanent spaces
+                const spaceCollections: Collection[] = 
+                  space.id === 'permanent-notes' ? permanentNotesCollections :
+                  space.id === 'permanent-chats' ? permanentChatsCollections :
+                  collections.filter(c => c.spaceId === space.id)
                 
                 return (
                   <SpaceSection
@@ -901,24 +937,26 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
                       <div className="mt-1 ml-6 space-y-0.5">
                         {spaceCollections.map((collection) => {
                           const isExpanded = collectionExpansion[collection.id]
-                          const isActive = activeCollectionId === collection.id
                           
                           return (
-                            <CollectionItem
+                            <CollectionContextMenu
                               key={collection.id}
                               collection={collection}
-                              space={space}
-                              items={spaceItems}
-                              isExpanded={isExpanded}
-                              isActive={isActive}
-                              onToggle={toggleCollection}
-                              onSelect={handleCollectionClick}
-                              onItemClick={handleItemClick}
-                              onItemAction={handleItemAction}
-                              getFilteredItems={getFilteredItems}
-                              getCollectionIcon={getCollectionIcon}
-                              dragDropHook={dragDropHook}
-                            />
+                              onAction={handleCollectionAction}
+                            >
+                              <CollectionItem
+                                collection={collection}
+                                space={space}
+                                items={spaceItems}
+                                isExpanded={isExpanded}
+                                onToggle={toggleCollection}
+                                onItemClick={handleItemClick}
+                                onItemAction={handleItemAction}
+                                getFilteredItems={getFilteredItems}
+                                getCollectionIcon={getCollectionIcon}
+                                dragDropHook={dragDropHook}
+                              />
+                            </CollectionContextMenu>
                           )
                         })}
                       </div>
@@ -933,7 +971,7 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
               {userSpaces.map((space) => {
                 const spaceItems = getItemsForSpace(space.id)
                 const isSpaceExpanded = spaceExpansion[space.id]
-                const spaceCollections = collections.filter(c => c.spaceId === space.id)
+                const spaceCollections: Collection[] = collections.filter(c => c.spaceId === space.id)
                 
                 return (
                   <SpaceContextMenu
@@ -950,7 +988,6 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
                         <div className="mt-1 ml-6 space-y-0.5">
                           {spaceCollections.map((collection) => {
                             const isExpanded = collectionExpansion[collection.id]
-                            const isActive = activeCollectionId === collection.id
                             
                             return (
                               <CollectionContextMenu
@@ -963,9 +1000,7 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
                                   space={space}
                                   items={spaceItems}
                                   isExpanded={isExpanded}
-                                  isActive={isActive}
                                   onToggle={toggleCollection}
-                                  onSelect={handleCollectionClick}
                                   onItemClick={handleItemClick}
                                   onItemAction={handleItemAction}
                                   getFilteredItems={getFilteredItems}

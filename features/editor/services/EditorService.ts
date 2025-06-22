@@ -142,6 +142,43 @@ export class EditorService extends EventEmitter {
     });
     // --- END NEW DEBUG VERIFICATION ---
 
+    // Debug: Check for drag handle extension
+    console.log('[EditorService] Checking for drag handle extension...');
+    const dragHandleExt = this._editor.extensionManager.extensions.find(ext => ext.name === 'globalDragHandle');
+    console.log('[EditorService] Drag handle extension loaded:', !!dragHandleExt);
+    
+    if (dragHandleExt) {
+      console.log('[EditorService] Drag handle config:', (dragHandleExt as any).options);
+      
+      // Check DOM after editor is ready
+      setTimeout(() => {
+        const dragHandle = document.querySelector('.drag-handle');
+        console.log('[EditorService] Drag handle in DOM:', !!dragHandle);
+        
+        if (dragHandle) {
+          console.log('[EditorService] Drag handle element:', dragHandle);
+          const styles = window.getComputedStyle(dragHandle);
+          console.log('[EditorService] Drag handle computed styles:', {
+            position: styles.position,
+            opacity: styles.opacity,
+            display: styles.display,
+            zIndex: styles.zIndex,
+            left: styles.left,
+            top: styles.top,
+            width: styles.width,
+            height: styles.height
+          });
+        } else {
+          // Try to find any elements that might be the drag handle
+          const allElements = document.querySelectorAll('[data-drag-handle], [draggable="true"]');
+          console.log('[EditorService] Found draggable elements:', allElements.length);
+          allElements.forEach((el, i) => {
+            console.log(`[EditorService] Draggable element ${i}:`, el);
+          });
+        }
+      }, 1000);
+    }
+
     this.checkOrchestrator = new CheckOrchestrator();
 
     this.setupEventListeners();

@@ -14,11 +14,11 @@ import { FooterSection } from '@/components/landing/sections/footer-section'
 
 export default function LandingPage() {
   return (
-    <>
+    <div className="min-h-screen flex flex-col">
       <StructuredData />
       <SkipLink />
       <LandingHeader />
-      <main id="main-content">
+      <main id="main-content" className="flex-1">
         <HeroWrapper />
         <FeaturesSection />
         <HowItWorksSection />
@@ -28,6 +28,6 @@ export default function LandingPage() {
         <FinalCTASection />
       </main>
       <FooterSection />
-    </>
+    </div>
   )
 } 

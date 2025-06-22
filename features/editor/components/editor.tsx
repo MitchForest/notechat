@@ -8,6 +8,7 @@ import { EditorErrorBoundary } from "./editor-error-boundary";
 import "../styles/editor.css";
 import { useStableEditor } from "../hooks/use-stable-editor";
 import { GhostTextHandler } from "@/features/ai/components/ghost-text-handler";
+import { DragHandleTest } from "./drag-handle-test"; // TEMPORARY: for debugging
 
 interface EditorProps {
   noteId?: string;
@@ -91,6 +92,7 @@ export function Editor({ noteId, content = "", onChange }: EditorProps) {
         <EditorBubbleMenu editor={editor} />
         <EditorContent editor={editor} />
         <GhostTextHandler editor={editor} />
+        <DragHandleTest editor={editor} /> {/* TEMPORARY: for debugging */}
       </div>
     </EditorErrorBoundary>
   );

@@ -5,8 +5,8 @@ export function FooterSection() {
 
   return (
     <footer className="border-t bg-muted/30">
-      <div className="container py-12">
-        <div className="grid gap-8 md:grid-cols-4">
+      <div className="container mx-auto px-4 py-12">
+        <div className="flex flex-col md:flex-row justify-between items-center gap-6">
           {/* Company info */}
           <div className="space-y-3">
             <h3 className="font-semibold">NoteChat.AI</h3>

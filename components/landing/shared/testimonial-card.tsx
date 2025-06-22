@@ -13,7 +13,14 @@ interface TestimonialCardProps {
 
 export function TestimonialCard({ quote, author, role, company, avatar }: TestimonialCardProps) {
   const initials = author.split(' ').map(n => n[0]).join('')
-  const avatarUrl = avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(author)}&background=0D7377&color=fff&size=128`
+  
+  // Use a deterministic seed based on the author name to get consistent avatars
+  const seed = author.toLowerCase().replace(/\s/g, '')
+  const gender = ['Sarah', 'Emma'].includes(author.split(' ')[0]) ? 'women' : 'men'
+  const randomNumber = Math.abs(seed.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)) % 100
+  
+  // Use randomuser.me for realistic avatars
+  const avatarUrl = avatar || `https://randomuser.me/api/portraits/${gender}/${randomNumber}.jpg`
   
   return (
     <Card className="p-6 h-full flex flex-col justify-between bg-card/50 border-muted hover:border-muted-foreground/20 transition-colors">

@@ -13,7 +13,10 @@ export function FinalCTASection() {
         <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent" />
       </div>
       
-      <div className="container relative z-10">
+      {/* Background gradient */}
+      <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-primary/5 opacity-50" />
+      
+      <div className="container mx-auto px-4 relative z-10">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}

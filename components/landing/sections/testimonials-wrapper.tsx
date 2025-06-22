@@ -7,7 +7,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 function TestimonialsSkeleton() {
   return (
     <div className="py-24">
-      <div className="container space-y-12">
+      <div className="container mx-auto px-4 space-y-12">
         {/* Header skeleton */}
         <div className="text-center space-y-4">
           <Skeleton className="h-10 w-64 mx-auto" />

@@ -9,7 +9,7 @@ interface SectionWrapperProps {
 export function SectionWrapper({ children, className, id }: SectionWrapperProps) {
   return (
     <section id={id} className={cn('py-24', className)}>
-      <div className="container">
+      <div className="container mx-auto px-4">
         {children}
       </div>
     </section>

@@ -1,107 +1,73 @@
 /* Novel Global Drag Handle Styles */
 
-/* Base drag handle styles - the extension creates this element */
+/* The extension creates an empty div with class 'drag-handle' */
 .drag-handle {
-  position: absolute !important;
+  /* Position is set by the extension dynamically */
+  position: absolute;
   width: 20px;
   height: 20px;
   cursor: grab;
-  opacity: 0;
-  transition: opacity 200ms ease-in-out;
+  opacity: 1; /* Changed from 0 to 1 for visibility */
+  transition: opacity 0.2s ease;
+  z-index: 1000;
+  pointer-events: auto;
+  
+  /* Visual styling */
   display: flex;
   align-items: center;
   justify-content: center;
   border-radius: 4px;
-  background-color: oklch(var(--muted) / 0.5);
-  z-index: 100; /* High z-index to ensure visibility */
+  background-color: rgba(0, 0, 0, 0.08);
 }
 
-/* Drag handle icon - using Unicode character */
+/* The extension adds a 'hide' class when it should be hidden */
+.drag-handle.hide {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Hover state */
+.drag-handle:hover {
+  background-color: rgba(0, 0, 0, 0.12);
+}
+
+.dark .drag-handle {
+  background-color: rgba(255, 255, 255, 0.08);
+}
+
+.dark .drag-handle:hover {
+  background-color: rgba(255, 255, 255, 0.12);
+}
+
+/* Icon styling - using CSS to create the drag dots */
 .drag-handle::before {
   content: '⋮⋮';
   font-size: 12px;
   line-height: 0.5;
-  color: oklch(var(--foreground));
+  color: #666;
   font-weight: bold;
   letter-spacing: -2px;
 }
 
-/* Show on hover */
-.drag-handle.show,
-.drag-handle:hover {
-  opacity: 1 !important;
-  background-color: oklch(var(--muted));
-}
-
-/* Hover state with background */
-.drag-handle:hover {
-  background-color: oklch(var(--hover-2));
+.dark .drag-handle::before {
+  color: #999;
 }
 
 /* Active drag state */
 .drag-handle:active,
 .drag-handle.dragging {
   cursor: grabbing;
-  background-color: oklch(var(--hover-3));
-  opacity: 1 !important;
+  background-color: rgba(0, 0, 0, 0.16);
 }
 
-/* Ensure ProseMirror container has proper positioning */
-.ProseMirror {
-  position: relative;
+.dark .drag-handle:active,
+.dark .drag-handle.dragging {
+  background-color: rgba(255, 255, 255, 0.16);
 }
 
-/* Ensure all block elements are positioned for the handle to attach to */
-.ProseMirror p,
-.ProseMirror h1,
-.ProseMirror h2,
-.ProseMirror h3,
-.ProseMirror h4,
-.ProseMirror h5,
-.ProseMirror h6,
-.ProseMirror li,
-.ProseMirror blockquote,
-.ProseMirror pre,
-.ProseMirror ul,
-.ProseMirror ol {
-  position: relative;
-}
-
-/* Drop indicator line */
-.drop-cursor {
-  position: relative;
-}
-
-.drop-cursor::after {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: -1px;
-  height: 2px;
-  background-color: oklch(var(--primary));
-  pointer-events: none;
-}
-
-/* Alternative drop indicator class the extension might use */
-.drag-handle-drop-indicator {
-  position: absolute;
-  left: 0;
-  right: 0;
-  height: 2px;
-  background-color: oklch(var(--primary));
-  pointer-events: none;
-  z-index: 50;
-}
-
-/* Dragging state for the entire editor */
+/* Editor dragging state */
 .ProseMirror.dragging {
   cursor: grabbing !important;
-}
-
-/* Element being dragged */
-.ProseMirror .dragging {
-  opacity: 0.5;
 }
 
 /* Hide placeholders during drag */
@@ -109,17 +75,27 @@
   opacity: 0 !important;
 }
 
-/* Accessibility: Ensure handle is keyboard accessible */
+/* Element being dragged */
+.ProseMirror.dragging .ProseMirror-selectednode {
+  opacity: 0.5;
+}
+
+/* Drop cursor from ProseMirror */
+.ProseMirror-dropcursor {
+  border-left: 2px solid oklch(var(--primary));
+}
+
+/* Accessibility */
 .drag-handle:focus {
   outline: 2px solid oklch(var(--ring));
   outline-offset: 2px;
-  opacity: 1;
 }
 
-/* Dark mode adjustments are handled automatically via CSS variables */
-
-/* Debug styles - uncomment to always show handles */
+/* Debug helper - uncomment to force visibility */
+/*
 .drag-handle {
-  opacity: 0.5 !important;
+  opacity: 1 !important;
   background-color: red !important;
-} 
+  border: 2px solid blue !important;
+}
+*/ 
