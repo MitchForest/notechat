@@ -330,6 +330,51 @@
     @apply hover:bg-active-bg;
   }
   
+  /* NEW: Sidebar active state with left accent border */
+  .sidebar-item-active-accent {
+    @apply relative bg-hover-2 rounded-md overflow-hidden;
+    transition: background-color 150ms ease-in-out;
+  }
+  
+  .sidebar-item-active-accent::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 2px;
+    bottom: 2px;
+    width: 3px;
+    background-color: oklch(var(--primary));
+    border-radius: 0 2px 2px 0;
+    animation: slideIn 200ms ease-out;
+  }
+  
+  @keyframes slideIn {
+    from {
+      transform: translateX(-3px);
+      opacity: 0;
+    }
+    to {
+      transform: translateX(0);
+      opacity: 1;
+    }
+  }
+  
+  /* Adjust padding for active items to account for border */
+  .sidebar-item-active-accent > button,
+  .sidebar-item-active-accent > div > button {
+    padding-left: calc(0.5rem - 3px);
+  }
+  
+  /* Hover state for non-active sidebar items */
+  .sidebar-item:not(.sidebar-item-active-accent) button:hover {
+    background-color: oklch(var(--hover-1));
+  }
+  
+  /* Smooth transitions for sidebar buttons */
+  .sidebar-item button {
+    transition: background-color 150ms ease-in-out;
+  }
+  
   /* Interactive elements - Consistent hover states */
   .interactive-element {
     @apply rounded-md;

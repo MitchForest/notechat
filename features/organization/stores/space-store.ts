@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { Space as DbSpace, Collection, SmartCollection } from '@/lib/db/schema'
 import { toast } from 'sonner'
 import { useCollectionStore } from './collection-store'
+import { useUIStore } from './ui-store'
 
 export type Space = DbSpace & { 
   collections: Collection[]
@@ -10,7 +11,6 @@ export type Space = DbSpace & {
 
 interface SpaceState {
   spaces: Space[]
-  activeSpaceId: string | null
   loading: boolean
   error: string | null
 }
@@ -19,7 +19,7 @@ interface SpaceActions {
   // Fetching
   fetchSpaces: () => Promise<void>
   
-  // Active space
+  // Active space (now uses UI store)
   setActiveSpace: (spaceId: string) => void
   
   // CRUD operations
@@ -36,7 +36,6 @@ type SpaceStore = SpaceState & SpaceActions
 export const useSpaceStore = create<SpaceStore>((set, get) => ({
   // Initial state
   spaces: [],
-  activeSpaceId: null,
   loading: false,
   error: null,
   
@@ -54,13 +53,23 @@ export const useSpaceStore = create<SpaceStore>((set, get) => ({
       const allCollections = spaces.flatMap(space => space.collections || [])
       useCollectionStore.getState().setCollections(allCollections)
       
-      // Find the first available space or Inbox as fallback
-      const inboxSpace = spaces.find(s => s.type === 'system' && s.name === 'Inbox')
-      const firstSpace = spaces[0]
-      const currentActiveId = get().activeSpaceId
-      const activeSpaceId = currentActiveId || inboxSpace?.id || firstSpace?.id || null
+      // Check if we need to set a default active context
+      const currentContext = useUIStore.getState().getActiveContext()
+      if (!currentContext && spaces.length > 0) {
+        // Find inbox or first available space
+        const inboxSpace = spaces.find(s => s.type === 'system' && s.name === 'Inbox')
+        const defaultSpace = inboxSpace || spaces[0]
+        
+        if (defaultSpace) {
+          useUIStore.getState().setActiveContext({
+            type: 'space',
+            id: defaultSpace.id,
+            spaceId: defaultSpace.id
+          })
+        }
+      }
       
-      set({ spaces, activeSpaceId, loading: false })
+      set({ spaces, loading: false })
     } catch (error) {
       console.error('Failed to fetch spaces:', error)
       set({ error: (error as Error).message, loading: false })
@@ -68,11 +77,16 @@ export const useSpaceStore = create<SpaceStore>((set, get) => ({
     }
   },
   
-  // Set active space
+  // Set active space using UI store's unified context
   setActiveSpace: (spaceId) => {
     const space = get().spaces.find(s => s.id === spaceId)
     if (space) {
-      set({ activeSpaceId: spaceId })
+      // Use UI store's unified context
+      useUIStore.getState().setActiveContext({
+        type: 'space',
+        id: spaceId,
+        spaceId: spaceId
+      })
       
       // Update collection store with this space's collections
       const spaceCollections = space.collections || []
@@ -186,18 +200,31 @@ export const useSpaceStore = create<SpaceStore>((set, get) => ({
     const originalSpaces = get().spaces
     const remainingSpaces = originalSpaces.filter(s => s.id !== spaceId)
     
-    // Find inbox space as fallback
-    const inboxSpace = remainingSpaces.find(s => s.type === 'system' && s.name === 'Inbox')
-    const firstSpace = remainingSpaces[0]
+    // Check if we're deleting the active space
+    const currentContext = useUIStore.getState().getActiveContext()
+    const isDeletingActiveSpace = currentContext?.spaceId === spaceId
     
     // Optimistic update
     set(state => ({
-      spaces: state.spaces.filter(s => s.id !== spaceId),
-      // If we're deleting the active space, switch to Inbox or first available space
-      activeSpaceId: state.activeSpaceId === spaceId 
-        ? (inboxSpace?.id || firstSpace?.id || null) 
-        : state.activeSpaceId
+      spaces: state.spaces.filter(s => s.id !== spaceId)
     }))
+    
+    // If we're deleting the active space, switch to Inbox or first available
+    if (isDeletingActiveSpace) {
+      const inboxSpace = remainingSpaces.find(s => s.type === 'system' && s.name === 'Inbox')
+      const firstSpace = remainingSpaces[0]
+      const newActiveSpace = inboxSpace || firstSpace
+      
+      if (newActiveSpace) {
+        useUIStore.getState().setActiveContext({
+          type: 'space',
+          id: newActiveSpace.id,
+          spaceId: newActiveSpace.id
+        })
+      } else {
+        useUIStore.getState().clearActiveContext()
+      }
+    }
     
     try {
       const response = await fetch(`/api/spaces/${spaceId}`, {

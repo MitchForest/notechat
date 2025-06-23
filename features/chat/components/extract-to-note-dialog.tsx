@@ -13,6 +13,7 @@ import { useExtractToNote, ExtractOptions, ExtractedNote } from '../hooks/use-ex
 import { useContentStore, useCollectionStore, useSpaceStore } from '@/features/organization/stores'
 import { toast } from 'sonner'
 import { useRouter } from 'next/navigation'
+import { useUIStore } from '@/features/organization/stores/ui-store'
 
 interface ExtractToNoteDialogProps {
   open: boolean
@@ -35,6 +36,9 @@ export function ExtractToNoteDialog({
   const [selectedCollectionId, setSelectedCollectionId] = useState<string>('')
   const [tags, setTags] = useState<string[]>([])
   const [newTag, setNewTag] = useState('')
+
+  const context = useUIStore.getState().getActiveContext()
+  const spaceId = context?.spaceId || null
 
   useEffect(() => {
     if (open && !extracted && !isExtracting) {
@@ -73,10 +77,6 @@ export function ExtractToNoteDialog({
     setIsSaving(true)
     try {
       const noteId = `note-${Date.now()}`
-      const { activeSpaceId } = useSpaceStore.getState()
-      
-      // Use the active space ID directly
-      const spaceId = activeSpaceId
       
       const createdNote = await createNote(
         extracted.title,

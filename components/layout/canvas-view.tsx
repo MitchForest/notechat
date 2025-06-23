@@ -20,12 +20,11 @@ import { ChatInterface } from '@/features/chat/components/chat-interface'
 import { ErrorBoundary } from '@/features/chat/components/error-boundary'
 import { PanelHeader } from '@/components/shared/panel-header'
 import { ConfirmationDialog } from '@/components/shared/confirmation-dialog'
-import { useContentStore, useCollectionStore } from '@/features/organization/stores'
+import { useContentStore } from '@/features/organization/stores/content-store'
 import { useNoteContextStore } from '@/features/chat/stores/note-context-store'
 import { toast } from 'sonner'
 import type { Note } from '@/lib/db/schema'
-import { useSpaceStore } from '@/features/organization/stores/space-store'
-import { useSmartCollectionStore } from '@/features/organization/stores/smart-collection-store'
+import { useUIStore } from '@/features/organization/stores/ui-store'
 
 // Chat component wrapper
 function ChatComponent({
@@ -162,27 +161,13 @@ function NoteComponent({
     if (isTemporary && newContent.trim().length > 0 && !hasEverHadContent) {
       setHasEverHadContent(true);
       try {
-        // Create the note in the database
-        // Use metadata if provided, otherwise get from store
-        let spaceId: string | null;
-        let collectionId: string | null;
+        // Get current context from UI store
+        const context = useUIStore.getState().getActiveContext();
         
-        if (note.metadata) {
-          // Use the metadata passed from creation
-          spaceId = note.metadata.spaceId || null;
-          collectionId = note.metadata.collectionId || null;
-        } else {
-          // Fallback to current store state
-          const { activeCollectionId } = useCollectionStore.getState();
-          const { activeSpaceId } = useSpaceStore.getState();
-          const { activeSmartCollectionId } = useSmartCollectionStore.getState();
-          
-          // If we're viewing a smart collection, don't use it as a collection ID
-          // Smart collections are just filters, not actual containers
-          collectionId = activeSmartCollectionId ? null : activeCollectionId;
-          spaceId = activeSpaceId;
-        }
+        const spaceId = context?.spaceId || null;
+        const collectionId = context?.type === 'collection' ? context.id : null;
         
+        // Create the new note
         const createdNote = await createNote(noteTitle, spaceId, collectionId);
         if (createdNote) {
           realNoteIdRef.current = createdNote.id; // Store the real UUID
@@ -199,7 +184,7 @@ function NoteComponent({
       // For existing notes, use the real UUID
       debouncedSave(realNoteIdRef.current, newContent);
     }
-  }, [isTemporary, hasEverHadContent, noteTitle, createNote, debouncedSave, note.metadata]);
+  }, [isTemporary, hasEverHadContent, debouncedSave, createNote, noteTitle]);
 
   const handleTitleChange = async (newTitle: string) => {
     setNoteTitle(newTitle);
@@ -303,39 +288,35 @@ function NoteComponent({
 function EmptyState() {
   const { openChat, openNote } = useAppShell()
 
-  const handleNewChat = () => {
+  const handleNewChat = useCallback(() => {
     // Get current context
-    const { activeSpaceId } = useSpaceStore.getState()
-    const { activeCollectionId } = useCollectionStore.getState()
-    const { activeSmartCollectionId } = useSmartCollectionStore.getState()
+    const context = useUIStore.getState().getActiveContext()
     
-    // Smart collections are just filters, not containers
-    const collectionId = activeSmartCollectionId ? null : activeCollectionId
+    const spaceId = context?.spaceId || null
+    const collectionId = context?.type === 'collection' ? context.id : null
     
     openChat({
       id: `chat-${Date.now()}`,
       type: 'chat',
       title: 'New Chat',
-      metadata: { spaceId: activeSpaceId, collectionId }
+      metadata: { spaceId, collectionId }
     })
-  }
+  }, [openChat])
 
-  const handleNewNote = () => {
+  const handleNewNote = useCallback(() => {
     // Get current context
-    const { activeSpaceId } = useSpaceStore.getState()
-    const { activeCollectionId } = useCollectionStore.getState()
-    const { activeSmartCollectionId } = useSmartCollectionStore.getState()
+    const context = useUIStore.getState().getActiveContext()
     
-    // Smart collections are just filters, not containers
-    const collectionId = activeSmartCollectionId ? null : activeCollectionId
+    const spaceId = context?.spaceId || null
+    const collectionId = context?.type === 'collection' ? context.id : null
     
     openNote({
       id: `note-${Date.now()}`,
       type: 'note',
       title: 'New Note',
-      metadata: { spaceId: activeSpaceId, collectionId }
+      metadata: { spaceId, collectionId }
     })
-  }
+  }, [openNote])
 
   return (
     <div className="h-full flex items-center justify-center">

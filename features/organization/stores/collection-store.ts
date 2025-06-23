@@ -2,17 +2,17 @@ import { create } from 'zustand'
 import { Collection as DbCollection } from '@/lib/db/schema'
 import { toast } from 'sonner'
 import { useContentStore } from './content-store'
+import { useUIStore } from './ui-store'
 
 export type Collection = DbCollection
 
 interface CollectionState {
   collections: Collection[]
-  activeCollectionId: string | null
   loading: boolean
 }
 
 interface CollectionActions {
-  // Active collection
+  // Active collection (now uses UI store)
   setActiveCollection: (collectionId: string) => void
   
   // Collection management
@@ -29,15 +29,20 @@ type CollectionStore = CollectionState & CollectionActions
 export const useCollectionStore = create<CollectionStore>((set, get) => ({
   // Initial state
   collections: [],
-  activeCollectionId: null,
   loading: false,
   
-  // Set active collection
+  // Set active collection using UI store's unified context
   setActiveCollection: (collectionId) => {
     const collection = get().collections.find(c => c.id === collectionId)
     if (!collection) return
     
-    set({ activeCollectionId: collectionId })
+    // Use UI store's unified context
+    useUIStore.getState().setActiveContext({
+      type: 'collection',
+      id: collectionId,
+      spaceId: collection.spaceId,
+      collectionId: collectionId
+    })
     
     // Invalidate cache when switching collections
     useContentStore.getState().invalidateCache()
@@ -142,12 +147,30 @@ export const useCollectionStore = create<CollectionStore>((set, get) => ({
   deleteCollection: async (collectionId) => {
     const originalCollections = get().collections
     
+    // Check if we're deleting the active collection
+    const currentContext = useUIStore.getState().getActiveContext()
+    const isDeletingActiveCollection = currentContext?.type === 'collection' && currentContext?.id === collectionId
+    
     // Optimistic update
     set(state => ({
-      collections: state.collections.filter(c => c.id !== collectionId),
-      // Clear active collection if it's being deleted
-      activeCollectionId: state.activeCollectionId === collectionId ? null : state.activeCollectionId
+      collections: state.collections.filter(c => c.id !== collectionId)
     }))
+    
+    // If we're deleting the active collection, clear or switch context
+    if (isDeletingActiveCollection) {
+      // Find the space this collection belonged to
+      const deletedCollection = originalCollections.find(c => c.id === collectionId)
+      if (deletedCollection) {
+        // Switch to the parent space
+        useUIStore.getState().setActiveContext({
+          type: 'space',
+          id: deletedCollection.spaceId,
+          spaceId: deletedCollection.spaceId
+        })
+      } else {
+        useUIStore.getState().clearActiveContext()
+      }
+    }
     
     try {
       const response = await fetch(`/api/collections/${collectionId}`, {

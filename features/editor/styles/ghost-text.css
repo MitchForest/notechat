@@ -1,12 +1,12 @@
 /* Ghost Text Styles */
 
-/* Ghost text visualization */
-.ProseMirror .ghost-text::after {
-  content: attr(data-ghost-text);
+/* Ghost text widget visualization */
+.ghost-text-widget {
   color: hsl(var(--muted-foreground));
   opacity: 0.6;
   font-style: italic;
   pointer-events: none;
+  margin-left: 1px;
   animation: ghostFadeIn 200ms ease-in;
 }
 
@@ -21,8 +21,13 @@
   }
 }
 
+/* Remove old pseudo-element approach */
+.ProseMirror .ghost-text::after {
+  display: none !important;
+}
+
 /* Debug mode - make ghost text more visible */
-.ProseMirror.debug-ghost .ghost-text::after {
+.ProseMirror.debug-ghost .ghost-text-widget {
   background: rgba(59, 130, 246, 0.1);
   border: 1px dashed rgba(59, 130, 246, 0.5);
   padding: 0 4px;
@@ -30,7 +35,7 @@
 }
 
 /* Hide ghost text during drag */
-.ProseMirror.is-dragging .ghost-text::after {
+.ProseMirror.is-dragging .ghost-text-widget {
   display: none !important;
 }
 

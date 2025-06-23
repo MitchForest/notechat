@@ -1,10 +1,10 @@
 import { create } from 'zustand'
 import { SmartCollection, NewSmartCollection } from '@/lib/db/schema'
 import { toast } from 'sonner'
+import { useUIStore } from './ui-store'
 
 interface SmartCollectionState {
   smartCollections: SmartCollection[]
-  activeSmartCollectionId: string | null
   loading: boolean
   error: string | null
 }
@@ -14,7 +14,7 @@ interface SmartCollectionActions {
   fetchSmartCollections: (spaceId: string) => Promise<void>
   setSmartCollections: (collections: SmartCollection[]) => void
   
-  // Active collection
+  // Active collection (now uses UI store)
   setActiveSmartCollection: (collectionId: string) => void
   
   // CRUD operations
@@ -31,7 +31,6 @@ type SmartCollectionStore = SmartCollectionState & SmartCollectionActions
 export const useSmartCollectionStore = create<SmartCollectionStore>((set, get) => ({
   // Initial state
   smartCollections: [],
-  activeSmartCollectionId: null,
   loading: false,
   error: null,
   
@@ -57,11 +56,17 @@ export const useSmartCollectionStore = create<SmartCollectionStore>((set, get) =
     set({ smartCollections: collections })
   },
   
-  // Set active smart collection
+  // Set active smart collection using UI store's unified context
   setActiveSmartCollection: (collectionId) => {
     const collection = get().smartCollections.find(c => c.id === collectionId)
     if (collection) {
-      set({ activeSmartCollectionId: collectionId })
+      // Use UI store's unified context
+      useUIStore.getState().setActiveContext({
+        type: 'smart-collection',
+        id: collectionId,
+        spaceId: collection.spaceId
+        // Note: no collectionId for smart collections as they're filters
+      })
     }
   },
   
@@ -159,12 +164,28 @@ export const useSmartCollectionStore = create<SmartCollectionStore>((set, get) =
   deleteSmartCollection: async (id) => {
     const originalCollections = get().smartCollections
     
+    // Check if we're deleting the active smart collection
+    const currentContext = useUIStore.getState().getActiveContext()
+    const isDeletingActiveCollection = currentContext?.type === 'smart-collection' && currentContext?.id === id
+    
     // Optimistic update
     set(state => ({
-      smartCollections: state.smartCollections.filter(c => c.id !== id),
-      // Clear active if we're deleting the active collection
-      activeSmartCollectionId: state.activeSmartCollectionId === id ? null : state.activeSmartCollectionId
+      smartCollections: state.smartCollections.filter(c => c.id !== id)
     }))
+    
+    // If we're deleting the active smart collection, switch to parent space
+    if (isDeletingActiveCollection) {
+      const deletedCollection = originalCollections.find(c => c.id === id)
+      if (deletedCollection) {
+        useUIStore.getState().setActiveContext({
+          type: 'space',
+          id: deletedCollection.spaceId,
+          spaceId: deletedCollection.spaceId
+        })
+      } else {
+        useUIStore.getState().clearActiveContext()
+      }
+    }
     
     try {
       const response = await fetch(`/api/smart-collections/${id}`, {
@@ -185,7 +206,9 @@ export const useSmartCollectionStore = create<SmartCollectionStore>((set, get) =
   
   // Get active smart collection
   getActiveSmartCollection: () => {
-    const state = get()
-    return state.smartCollections.find(c => c.id === state.activeSmartCollectionId) || null
+    const context = useUIStore.getState().getActiveContext()
+    if (context?.type !== 'smart-collection') return null
+    
+    return get().smartCollections.find(c => c.id === context.id) || null
   },
 })) 

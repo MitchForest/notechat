@@ -23,11 +23,15 @@ export function SmartCollectionItem({
   const Icon = getCollectionIcon(smartCollection.icon) as LucideIcon
   
   return (
-    <div className="group relative flex items-center">
+    <div className={cn(
+      "group relative flex items-center",
+      isActive && "sidebar-item-active-accent"
+    )}>
       <button
         className={cn(
-          "flex-1 flex items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-hover-1",
-          isActive && "bg-hover-2"
+          "flex-1 flex items-center gap-2 rounded-md px-2 py-1.5 text-sm",
+          "transition-colors duration-150",
+          !isActive && "hover:bg-hover-1"
         )}
         onClick={onClick}
       >

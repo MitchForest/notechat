@@ -11,6 +11,7 @@ interface SpaceSectionProps {
   isExpanded: boolean
   isActive?: boolean
   onToggle: () => void
+  onClick?: () => void
   onAction?: (action: string, spaceId: string) => void
   children: React.ReactNode
 }
@@ -20,21 +21,29 @@ export const SpaceSection = React.memo(({
   isExpanded,
   isActive = false,
   onToggle,
+  onClick,
   onAction,
   children
 }: SpaceSectionProps) => {
   const isSystemSpace = space.type === 'system'
   
   return (
-    <div className="mb-2 group">
+    <div className={cn(
+      "mb-2 group",
+      isActive && "sidebar-item-active-accent"
+    )}>
       <div className="relative flex items-center">
         <button
           className={cn(
             "flex-1 flex items-center justify-between rounded-md px-2 py-1.5 text-sm font-medium",
-            "hover:bg-hover-2",
-            isActive && "bg-hover-1"
+            "transition-colors duration-150",
+            !isActive && "hover:bg-hover-1"
           )}
-          onClick={onToggle}
+          onClick={(e) => {
+            e.stopPropagation()
+            onClick?.()
+            onToggle()
+          }}
         >
           <div className="flex items-center gap-2">
             <span className="text-base">{space.emoji}</span>
@@ -55,7 +64,7 @@ export const SpaceSection = React.memo(({
             onRename={() => onAction('rename', space.id)}
             onChangeEmoji={() => onAction('changeEmoji', space.id)}
             onDelete={() => onAction('delete', space.id)}
-            className="absolute right-8"
+            className="absolute right-1"
           />
         )}
       </div>

@@ -200,10 +200,31 @@ export const defaultExtensions = [
 ## Session Summary
 
 **Completed:**
-- TBD
+- ✅ Updated ghost text extension to use widget decorations instead of inline decorations
+- ✅ Added proper key handling for Tab/Enter/Escape/character input
+- ✅ Updated ghost text CSS to support widget approach
+- ✅ Rewrote bubble menu to use @tiptap/react's BubbleMenu component directly
+- ✅ Removed complex manual DOM attachment logic
+- ✅ Added debugging logs to help verify functionality
+- ✅ All TypeScript and linting checks pass (except unrelated sidebar-nav.tsx issues)
+- ✅ Fixed context gathering to only use current paragraph instead of entire document
+- ✅ Fixed premature clearing of ghost text that prevented completions from showing
+- ✅ Added extensive debugging to track completion flow
 
 **Files Changed:**
-- TBD
+- `modified: features/ai/extensions/ghost-text.ts` - Changed to widget decorations, improved key handling, fixed context gathering
+- `modified: features/editor/styles/ghost-text.css` - Updated for widget styling
+- `modified: features/editor/components/custom-bubble-menu.tsx` - Complete rewrite using BubbleMenu component
+- `modified: features/ai/hooks/use-ghost-text.ts` - Added debugging and removed premature clearing
+- `modified: features/ai/components/ghost-text-handler.tsx` - Added debugging
 
 **Remaining:**
-- TBD 
+- Manual testing to verify ghost completions appear visually
+- Manual testing to verify bubble menu shows on text selection
+- Test in both light and dark themes
+- Fix unrelated linting errors in sidebar-nav.tsx (not part of this sprint)
+
+**Known Issues Fixed:**
+- Context was gathering text from entire document across paragraphs
+- Ghost text was being cleared immediately after trigger, preventing completions
+- Bubble menu was using complex manual DOM attachment that wasn't working 

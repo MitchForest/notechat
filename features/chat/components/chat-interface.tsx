@@ -56,6 +56,7 @@ import { useSmartCollectionStore } from '@/features/organization/stores/smart-co
 import { ConnectionStatus } from './connection-status'
 import { ChatSearch } from './chat-search'
 import { useMessageSearch } from '../hooks/use-message-search'
+import { useAppShell } from '@/components/layout/app-shell-context'
 
 interface ChatInterfaceProps {
   chatId: string
@@ -77,7 +78,6 @@ export function ChatInterface({ chatId, className, onClose, noteContext, metadat
   const router = useRouter()
   const { loadMessages, saveMessage } = useChatPersistence(chatId)
   const { chats, updateChat, deleteChat, createChat, createNote, notes } = useContentStore()
-  const { setActiveNote } = useUIStore()
   
   // Message pagination
   const {
@@ -205,7 +205,12 @@ export function ChatInterface({ chatId, className, onClose, noteContext, metadat
   }
 
   const handleNoteClick = (noteId: string) => {
-    setActiveNote(noteId)
+    // Use app shell context to open note
+    const { openNote } = useAppShell()
+    const note = notes.find(n => n.id === noteId)
+    if (note) {
+      openNote({ id: noteId, type: 'note', title: note.title })
+    }
   }
 
   // Handle selection menu actions
@@ -248,8 +253,8 @@ export function ChatInterface({ chatId, className, onClose, noteContext, metadat
   const handleSaveNote = async (title: string, content: string, collectionId: string | null) => {
     try {
       const noteId = `note-${Date.now()}`
-      const { activeSpaceId } = useSpaceStore.getState()
-      const spaceId = activeSpaceId
+      const context = useUIStore.getState().getActiveContext()
+      const spaceId = context?.spaceId || null
       const createdNote = await createNote(title, spaceId, collectionId, noteId)
       
       if (createdNote) {
@@ -269,7 +274,8 @@ export function ChatInterface({ chatId, className, onClose, noteContext, metadat
         setSelectedTextForNote('')
         
         // Open the note in the panel
-        setActiveNote(noteId)
+        const { openNote } = useAppShell()
+        openNote({ id: noteId, type: 'note', title: title })
       }
     } catch (error) {
       console.error('Failed to create note:', error)
@@ -308,14 +314,9 @@ export function ChatInterface({ chatId, className, onClose, noteContext, metadat
           collectionId = metadata.collectionId || null
         } else {
           // Fallback to current store state
-          const { activeCollectionId } = useCollectionStore.getState()
-          const { activeSpaceId } = useSpaceStore.getState()
-          const { activeSmartCollectionId } = useSmartCollectionStore.getState()
-          
-          // If we're viewing a smart collection, don't use it as a collection ID
-          // Smart collections are just filters, not actual containers
-          collectionId = activeSmartCollectionId ? null : activeCollectionId
-          spaceId = activeSpaceId
+          const context = useUIStore.getState().getActiveContext()
+          spaceId = context?.spaceId || null
+          collectionId = context?.type === 'collection' ? context.id : null
         }
         
         const createdChat = await createChat(chatTitle, spaceId, collectionId, chatId)
@@ -535,8 +536,8 @@ export function ChatInterface({ chatId, className, onClose, noteContext, metadat
       
       if (toolName === 'create_note') {
         const noteId = `note-${Date.now()}`
-        const { activeSpaceId } = useSpaceStore.getState()
-        const spaceId = activeSpaceId
+        const context = useUIStore.getState().getActiveContext()
+        const spaceId = context?.spaceId || null
         const createdNote = await createNote(args.title, spaceId, args.collection_id || null, noteId)
         
         if (createdNote) {
@@ -560,7 +561,8 @@ export function ChatInterface({ chatId, className, onClose, noteContext, metadat
           toast.success('Note created successfully')
           
           // Open the note
-          setActiveNote(noteId)
+          const { openNote } = useAppShell()
+          openNote({ id: noteId, type: 'note', title: args.title })
         }
       } else if (toolName === 'update_note') {
         // Process content if provided

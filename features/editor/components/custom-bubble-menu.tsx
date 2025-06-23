@@ -1,12 +1,13 @@
 import { Editor } from '@tiptap/core'
-import { useEffect, useRef, useState } from 'react'
+import { BubbleMenu } from '@tiptap/react'
+import { useState, useEffect } from 'react'
 import {
   Bold,
   Italic,
   Underline,
   Strikethrough,
   Code,
-  Wand2
+  Sparkles
 } from 'lucide-react'
 import { Toggle } from '@/components/ui/toggle'
 import { Separator } from '@/components/ui/separator'
@@ -18,39 +19,16 @@ interface CustomBubbleMenuProps {
 }
 
 export function CustomBubbleMenu({ editor }: CustomBubbleMenuProps) {
-  const menuRef = useRef<HTMLDivElement>(null)
-  const [view, setView] = useState<'format' | 'ai'>('format')
-  const [isAttached, setIsAttached] = useState(false)
+  const [showAI, setShowAI] = useState(false)
   
-  useEffect(() => {
-    if (!editor || !menuRef.current) return
-    
-    console.log('[CustomBubbleMenu] Attempting to attach to BubbleMenu extension')
-    
-    // Get the BubbleMenu extension
-    const bubbleMenuExtension = editor.extensionManager.extensions.find(
-      ext => ext.name === 'bubbleMenu'
-    )
-    
-    if (bubbleMenuExtension && !isAttached) {
-      console.log('[CustomBubbleMenu] Found BubbleMenu extension, attaching element')
-      // Set the element after the editor is ready
-      bubbleMenuExtension.options.element = menuRef.current
-      setIsAttached(true)
-      
-      // Force update to make the menu work
-      editor.view.dispatch(editor.state.tr)
-    }
-  }, [editor, isAttached])
-  
-  // Reset view when menu is hidden
+  // Reset to format view when selection changes
   useEffect(() => {
     if (!editor) return
     
     const updateHandler = () => {
       const { from, to } = editor.state.selection
       if (from === to) {
-        setView('format')
+        setShowAI(false)
       }
     }
     
@@ -95,48 +73,48 @@ export function CustomBubbleMenu({ editor }: CustomBubbleMenuProps) {
     }
   ]
   
-  const handleAiClick = () => {
-    setView('ai')
-  }
-  
-  const handleBack = () => {
-    setView('format')
-  }
-  
   return (
-    <div 
-      ref={menuRef} 
-      className="flex items-center rounded-md border bg-background p-1 shadow-md"
-      style={{ display: 'none' }} // Initially hidden, BubbleMenu extension will control visibility
+    <BubbleMenu
+      editor={editor}
+      tippyOptions={{
+        duration: 100,
+        placement: 'top-start',
+      }}
+      shouldShow={({ editor, from, to }) => {
+        // Only show if there's a selection
+        return from !== to
+      }}
     >
-      {view === 'format' ? (
-        <>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="gap-1.5"
-            onClick={handleAiClick}
-          >
-            <Wand2 className="h-4 w-4" />
-            Use AI
-          </Button>
-          <Separator orientation="vertical" className="h-6" />
-          {formatItems.map(item => (
-            <Toggle
-              key={item.name}
+      <div className="flex items-center gap-0.5 p-1 bg-popover rounded-lg border shadow-md">
+        {showAI ? (
+          <AIBubbleMenuCommands editor={editor} onBack={() => setShowAI(false)} />
+        ) : (
+          <>
+            <Button
+              variant="ghost"
               size="sm"
-              pressed={item.isActive()}
-              onPressedChange={item.action}
-              title={item.name.charAt(0).toUpperCase() + item.name.slice(1)}
-              className="flex items-center justify-center"
+              className="gap-1.5 h-8"
+              onClick={() => setShowAI(true)}
             >
-              <item.icon className="h-4 w-4" />
-            </Toggle>
-          ))}
-        </>
-      ) : (
-        <AIBubbleMenuCommands editor={editor} onBack={handleBack} />
-      )}
-    </div>
+              <Sparkles className="h-4 w-4" />
+              Use AI
+            </Button>
+            <Separator orientation="vertical" className="h-6 mx-1" />
+            {formatItems.map(item => (
+              <Toggle
+                key={item.name}
+                size="sm"
+                pressed={item.isActive()}
+                onPressedChange={item.action}
+                title={item.name.charAt(0).toUpperCase() + item.name.slice(1)}
+                className="h-8 w-8"
+              >
+                <item.icon className="h-4 w-4" />
+              </Toggle>
+            ))}
+          </>
+        )}
+      </div>
+    </BubbleMenu>
   )
 } 

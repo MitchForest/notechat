@@ -46,22 +46,35 @@ export const GhostText = Extension.create({
             if (meta === true) {
               if (storage.isActive && storage.ghostText && storage.position !== null) {
                 try {
-                  const decoration = Decoration.inline(
+                  console.log('[GhostText] Creating widget decoration at position:', storage.position, 'with text:', storage.ghostText)
+                  
+                  // Use widget decoration instead of inline
+                  const decoration = Decoration.widget(
                     storage.position,
-                    storage.position,
-                    {
-                      class: 'ghost-text',
-                      'data-text': storage.ghostText,
+                    () => {
+                      const span = document.createElement('span')
+                      span.className = 'ghost-text-widget'
+                      span.textContent = storage.ghostText
+                      span.setAttribute('data-ghost-text', 'true')
+                      span.style.color = 'var(--muted-foreground)'
+                      span.style.opacity = '0.6'
+                      span.style.fontStyle = 'italic'
+                      span.style.pointerEvents = 'none'
+                      span.style.marginLeft = '1px'
+                      return span
                     },
-                    { inclusiveStart: true, inclusiveEnd: false }
+                    { side: 1 } // Place after cursor
                   )
                   
                   const decorations = DecorationSet.create(newState.doc, [decoration])
+                  console.log('[GhostText] Decorations created:', decorations)
                   return { decorations }
                 } catch (e) {
+                  console.error('[GhostText] Error creating decoration:', e)
                   return { decorations: DecorationSet.empty }
                 }
               } else {
+                console.log('[GhostText] Clearing decorations - isActive:', storage.isActive, 'ghostText:', storage.ghostText, 'position:', storage.position)
                 return { decorations: DecorationSet.empty }
               }
             }
@@ -112,15 +125,19 @@ export const GhostText = Extension.create({
             const { state } = view
             const storage = extension.storage as GhostTextStorage
 
+            // If ghost text is active and user types any character, reject it
             if (storage.isActive) {
+              console.log('[GhostText] User typed while ghost text active, rejecting')
               ;(extension.editor as any).emit('ghostTextReject')
-              return false
+              return false // Let the character be typed
             }
 
             if (text === '+') {
               const before = state.doc.textBetween(Math.max(0, from - 1), from)
 
               if (before === '+') {
+                console.log('[GhostText] Detected ++ trigger at position:', from)
+                
                 // Clear any existing timeout
                 if (storage.triggerTimeout) {
                   clearTimeout(storage.triggerTimeout)
@@ -131,12 +148,21 @@ export const GhostText = Extension.create({
 
                 // Debounce the trigger
                 storage.triggerTimeout = setTimeout(() => {
-                  const contextStart = Math.max(0, from - 500)
-                  const context = state.doc.textBetween(contextStart, from - 1)
-
+                  // Get the current paragraph's text only
+                  const $pos = state.doc.resolve(from - 1)
+                  const paragraph = $pos.parent
+                  const paragraphStart = $pos.start()
+                  const positionInParagraph = from - 1 - paragraphStart
+                  
+                  // Get context from current paragraph only (up to the trigger position)
+                  const context = paragraph.textBetween(0, Math.min(positionInParagraph, paragraph.content.size))
+                  
+                  console.log('[GhostText] Triggering with paragraph context:', context)
+                  console.log('[GhostText] Paragraph start:', paragraphStart, 'Position in paragraph:', positionInParagraph)
+                  
                   ;(extension.editor as any).emit('ghostTextTrigger', {
                     position: from - 1,
-                    context
+                    context: context.trim()
                   })
                 }, 100) // 100ms delay to prevent duplicate calls
 
@@ -152,24 +178,28 @@ export const GhostText = Extension.create({
 
             if (!storage.isActive) return false
 
+            // Tab accepts
             if (event.key === 'Tab') {
               event.preventDefault()
+              console.log('[GhostText] Tab pressed, accepting')
               ;(extension.editor as any).emit('ghostTextAccept', storage.ghostText)
               return true
             }
 
-            if (event.key === 'Escape') {
+            // Escape or Enter rejects
+            if (event.key === 'Escape' || event.key === 'Enter') {
               event.preventDefault()
+              console.log('[GhostText] Escape/Enter pressed, rejecting')
               ;(extension.editor as any).emit('ghostTextReject')
               return true
             }
 
-            if (event.ctrlKey || event.metaKey || event.altKey) {
-              return false
-            }
-
-            if (event.key.startsWith('Arrow')) {
-              return false
+            // Any other character input rejects (except modifiers and special keys)
+            if (!event.ctrlKey && !event.metaKey && !event.altKey && 
+                event.key.length === 1 && !event.key.startsWith('Arrow')) {
+              console.log('[GhostText] Character key pressed, rejecting')
+              ;(extension.editor as any).emit('ghostTextReject')
+              return false // Let the character be typed
             }
 
             return false
@@ -189,6 +219,8 @@ export const GhostText = Extension.create({
           storage.position = position
           storage.isActive = true
 
+          console.log('[GhostText] Setting ghost text:', text, 'at position:', position)
+
           // Always dispatch the transaction
           if (dispatch) {
             const tr = editor.state.tr.setMeta('ghostTextUpdate', true)
@@ -207,6 +239,8 @@ export const GhostText = Extension.create({
           storage.ghostText = ''
           storage.isActive = false
           storage.position = null
+
+          console.log('[GhostText] Clearing ghost text')
 
           // Clear any pending timeout
           if (storage.triggerTimeout) {

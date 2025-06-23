@@ -20,8 +20,10 @@ interface GhostTextHandlerProps {
 }
 
 export function GhostTextHandler({ editor }: GhostTextHandlerProps) {
-  const { isLoading } = useGhostText(editor)
+  const { isLoading, ghostText } = useGhostText(editor)
   const [isVisible, setIsVisible] = useState(false)
+
+  console.log('[GhostTextHandler] Render:', { isLoading, ghostText, isVisible })
 
   // Handle loading state transitions with animation
   useEffect(() => {

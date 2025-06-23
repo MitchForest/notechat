@@ -72,12 +72,15 @@ export const SidebarCollectionItem = React.memo(({
       data={dropData}
       dropIndicator={dragDropHook.dropIndicator}
     >
-      <div className="group relative flex items-center">
+      <div className={cn(
+        "group relative flex items-center",
+        isActive && "sidebar-item-active-accent"
+      )}>
         <button
           className={cn(
             "flex-1 flex items-center justify-between rounded-md px-2 py-1.5 text-sm",
-            "hover:bg-hover-1",
-            isActive && "bg-hover-1"
+            "transition-colors duration-150",
+            !isActive && "hover:bg-hover-1"
           )}
           onClick={(event) => {
             event.stopPropagation()
@@ -107,7 +110,7 @@ export const SidebarCollectionItem = React.memo(({
             onRename={() => onCollectionAction('rename', collection.id)}
             onDelete={() => onCollectionAction('delete', collection.id)}
             onChangeIcon={() => onCollectionAction('changeIcon', collection.id)}
-            className="absolute right-7"
+            className="absolute right-1"
           />
         )}
       </div>

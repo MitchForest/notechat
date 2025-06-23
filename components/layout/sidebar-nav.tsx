@@ -65,7 +65,6 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
   // Organizational state
   const { 
     spaces, 
-    activeSpaceId, 
     setActiveSpace, 
     createSpace,
     fetchSpaces 
@@ -74,13 +73,9 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
   const { 
     collections, 
     createCollection,
-    setActiveCollection,
-    activeCollectionId,
   } = useCollectionStore()
   
   const {
-    activeSmartCollectionId,
-    setActiveSmartCollection,
     setSmartCollections,
     smartCollections
   } = useSmartCollectionStore()
@@ -105,8 +100,11 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
     isSearching,
   } = useSearchStore()
   
-  // UI store
+  // UI store - using unified active context
   const {
+    activeContext,
+    isContextActive,
+    setActiveContext,
     spaceExpansion,
     collectionExpansion,
     sidebarCollapsed,
@@ -183,11 +181,13 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
 
   // When active space changes, update smart collections
   useEffect(() => {
-    const activeSpace = spaces.find(s => s.id === activeSpaceId)
-    if (activeSpace && activeSpace.smartCollections) {
-      setSmartCollections(activeSpace.smartCollections)
+    if (activeContext?.type === 'space') {
+      const activeSpace = spaces.find(s => s.id === activeContext.id)
+      if (activeSpace && activeSpace.smartCollections) {
+        setSmartCollections(activeSpace.smartCollections)
+      }
     }
-  }, [activeSpaceId, spaces, setSmartCollections])
+  }, [activeContext, spaces, setSmartCollections])
 
   // Helper function to filter items based on collection type
   const getFilteredItems = useCallback((collection: Collection) => {
@@ -257,38 +257,56 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
   }, [notes, chats])
 
   const handleNewChat = useCallback(() => {
-    // Get current context
-    const { activeSpaceId } = useSpaceStore.getState()
-    const { activeCollectionId } = useCollectionStore.getState()
-    const { activeSmartCollectionId } = useSmartCollectionStore.getState()
+    const context = useUIStore.getState().getActiveContext()
     
-    // Smart collections are just filters, not containers
-    const collectionId = activeSmartCollectionId ? null : activeCollectionId
+    let spaceId = context?.spaceId || null
+    let collectionId = null
+    
+    // Only set collectionId for regular collections (not smart collections)
+    if (context?.type === 'collection') {
+      collectionId = context.id
+    }
+    // Smart collections are just filters, items go to the space
+    
+    // If no context, default to Inbox
+    if (!spaceId) {
+      const inboxSpace = spaces.find(s => s.type === 'system' && s.name === 'Inbox')
+      spaceId = inboxSpace?.id || null
+    }
     
     openChat({ 
       id: `chat-${Date.now()}`, 
       type: 'chat', 
       title: 'New Chat',
-      metadata: { spaceId: activeSpaceId, collectionId }
+      metadata: { spaceId, collectionId }
     })
-  }, [openChat])
+  }, [openChat, spaces])
 
   const handleNewNote = useCallback(() => {
-    // Get current context
-    const { activeSpaceId } = useSpaceStore.getState()
-    const { activeCollectionId } = useCollectionStore.getState()
-    const { activeSmartCollectionId } = useSmartCollectionStore.getState()
+    const context = useUIStore.getState().getActiveContext()
     
-    // Smart collections are just filters, not containers
-    const collectionId = activeSmartCollectionId ? null : activeCollectionId
+    let spaceId = context?.spaceId || null
+    let collectionId = null
+    
+    // Only set collectionId for regular collections (not smart collections)
+    if (context?.type === 'collection') {
+      collectionId = context.id
+    }
+    // Smart collections are just filters, items go to the space
+    
+    // If no context, default to Inbox
+    if (!spaceId) {
+      const inboxSpace = spaces.find(s => s.type === 'system' && s.name === 'Inbox')
+      spaceId = inboxSpace?.id || null
+    }
     
     openNote({ 
       id: `note-${Date.now()}`, 
       type: 'note', 
       title: 'New Note',
-      metadata: { spaceId: activeSpaceId, collectionId }
+      metadata: { spaceId, collectionId }
     })
-  }, [openNote])
+  }, [openNote, spaces])
 
   const handleItemClick = useCallback((item: Note | Chat, type: 'note' | 'chat') => {
     if (type === 'note') {
@@ -493,7 +511,7 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
                 <Tooltip key={space.id}>
                   <TooltipTrigger asChild>
                     <Button
-                      variant={activeSpaceId === space.id ? "secondary" : "ghost"}
+                      variant={isContextActive('space', space.id) ? "secondary" : "ghost"}
                       size="sm"
                       className="w-full h-8 p-0 text-base"
                       onClick={() => setActiveSpace(space.id)}
@@ -514,7 +532,7 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
                 <Tooltip key={space.id}>
                   <TooltipTrigger asChild>
                     <Button
-                      variant={activeSpaceId === space.id ? "secondary" : "ghost"}
+                      variant={isContextActive('space', space.id) ? "secondary" : "ghost"}
                       size="sm"
                       className="w-full h-8 p-0 text-base"
                       onClick={() => setActiveSpace(space.id)}
@@ -585,8 +603,13 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
                     key={space.id}
                     space={space}
                     isExpanded={isSpaceExpanded}
-                    isActive={activeSpaceId === space.id}
+                    isActive={isContextActive('space', space.id)}
                     onToggle={() => toggleSpace(space.id)}
+                    onClick={() => setActiveContext({
+                      type: 'space',
+                      id: space.id,
+                      spaceId: space.id
+                    })}
                     onAction={handleSpaceAction}
                   >
                     {(spaceSmartCollections.length > 0 || spaceCollections.length > 0) && (
@@ -596,11 +619,14 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
                           <SmartCollectionItem
                             key={smartCollection.id}
                             smartCollection={smartCollection}
-                            isActive={activeSmartCollectionId === smartCollection.id}
+                            isActive={isContextActive('smart-collection', smartCollection.id)}
                             onClick={() => {
-                              setActiveSmartCollection(smartCollection.id)
+                              setActiveContext({
+                                type: 'smart-collection',
+                                id: smartCollection.id,
+                                spaceId: space.id
+                              })
                               // Clear regular collection when smart collection is selected
-                              setActiveCollection('')
                               fetchSmartCollectionContent(smartCollection)
                             }}
                             onAction={handleSmartCollectionAction}
@@ -618,12 +644,15 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
                               space={space}
                               items={spaceItems}
                               isExpanded={isExpanded}
-                              isActive={activeCollectionId === collection.id}
+                              isActive={isContextActive('collection', collection.id)}
                               onToggle={toggleCollection}
                               onCollectionClick={(collectionId) => {
-                                setActiveCollection(collectionId)
-                                // Clear smart collection when regular collection is selected
-                                setActiveSmartCollection('')
+                                setActiveContext({
+                                  type: 'collection',
+                                  id: collectionId,
+                                  spaceId: space.id,
+                                  collectionId: collectionId
+                                })
                               }}
                               onItemClick={handleItemClick}
                               onItemAction={handleItemAction}
@@ -651,8 +680,13 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
                     key={space.id}
                     space={space}
                     isExpanded={isSpaceExpanded}
-                    isActive={activeSpaceId === space.id}
+                    isActive={isContextActive('space', space.id)}
                     onToggle={() => toggleSpace(space.id)}
+                    onClick={() => setActiveContext({
+                      type: 'space',
+                      id: space.id,
+                      spaceId: space.id
+                    })}
                     onAction={handleSpaceAction}
                   >
                     {(spaceSmartCollections.length > 0 || spaceCollections.length > 0) && (
@@ -662,11 +696,14 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
                           <SmartCollectionItem
                             key={smartCollection.id}
                             smartCollection={smartCollection}
-                            isActive={activeSmartCollectionId === smartCollection.id}
+                            isActive={isContextActive('smart-collection', smartCollection.id)}
                             onClick={() => {
-                              setActiveSmartCollection(smartCollection.id)
-                              // Clear regular collection when smart collection is selected
-                              setActiveCollection('')
+                              setActiveContext({
+                                type: 'smart-collection',
+                                id: smartCollection.id,
+                                spaceId: space.id
+                              })
+                              // Clear smart collection when regular collection is selected
                               fetchSmartCollectionContent(smartCollection)
                             }}
                             onAction={handleSmartCollectionAction}
@@ -684,12 +721,15 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
                               space={space}
                               items={spaceItems}
                               isExpanded={isExpanded}
-                              isActive={activeCollectionId === collection.id}
+                              isActive={isContextActive('collection', collection.id)}
                               onToggle={toggleCollection}
                               onCollectionClick={(collectionId) => {
-                                setActiveCollection(collectionId)
-                                // Clear smart collection when regular collection is selected
-                                setActiveSmartCollection('')
+                                setActiveContext({
+                                  type: 'collection',
+                                  id: collectionId,
+                                  spaceId: space.id,
+                                  collectionId: collectionId
+                                })
                               }}
                               onItemClick={handleItemClick}
                               onItemAction={handleItemAction}

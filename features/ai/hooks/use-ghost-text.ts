@@ -17,18 +17,33 @@ export function useGhostText(editor: Editor | null) {
   const { complete, completion, isLoading, stop } = useCompletion({
     api: '/api/ai/completion',
     onError: error => {
+      console.error('[useGhostText] AI completion error:', error)
       if (isMountedRef.current) {
         handleAIError(error)
         if (editor) {
           editor.commands.clearGhostText()
         }
       }
+    },
+    onFinish: (prompt, completion) => {
+      console.log('[useGhostText] Completion finished:', { prompt, completion })
+    },
+    onResponse: (response) => {
+      console.log('[useGhostText] Got response:', response.status)
     }
   })
 
   // Update ghost text when completion changes
   useEffect(() => {
+    console.log('[useGhostText] Completion changed:', { 
+      completion, 
+      position: positionRef.current, 
+      hasEditor: !!editor, 
+      isMounted: isMountedRef.current 
+    })
+    
     if (completion && positionRef.current !== null && editor && isMountedRef.current) {
+      console.log('[useGhostText] Setting ghost text in editor')
       editor.commands.setGhostText(completion, positionRef.current)
     }
   }, [completion, editor])
@@ -37,18 +52,23 @@ export function useGhostText(editor: Editor | null) {
     if (!editor) return
 
     const handleTrigger = (props: { position: number; context: string }) => {
+      console.log('[useGhostText] Ghost text triggered:', props)
       positionRef.current = props.position
 
-      // Clear any existing ghost text
-      editor.commands.clearGhostText()
+      // Don't clear ghost text here - let the completion handle it
+      // editor.commands.clearGhostText()
 
       // Only trigger if we have enough context
       if (props.context.length >= 10) {
+        console.log('[useGhostText] Context is long enough, calling complete')
         complete(props.context, { body: { mode: 'ghost-text' } })
+      } else {
+        console.log('[useGhostText] Context too short:', props.context.length, 'chars')
       }
     }
 
     const handleAccept = (text: string) => {
+      console.log('[useGhostText] Accepting ghost text:', text)
       if (positionRef.current !== null) {
         editor.chain().focus().insertContentAt(positionRef.current, text).run()
       }
@@ -59,6 +79,7 @@ export function useGhostText(editor: Editor | null) {
     }
 
     const handleReject = () => {
+      console.log('[useGhostText] Rejecting ghost text')
       editor.commands.clearGhostText()
       positionRef.current = null
       stop()

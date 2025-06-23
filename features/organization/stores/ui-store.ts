@@ -1,13 +1,20 @@
 import { create } from 'zustand'
 
+interface ActiveContext {
+  type: 'space' | 'collection' | 'smart-collection'
+  id: string
+  spaceId: string
+  collectionId?: string // Only for items in regular collections
+}
+
 interface UIState {
   // Expansion states
   spaceExpansion: Record<string, boolean>
   collectionExpansion: Record<string, boolean>
+  smartCollectionExpansion: Record<string, boolean>
   
-  // Active items
-  activeNoteId: string | null
-  activeChatId: string | null
+  // Active context - single source of truth
+  activeContext: ActiveContext | null
   
   // Sidebar state
   sidebarCollapsed: boolean
@@ -21,12 +28,16 @@ interface UIActions {
   // Expansion management
   toggleSpace: (spaceId: string) => void
   toggleCollection: (collectionId: string) => void
+  toggleSmartCollection: (collectionId: string) => void
   setSpaceExpanded: (spaceId: string, expanded: boolean) => void
   setCollectionExpanded: (collectionId: string, expanded: boolean) => void
+  setSmartCollectionExpanded: (collectionId: string, expanded: boolean) => void
   
-  // Active items
-  setActiveNote: (noteId: string | null) => void
-  setActiveChat: (chatId: string | null) => void
+  // Active context management
+  setActiveContext: (context: ActiveContext | null) => void
+  getActiveContext: () => ActiveContext | null
+  clearActiveContext: () => void
+  isContextActive: (type: string, id: string) => boolean
   
   // Sidebar
   setSidebarCollapsed: (collapsed: boolean) => void
@@ -43,8 +54,8 @@ export const useUIStore = create<UIStore>((set, get) => ({
   // Initial state
   spaceExpansion: {},
   collectionExpansion: {},
-  activeNoteId: null,
-  activeChatId: null,
+  smartCollectionExpansion: {},
+  activeContext: null,
   sidebarCollapsed: false,
   globalLoading: false,
   globalError: null,
@@ -65,7 +76,18 @@ export const useUIStore = create<UIStore>((set, get) => ({
     set(state => ({
       collectionExpansion: {
         ...state.collectionExpansion,
-        [collectionId]: currentState === undefined ? false : !currentState  // If undefined, set to false (collapse)
+        [collectionId]: currentState === undefined ? false : !currentState
+      }
+    }))
+  },
+  
+  // Toggle smart collection expansion
+  toggleSmartCollection: (collectionId) => {
+    const currentState = get().smartCollectionExpansion[collectionId]
+    set(state => ({
+      smartCollectionExpansion: {
+        ...state.smartCollectionExpansion,
+        [collectionId]: currentState === undefined ? false : !currentState
       }
     }))
   },
@@ -90,14 +112,42 @@ export const useUIStore = create<UIStore>((set, get) => ({
     }))
   },
   
-  // Set active note
-  setActiveNote: (noteId) => {
-    set({ activeNoteId: noteId, activeChatId: null })
+  // Set smart collection expansion
+  setSmartCollectionExpanded: (collectionId, expanded) => {
+    set(state => ({
+      smartCollectionExpansion: {
+        ...state.smartCollectionExpansion,
+        [collectionId]: expanded
+      }
+    }))
   },
   
-  // Set active chat
-  setActiveChat: (chatId) => {
-    set({ activeChatId: chatId, activeNoteId: null })
+  // Set active context - this is the main method for setting what's active
+  setActiveContext: (context) => {
+    set({ activeContext: context })
+    
+    // Log for debugging
+    if (context) {
+      console.log(`Active context set to ${context.type}: ${context.id}`)
+    } else {
+      console.log('Active context cleared')
+    }
+  },
+  
+  // Get active context
+  getActiveContext: () => {
+    return get().activeContext
+  },
+  
+  // Clear active context
+  clearActiveContext: () => {
+    set({ activeContext: null })
+  },
+  
+  // Check if a specific item is active
+  isContextActive: (type, id) => {
+    const context = get().activeContext
+    return context?.type === type && context?.id === id
   },
   
   // Set sidebar collapsed
