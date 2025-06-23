@@ -1,3 +1,5 @@
+'use client'
+
 import { useEffect, useRef, useCallback, useState } from 'react'
 import { Editor } from '@tiptap/core'
 import { useCompletion } from 'ai/react'
@@ -14,6 +16,7 @@ export function useGhostText(editor: Editor | null) {
   const isMountedRef = useRef(false)
   const completeRef = useRef<any>(null)
   const stopRef = useRef<any>(null)
+  const lastCompletionRef = useRef<string>('')
   const { trackFeedback } = useFeedbackTracker()
 
   useEffect(() => {
@@ -50,17 +53,27 @@ export function useGhostText(editor: Editor | null) {
 
   // Update ghost text when completion changes
   useEffect(() => {
-    console.log('[useGhostText] Completion changed:', { 
+    if (!editor || !completion || positionRef.current === null || !isMountedRef.current) {
+      return
+    }
+
+    // Skip if this is the same completion we just processed
+    if (completion === lastCompletionRef.current) {
+      return
+    }
+    
+    console.log('[useGhostText] Setting ghost text:', { 
       completion, 
-      position: positionRef.current, 
-      hasEditor: !!editor, 
-      isMounted: isMountedRef.current 
+      position: positionRef.current
     })
     
-    if (completion && positionRef.current !== null && editor && isMountedRef.current) {
-      console.log('[useGhostText] Setting ghost text in editor')
-      editor.commands.setGhostText(completion, positionRef.current)
-    }
+    // Update local state
+    setGhostText(completion)
+    setPosition(positionRef.current)
+    lastCompletionRef.current = completion
+    
+    // Update editor immediately
+    editor.commands.setGhostText(completion, positionRef.current)
   }, [completion, editor])
 
   // Set up event handlers only once per editor instance
@@ -175,6 +188,9 @@ export function useGhostText(editor: Editor | null) {
   }, [editor, isLoading])
 
   return {
+    triggerGhostText,
+    clearGhostText,
+    acceptGhostText,
     isLoading,
     ghostText: completion
   }

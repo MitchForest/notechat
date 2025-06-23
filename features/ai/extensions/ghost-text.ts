@@ -35,12 +35,25 @@ export const GhostText = Extension.create({
 
         state: {
           init: () => {
-            return { decorations: DecorationSet.empty }
+            return { 
+              decorations: DecorationSet.empty,
+              isVisible: false,
+              ghostText: '',
+              position: null as number | null
+            }
           },
 
           apply(tr, value, oldState, newState) {
             const storage = extension.storage as GhostTextStorage
             const meta = tr.getMeta('ghostTextUpdate')
+            
+            console.log('[GhostText Plugin] apply called:', {
+              meta,
+              isActive: storage.isActive,
+              ghostText: storage.ghostText,
+              position: storage.position,
+              docChanged: tr.docChanged
+            })
 
             // Handle explicit updates
             if (meta === true) {
@@ -48,34 +61,73 @@ export const GhostText = Extension.create({
                 try {
                   console.log('[GhostText] Creating widget decoration at position:', storage.position, 'with text:', storage.ghostText)
                   
+                  // Validate position
+                  if (storage.position < 0 || storage.position > newState.doc.content.size) {
+                    console.error('[GhostText] Invalid position:', storage.position, 'doc size:', newState.doc.content.size)
+                    return { 
+                      decorations: DecorationSet.empty,
+                      isVisible: false,
+                      ghostText: '',
+                      position: null
+                    }
+                  }
+                  
                   // Use widget decoration instead of inline
                   const decoration = Decoration.widget(
                     storage.position,
                     () => {
+                      console.log('[GhostText] Creating widget DOM element')
                       const span = document.createElement('span')
                       span.className = 'ghost-text-widget'
                       span.textContent = storage.ghostText
                       span.setAttribute('data-ghost-text', 'true')
-                      span.style.color = 'var(--muted-foreground)'
-                      span.style.opacity = '0.6'
-                      span.style.fontStyle = 'italic'
-                      span.style.pointerEvents = 'none'
-                      span.style.marginLeft = '1px'
+                      span.setAttribute('data-ghost-text-content', storage.ghostText)
+                      // Add debug styling
+                      span.style.cssText = 'color: rgba(156, 163, 175, 0.8) !important; background: rgba(156, 163, 175, 0.1) !important; padding: 0 4px !important; border-radius: 3px !important; display: inline-block !important;'
+                      console.log('[GhostText] Widget DOM element created:', span)
                       return span
                     },
-                    { side: 1 } // Place after cursor
+                    { 
+                      side: 1, // Place after cursor
+                      marks: [], // Don't inherit marks
+                      key: 'ghost-text-widget'
+                    }
                   )
                   
                   const decorations = DecorationSet.create(newState.doc, [decoration])
-                  console.log('[GhostText] Decorations created:', decorations)
-                  return { decorations }
+                  console.log('[GhostText] Decorations created successfully, set size:', decorations.find().length)
+                  
+                  // Force a view update
+                  setTimeout(() => {
+                    if (extension.editor && extension.editor.view) {
+                      console.log('[GhostText] Forcing view update')
+                      extension.editor.view.updateState(extension.editor.view.state)
+                    }
+                  }, 0)
+                  
+                  return { 
+                    decorations,
+                    isVisible: true,
+                    ghostText: storage.ghostText,
+                    position: storage.position
+                  }
                 } catch (e) {
                   console.error('[GhostText] Error creating decoration:', e)
-                  return { decorations: DecorationSet.empty }
+                  return { 
+                    decorations: DecorationSet.empty,
+                    isVisible: false,
+                    ghostText: '',
+                    position: null
+                  }
                 }
               } else {
                 console.log('[GhostText] Clearing decorations - isActive:', storage.isActive, 'ghostText:', storage.ghostText, 'position:', storage.position)
-                return { decorations: DecorationSet.empty }
+                return { 
+                  decorations: DecorationSet.empty,
+                  isVisible: false,
+                  ghostText: '',
+                  position: null
+                }
               }
             }
             
@@ -92,11 +144,19 @@ export const GhostText = Extension.create({
                   storage.position = null
                   storage.isActive = false
                   ;(extension.editor as any).emit('ghostTextReject')
-                  return { decorations: DecorationSet.empty }
+                  return { 
+                    decorations: DecorationSet.empty,
+                    isVisible: false,
+                    ghostText: '',
+                    position: null
+                  }
                 }
               }
               
-              return { decorations: mapped }
+              return { 
+                ...value,
+                decorations: mapped 
+              }
             }
             
             // Check if cursor moved away
@@ -104,18 +164,25 @@ export const GhostText = Extension.create({
               const { from } = newState.selection
               if (from !== storage.position && from !== storage.position + 1) {
                 ;(extension.editor as any).emit('ghostTextReject')
-                return { decorations: DecorationSet.empty }
+                return { 
+                  decorations: DecorationSet.empty,
+                  isVisible: false,
+                  ghostText: '',
+                  position: null
+                }
               }
             }
             
-            // No changes, return existing decorations
+            // No changes, return existing state
             return value
           }
         },
 
         props: {
           decorations(state) {
-            return ghostTextKey.getState(state)?.decorations || DecorationSet.empty
+            const pluginState = ghostTextKey.getState(state)
+            console.log('[GhostText] decorations() called, plugin state:', pluginState)
+            return pluginState?.decorations || DecorationSet.empty
           },
 
           handleTextInput(view, from, to, text) {
@@ -215,15 +282,20 @@ export const GhostText = Extension.create({
         (text: string, position: number) =>
         ({ editor, dispatch }) => {
           const storage = this.storage as GhostTextStorage
+          
+          console.log('[GhostText] Command setGhostText called:', { text, position, dispatch: !!dispatch })
+          console.log('[GhostText] Storage before update:', { ...storage })
+          
           storage.ghostText = text
           storage.position = position
           storage.isActive = true
 
-          console.log('[GhostText] Setting ghost text:', text, 'at position:', position)
+          console.log('[GhostText] Storage after update:', { ...storage })
 
           // Always dispatch the transaction
           if (dispatch) {
             const tr = editor.state.tr.setMeta('ghostTextUpdate', true)
+            console.log('[GhostText] Dispatching transaction with ghostTextUpdate meta')
             dispatch(tr)
           }
 
@@ -236,11 +308,11 @@ export const GhostText = Extension.create({
           const storage = this.storage as GhostTextStorage
           const wasActive = storage.isActive
           
+          console.log('[GhostText] Command clearGhostText called')
+          
           storage.ghostText = ''
           storage.isActive = false
           storage.position = null
-
-          console.log('[GhostText] Clearing ghost text')
 
           // Clear any pending timeout
           if (storage.triggerTimeout) {

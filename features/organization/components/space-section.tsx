@@ -46,16 +46,14 @@ export const SpaceSection = React.memo(({
             onToggle()
           }}
         >
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-1 min-w-0">
             <span className="text-base">{space.emoji}</span>
-            <span>{space.name}</span>
+            <span className="truncate">{space.name}</span>
           </div>
-          <div className="flex items-center gap-1">
-            {isExpanded ? 
-              <ChevronDown className="h-4 w-4" /> : 
-              <ChevronRight className="h-4 w-4" />
-            }
-          </div>
+          {isExpanded ? 
+            <ChevronDown className="h-4 w-4 flex-shrink-0 ml-2" /> : 
+            <ChevronRight className="h-4 w-4 flex-shrink-0 ml-2" />
+          }
         </button>
         
         {/* Hover actions for non-system spaces */}

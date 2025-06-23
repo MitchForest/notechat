@@ -89,19 +89,17 @@ export const SidebarCollectionItem = React.memo(({
             onCollectionClick?.(collection.id)
           }}
         >
-          <div className="flex items-center gap-2 flex-1">
-            <Icon className="h-3 w-3" />
-            <span>{collection.name}</span>
+          <div className="flex items-center gap-2 flex-1 min-w-0">
+            <Icon className="h-3 w-3 flex-shrink-0" />
+            <span className="truncate">{collection.name}</span>
             {itemCount > 0 && (
               <span className="text-xs text-muted-foreground">({itemCount})</span>
             )}
           </div>
-          <div className="flex items-center gap-1">
-            {isExpanded ? 
-              <ChevronDown className="h-3 w-3" /> : 
-              <ChevronRight className="h-3 w-3" />
-            }
-          </div>
+          {isExpanded ? 
+            <ChevronDown className="h-3 w-3 flex-shrink-0 ml-2" /> : 
+            <ChevronRight className="h-3 w-3 flex-shrink-0 ml-2" />
+          }
         </button>
         
         {/* Hover actions - positioned absolutely to avoid button nesting */}

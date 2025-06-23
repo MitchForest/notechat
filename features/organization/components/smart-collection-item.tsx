@@ -69,20 +69,17 @@ export function SmartCollectionItem({
         >
           <div className="flex items-center gap-2 flex-1 min-w-0">
             <Icon className="h-4 w-4 flex-shrink-0" />
-            <span className="flex-1 text-left truncate">{smartCollection.name}</span>
-            <span className="text-xs text-muted-foreground">
-              ({items.length})
+            <span className="flex-1 text-left truncate">
+              {smartCollection.name} <span className="text-xs text-muted-foreground">({items.length})</span>
             </span>
           </div>
-          <div className="flex items-center gap-1 ml-2">
-            {isLoading ? (
-              <Loader2 className="h-3 w-3 animate-spin" />
-            ) : isExpanded ? (
-              <ChevronDown className="h-3 w-3" />
-            ) : (
-              <ChevronRight className="h-3 w-3" />
-            )}
-          </div>
+          {isLoading ? (
+            <Loader2 className="h-3 w-3 animate-spin flex-shrink-0 ml-2" />
+          ) : isExpanded ? (
+            <ChevronDown className="h-3 w-3 flex-shrink-0 ml-2" />
+          ) : (
+            <ChevronRight className="h-3 w-3 flex-shrink-0 ml-2" />
+          )}
         </button>
         
         {/* Hover actions for non-protected smart collections */}

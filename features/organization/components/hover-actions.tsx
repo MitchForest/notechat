@@ -58,6 +58,7 @@ export function HoverActions({
           className={cn(
             "h-6 w-6 p-0 hover-actions-trigger",
             "hover:bg-hover-1",
+            "relative z-10",
             className
           )}
           onClick={(e) => e.stopPropagation()}

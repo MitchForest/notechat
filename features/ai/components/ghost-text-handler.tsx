@@ -25,9 +25,9 @@ export function GhostTextHandler({ editor }: GhostTextHandlerProps) {
 
   console.log('[GhostTextHandler] Render:', { isLoading, ghostText, isVisible })
 
-  // Handle loading state transitions with animation
+  // Handle visibility based on loading state OR ghost text presence
   useEffect(() => {
-    if (isLoading) {
+    if (isLoading || ghostText) {
       setIsVisible(true)
     } else {
       // Delay hiding to allow fade out animation
@@ -36,7 +36,7 @@ export function GhostTextHandler({ editor }: GhostTextHandlerProps) {
       }, 200)
       return () => clearTimeout(timeout)
     }
-  }, [isLoading])
+  }, [isLoading, ghostText])
 
   // Don't render anything if not needed
   if (!isVisible) return null
@@ -48,11 +48,13 @@ export function GhostTextHandler({ editor }: GhostTextHandlerProps) {
         'flex items-center gap-2 px-3 py-2',
         'bg-background border rounded-md shadow-sm',
         'transition-all duration-200',
-        isLoading ? 'opacity-100 scale-100' : 'opacity-0 scale-95'
+        (isLoading || ghostText) ? 'opacity-100 scale-100' : 'opacity-0 scale-95'
       )}
     >
       <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-      <span className="text-sm text-muted-foreground">AI is thinking...</span>
+      <span className="text-sm text-muted-foreground">
+        {ghostText ? `Ghost text: "${ghostText}"` : 'AI is thinking...'}
+      </span>
     </div>
   )
 } 

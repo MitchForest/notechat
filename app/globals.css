@@ -562,6 +562,8 @@
 .hover-actions-trigger {
   opacity: 0;
   transition: opacity 200ms ease-in-out;
+  position: relative;
+  z-index: 10;
 }
 
 /* Show hover actions when hovering the parent group div */

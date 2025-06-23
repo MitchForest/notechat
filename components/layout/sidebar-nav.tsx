@@ -52,7 +52,6 @@ import { DragPreview } from '@/features/organization/components/drag-overlay'
 import { DndContext } from '@dnd-kit/core'
 import { useDragDrop } from '@/features/organization/hooks/use-drag-drop'
 import { useAppShell } from '@/components/layout/app-shell-context'
-import { useRouter } from 'next/navigation'
 
 interface SidebarNavProps {
   className?: string
@@ -64,9 +63,18 @@ interface SmartCollectionFilter {
   filterConfig?: Record<string, unknown>
 }
 
+interface FilterConfig {
+  type?: 'all' | 'note' | 'chat'
+  timeRange?: {
+    unit: 'days' | 'weeks' | 'months'
+    value: number
+  }
+  isStarred?: boolean
+  orderBy?: 'updatedAt' | 'createdAt' | 'title'
+  orderDirection?: 'asc' | 'desc'
+}
+
 export function SidebarNav({ className, user }: SidebarNavProps) {
-  const router = useRouter()
-  
   // UI Store
   const { 
     spaceExpansion, 
@@ -220,51 +228,68 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
 
   // Helper function to filter items based on collection type
   const getFilteredItems = useCallback((collection: Collection) => {
-    console.log('getFilteredItems called for collection:', collection)
-    console.log('All notes:', notes.length, 'All chats:', chats.length)
-    
     const now = new Date()
     const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
 
-    let permanentCollection: SmartCollectionFilter | null = null;
-    const systemSpace = spaces.find(s => s.type === 'system')
-    if (systemSpace && systemSpace.smartCollections) {
-      const foundCollection = systemSpace.smartCollections.find((c: SmartCollection) => c.id === collection.id);
-      if (foundCollection) {
-        permanentCollection = {
-          type: foundCollection.name.toLowerCase().replace(' ', '-'),
-          filterConfig: foundCollection.filterConfig as Record<string, unknown>
-        };
-      }
-    }
-      
-    const collectionType = permanentCollection ? permanentCollection.type : 'user'
-
-    // Use ALL notes and chats, not just space items
-    const allItems = [...notes, ...chats]
-    let filteredItems: (Note | Chat)[] = []
+    // Check if this is actually a smart collection
+    const allSmartCollections = spaces.flatMap(s => s.smartCollections || [])
+    const smartCollection = allSmartCollections.find(sc => sc.id === collection.id)
     
-    switch (collectionType) {
-      case 'static-all':
-        // For smart collections in system space, show all items from all spaces
-        filteredItems = allItems
-        break
-      case 'static-recent':
-        filteredItems = allItems.filter(item => new Date(item.updatedAt) > sevenDaysAgo)
-        break
-      case 'static-starred':
-        filteredItems = allItems.filter(item => item.isStarred)
-        break
-      case 'static-uncategorized':
-        filteredItems = allItems.filter(item => !item.collectionId)
-        break
-      case 'user':
-      default:
-        // Regular user collection - filter by collection ID
-        filteredItems = allItems.filter(item => item.collectionId === collection.id)
-        console.log(`Filtering for collection ${collection.id}:`, filteredItems.length, 'items')
-        break
+    if (smartCollection) {
+      // This is a smart collection - filter ALL items in the space
+      const spaceItems = [...notes, ...chats].filter(item => item.spaceId === smartCollection.spaceId)
+      let filteredItems: (Note | Chat)[] = []
+      
+      const filterConfig = smartCollection.filterConfig as FilterConfig
+      
+      // Apply filters based on filterConfig
+      if (filterConfig.type === 'all' || !filterConfig.type) {
+        filteredItems = spaceItems
+      } else if (filterConfig.type === 'note') {
+        filteredItems = spaceItems.filter(item => !('messages' in item))
+      } else if (filterConfig.type === 'chat') {
+        filteredItems = spaceItems.filter(item => 'messages' in item || item.id.startsWith('chat-'))
+      }
+      
+      // Apply time range filter
+      if (filterConfig.timeRange) {
+        filteredItems = filteredItems.filter(item => new Date(item.updatedAt) > sevenDaysAgo)
+      }
+      
+      // Apply starred filter
+      if (filterConfig.isStarred) {
+        filteredItems = filteredItems.filter(item => item.isStarred)
+      }
+      
+      // Sort
+      const orderBy = filterConfig.orderBy || 'updatedAt'
+      const orderDirection = filterConfig.orderDirection || 'desc'
+      
+      return filteredItems.sort((a, b) => {
+        let aValue: string | number
+        let bValue: string | number
+        
+        if (orderBy === 'title') {
+          aValue = a.title
+          bValue = b.title
+        } else if (orderBy === 'createdAt') {
+          aValue = new Date(a.createdAt).getTime()
+          bValue = new Date(b.createdAt).getTime()
+        } else {
+          aValue = new Date(a.updatedAt).getTime()
+          bValue = new Date(b.updatedAt).getTime()
+        }
+        
+        if (orderDirection === 'asc') {
+          return aValue > bValue ? 1 : -1
+        } else {
+          return aValue < bValue ? 1 : -1
+        }
+      })
     }
+    
+    // Regular collection - only show items with matching collectionId
+    const filteredItems = [...notes, ...chats].filter(item => item.collectionId === collection.id)
     
     // Sort all items by updatedAt in descending order (most recent first)
     return filteredItems.sort((a, b) => 
@@ -714,7 +739,6 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
                                   id: smartCollection.id,
                                   spaceId: space.id
                                 })
-                                router.push(`/collection/${smartCollection.id}`)
                               }}
                               onAction={handleSmartCollectionAction}
                               onItemClick={handleItemClick}
@@ -797,7 +821,6 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
                                 id: smartCollection.id,
                                 spaceId: space.id
                               })
-                              router.push(`/collection/${smartCollection.id}`)
                             }}
                             onAction={handleSmartCollectionAction}
                             onItemClick={handleItemClick}
