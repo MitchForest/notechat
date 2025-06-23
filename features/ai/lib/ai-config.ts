@@ -6,7 +6,8 @@ export const AI_MODELS = {
   fast: 'gpt-4o-mini',
   accurate: 'gpt-4-turbo',
   'ghost-text': 'gpt-4o-mini',
-  completion: 'gpt-4o-mini'
+  completion: 'gpt-4o-mini',
+  'inline-ai': 'gpt-4o-mini'
 } as const
 
 // Temperature settings (0 = deterministic, 1 = creative)
@@ -15,7 +16,8 @@ export const AI_TEMPERATURES = {
   transform: 0.3, // More consistent for edits
   assistant: 0.5, // Balanced for chat
   'ghost-text': 0.7,
-  completion: 0.7
+  completion: 0.7,
+  'inline-ai': 0.5
 } as const
 
 // Token limits to prevent runaway costs
@@ -24,7 +26,8 @@ export const AI_MAX_TOKENS = {
   transform: 1000, // Longer for rewrites
   assistant: 1500, // Longest for chat
   'ghost-text': 20,
-  completion: 100
+  completion: 100,
+  'inline-ai': 1000
 } as const
 
 // Structure-aware content prompt
@@ -37,6 +40,44 @@ When creating content:
 - Always specify the programming language for code blocks
 - Keep formatting clean and consistent
 - Preserve any existing formatting when transforming text`
+
+// Editor block format instructions
+const EDITOR_BLOCK_INSTRUCTIONS = `You are an AI assistant integrated into a rich text editor.
+
+The editor supports these block types:
+- paragraph: Regular text content
+- heading: Headers with levels 1-3 (attrs: { level: 1|2|3 })
+- codeBlock: Code with syntax highlighting (attrs: { language: "javascript"|"python"|etc })
+- bulletList: Unordered list (with items array)
+- orderedList: Numbered list (with items array)
+- taskList: Checkable todo items (with items array)
+- blockquote: Quoted text
+
+You MUST respond with JSON in this exact format:
+{
+  "blocks": [
+    {
+      "type": "paragraph",
+      "content": "Your text here"
+    },
+    {
+      "type": "codeBlock",
+      "attrs": { "language": "javascript" },
+      "content": "console.log('Hello World')"
+    },
+    {
+      "type": "bulletList",
+      "items": ["First item", "Second item", "Third item"]
+    }
+  ]
+}
+
+IMPORTANT RULES:
+1. Always output valid JSON with a "blocks" array
+2. For code requests, ALWAYS use codeBlock with the appropriate language
+3. Choose the most appropriate block type for the content
+4. For lists, use the items array instead of content
+5. Keep responses focused and relevant`
 
 // System prompts - instructions for the AI
 export const AI_SYSTEM_PROMPTS = {
@@ -68,6 +109,8 @@ export const AI_SYSTEM_PROMPTS = {
 
   completion:
     'You are a helpful writing assistant. Your task is to continue the text that the user has started. Keep the completion short and concise, ideally just a few words. Do not repeat the user-provided text. Your response should be a direct continuation of the user\'s text. For example, if the user writes "The quick brown fox", a good continuation would be "jumps over the lazy dog".',
+
+  'inline-ai': EDITOR_BLOCK_INSTRUCTIONS,
 
   custom: (instruction: string) =>
     `You are a helpful writing assistant. ${STRUCTURE_INSTRUCTIONS} Apply the following instruction to the text: "${instruction}". Respond with only the transformed text.`

@@ -15,9 +15,9 @@ export async function POST(req: NextRequest) {
     prompt,
     context,
     mode = 'completion'
-  }: { prompt?: string; context?: string; mode?: 'completion' | 'ghost-text' } = await req.json()
+  }: { prompt?: string; context?: string; mode?: 'completion' | 'ghost-text' | 'inline-ai' } = await req.json()
 
-  const systemPrompt = AI_SYSTEM_PROMPTS[mode]
+  const systemPrompt = AI_SYSTEM_PROMPTS[mode as keyof typeof AI_SYSTEM_PROMPTS]
   const fullPrompt = context ? `${context}\n\n${prompt}` : prompt
 
   if (!fullPrompt) {
@@ -26,11 +26,11 @@ export async function POST(req: NextRequest) {
 
   try {
     const result = await streamText({
-      model: openai(AI_MODELS[mode]),
-      system: systemPrompt,
+      model: openai(AI_MODELS[mode as keyof typeof AI_MODELS]),
+      system: systemPrompt as string,
       prompt: fullPrompt,
-      temperature: AI_TEMPERATURES[mode],
-      maxTokens: AI_MAX_TOKENS[mode]
+      temperature: AI_TEMPERATURES[mode as keyof typeof AI_TEMPERATURES],
+      maxTokens: AI_MAX_TOKENS[mode as keyof typeof AI_MAX_TOKENS]
     })
 
     return result.toDataStreamResponse()

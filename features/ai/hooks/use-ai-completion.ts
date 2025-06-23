@@ -24,7 +24,11 @@ export function useAICompletion() {
       }
 
       try {
-        await complete(prompt)
+        await complete(prompt, { 
+          body: { 
+            mode: 'inline-ai' 
+          } 
+        })
       } catch (e) {
         handleAIError(e)
       }

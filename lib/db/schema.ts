@@ -16,13 +16,14 @@ export const users = pgTable('users', {
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 })
 
-export const usersRelations = relations(users, ({ many }) => ({
+export const usersRelations = relations(users, ({ many, one }) => ({
 	accounts: many(accounts),
 	sessions: many(sessions),
     spaces: many(spaces),
     notes: many(notes),
     collections: many(collections),
     chats: many(chats),
+    preferences: one(userPreferences),
 }))
 
 export const accounts = pgTable('accounts', {
@@ -204,6 +205,36 @@ export const smartCollectionsRelations = relations(smartCollections, ({ one }) =
     }),
 }))
 
+// --- User Preferences ---
+
+export const userPreferences = pgTable('user_preferences', {
+    id: uuid('id').defaultRandom().primaryKey(),
+    userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+    preferences: jsonb('preferences').notNull().default({}),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+})
+
+export const userPreferencesRelations = relations(userPreferences, ({ one }) => ({
+    user: one(users, {
+        fields: [userPreferences.userId],
+        references: [users.id],
+    }),
+}))
+
+// Type for AI preferences
+export interface AIPreferences {
+    customCommands?: {
+        id: string
+        label: string
+        prompt: string
+        icon?: string
+        order?: number
+    }[]
+    hiddenDefaultCommands?: string[]
+    commandOrder?: string[]
+}
+
 // Type exports
 export type User = typeof users.$inferSelect
 export type NewUser = typeof users.$inferInsert
@@ -223,4 +254,6 @@ export type NewChat = typeof chats.$inferInsert
 export type Message = typeof messages.$inferSelect
 export type NewMessage = typeof messages.$inferInsert
 export type SmartCollection = typeof smartCollections.$inferSelect
-export type NewSmartCollection = typeof smartCollections.$inferInsert 
+export type NewSmartCollection = typeof smartCollections.$inferInsert
+export type UserPreferences = typeof userPreferences.$inferSelect
+export type NewUserPreferences = typeof userPreferences.$inferInsert 

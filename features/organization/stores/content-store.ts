@@ -21,6 +21,12 @@ interface ContentState {
   // Cache management
   lastFetchedCollection: string | null
   isCacheValid: boolean
+  
+  // Smart collection cache
+  smartCollectionCache: Record<string, {
+    items: (Note | Chat)[]
+    timestamp: number
+  }>
 }
 
 interface ContentActions {
@@ -30,7 +36,7 @@ interface ContentActions {
   clearContent: () => void
   
   // Fetch content based on smart collection filters
-  fetchSmartCollectionContent: (smartCollection: SmartCollection) => Promise<void>
+  fetchSmartCollectionContent: (smartCollection: SmartCollection) => Promise<(Note | Chat)[]>
   
   // CRUD operations
   createNote: (title: string, spaceId: string | null, collectionId: string | null, id?: string) => Promise<Note | null>
@@ -60,6 +66,7 @@ export const useContentStore = create<ContentStore>((set, get) => ({
   chats: [],
   lastFetchedCollection: null,
   isCacheValid: false,
+  smartCollectionCache: {},
   
   // Setters
   setNotes: (notes) => {
@@ -75,6 +82,14 @@ export const useContentStore = create<ContentStore>((set, get) => ({
   // Fetch content based on smart collection filters
   fetchSmartCollectionContent: async (smartCollection) => {
     console.log('fetchSmartCollectionContent called with:', smartCollection)
+    
+    // Check cache first (5 minute TTL)
+    const cached = get().smartCollectionCache[smartCollection.id]
+    if (cached && Date.now() - cached.timestamp < 5 * 60 * 1000) {
+      console.log('Returning cached smart collection items')
+      return cached.items
+    }
+    
     const filterConfig = smartCollection.filterConfig as FilterConfig
     
     // Build query parameters from filter config
@@ -156,13 +171,15 @@ export const useContentStore = create<ContentStore>((set, get) => ({
       }
       
       // Combine and sort if needed
-      if (filterConfig.type === 'all') {
+      let combinedItems: (Note | Chat)[] = []
+      
+      if (filterConfig.type === 'all' || !filterConfig.type) {
         // Combine and sort by the specified field
-        const combined = [...notesData, ...chatsData]
+        combinedItems = [...notesData, ...chatsData]
         const orderBy = filterConfig.orderBy || 'updatedAt'
         const orderDirection = filterConfig.orderDirection || 'desc'
         
-        combined.sort((a, b) => {
+        combinedItems.sort((a, b) => {
           let aValue: any
           let bValue: any
           
@@ -184,26 +201,38 @@ export const useContentStore = create<ContentStore>((set, get) => ({
             return aValue < bValue ? 1 : -1
           }
         })
-        
-        // Separate back into notes and chats
+      } else if (filterConfig.type === 'note') {
+        combinedItems = notesData
+      } else if (filterConfig.type === 'chat') {
+        combinedItems = chatsData
+      }
+      
+      // Update cache
+      set(state => ({
+        smartCollectionCache: {
+          ...state.smartCollectionCache,
+          [smartCollection.id]: {
+            items: combinedItems,
+            timestamp: Date.now()
+          }
+        }
+      }))
+      
+      // Also update the main notes/chats arrays if this is a full fetch
+      if (!filterConfig.type || filterConfig.type === 'all') {
         set({
-          notes: combined.filter(item => 'content' in item && !('messages' in item)) as Note[],
-          chats: combined.filter(item => 'messages' in item || ('content' in item && item.id.startsWith('chat-'))) as Chat[],
-          lastFetchedCollection: smartCollection.id,
-          isCacheValid: true
-        })
-      } else {
-        set({
-          notes: notesData,
-          chats: chatsData,
+          notes: combinedItems.filter(item => 'content' in item && !('messages' in item)) as Note[],
+          chats: combinedItems.filter(item => 'messages' in item || ('content' in item && item.id.startsWith('chat-'))) as Chat[],
           lastFetchedCollection: smartCollection.id,
           isCacheValid: true
         })
       }
+      
+      return combinedItems
     } catch (error) {
       console.error('Failed to fetch smart collection content:', error)
       toast.error('Failed to load collection items')
-      throw error
+      return []
     }
   },
   

@@ -110,6 +110,7 @@ export const SidebarCollectionItem = React.memo(({
             onRename={() => onCollectionAction('rename', collection.id)}
             onDelete={() => onCollectionAction('delete', collection.id)}
             onChangeIcon={() => onCollectionAction('changeIcon', collection.id)}
+            onMove={() => onCollectionAction('moveToSpace', collection.id)}
             className="absolute right-1"
           />
         )}

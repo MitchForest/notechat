@@ -13,6 +13,9 @@ interface UIState {
   collectionExpansion: Record<string, boolean>
   smartCollectionExpansion: Record<string, boolean>
   
+  // Loading states for smart collections
+  smartCollectionLoading: Record<string, boolean>
+  
   // Active context - single source of truth
   activeContext: ActiveContext | null
   
@@ -32,6 +35,7 @@ interface UIActions {
   setSpaceExpanded: (spaceId: string, expanded: boolean) => void
   setCollectionExpanded: (collectionId: string, expanded: boolean) => void
   setSmartCollectionExpanded: (collectionId: string, expanded: boolean) => void
+  setSmartCollectionLoading: (collectionId: string, loading: boolean) => void
   
   // Active context management
   setActiveContext: (context: ActiveContext | null) => void
@@ -55,6 +59,7 @@ export const useUIStore = create<UIStore>((set, get) => ({
   spaceExpansion: {},
   collectionExpansion: {},
   smartCollectionExpansion: {},
+  smartCollectionLoading: {},
   activeContext: null,
   sidebarCollapsed: false,
   globalLoading: false,
@@ -118,6 +123,16 @@ export const useUIStore = create<UIStore>((set, get) => ({
       smartCollectionExpansion: {
         ...state.smartCollectionExpansion,
         [collectionId]: expanded
+      }
+    }))
+  },
+  
+  // Set smart collection loading state
+  setSmartCollectionLoading: (collectionId, loading) => {
+    set(state => ({
+      smartCollectionLoading: {
+        ...state.smartCollectionLoading,
+        [collectionId]: loading
       }
     }))
   },

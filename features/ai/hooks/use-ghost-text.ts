@@ -6,6 +6,8 @@ import { handleAIError } from '../lib/ai-errors'
 export function useGhostText(editor: Editor | null) {
   const positionRef = useRef<number | null>(null)
   const isMountedRef = useRef(false)
+  const completeRef = useRef<any>(null)
+  const stopRef = useRef<any>(null)
 
   useEffect(() => {
     isMountedRef.current = true
@@ -33,6 +35,12 @@ export function useGhostText(editor: Editor | null) {
     }
   })
 
+  // Store the latest functions in refs to avoid effect re-runs
+  useEffect(() => {
+    completeRef.current = complete
+    stopRef.current = stop
+  }, [complete, stop])
+
   // Update ghost text when completion changes
   useEffect(() => {
     console.log('[useGhostText] Completion changed:', { 
@@ -48,6 +56,7 @@ export function useGhostText(editor: Editor | null) {
     }
   }, [completion, editor])
 
+  // Set up event handlers only once per editor instance
   useEffect(() => {
     if (!editor) return
 
@@ -55,13 +64,12 @@ export function useGhostText(editor: Editor | null) {
       console.log('[useGhostText] Ghost text triggered:', props)
       positionRef.current = props.position
 
-      // Don't clear ghost text here - let the completion handle it
-      // editor.commands.clearGhostText()
-
       // Only trigger if we have enough context
       if (props.context.length >= 10) {
         console.log('[useGhostText] Context is long enough, calling complete')
-        complete(props.context, { body: { mode: 'ghost-text' } })
+        if (completeRef.current) {
+          completeRef.current(props.context, { body: { mode: 'ghost-text' } })
+        }
       } else {
         console.log('[useGhostText] Context too short:', props.context.length, 'chars')
       }
@@ -75,14 +83,18 @@ export function useGhostText(editor: Editor | null) {
 
       editor.commands.clearGhostText()
       positionRef.current = null
-      stop()
+      if (stopRef.current) {
+        stopRef.current()
+      }
     }
 
     const handleReject = () => {
       console.log('[useGhostText] Rejecting ghost text')
       editor.commands.clearGhostText()
       positionRef.current = null
-      stop()
+      if (stopRef.current) {
+        stopRef.current()
+      }
     }
 
     ;(editor as any).on('ghostTextTrigger', handleTrigger)
@@ -93,14 +105,8 @@ export function useGhostText(editor: Editor | null) {
       ;(editor as any).off('ghostTextTrigger', handleTrigger)
       ;(editor as any).off('ghostTextAccept', handleAccept)
       ;(editor as any).off('ghostTextReject', handleReject)
-      
-      // Clean up any pending operations
-      if (positionRef.current !== null) {
-        stop()
-        positionRef.current = null
-      }
     }
-  }, [editor, complete, stop])
+  }, [editor]) // Only depend on editor, not on complete/stop
 
   return {
     isLoading,

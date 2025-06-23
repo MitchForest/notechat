@@ -32,6 +32,8 @@ import { CreateSpaceDialog } from '@/features/organization/components/create-spa
 import { CreateCollectionDialog } from '@/features/organization/components/create-collection-dialog'
 import { RenameDialog } from '@/features/organization/components/rename-dialog'
 import { ChangeEmojiDialog } from '@/features/organization/components/change-emoji-dialog'
+import { ChangeIconDialog } from '@/features/organization/components/change-icon-dialog'
+import { MoveToSpaceDialog } from '@/features/organization/components/move-to-space-dialog'
 
 // Removed context menu imports - using hover actions instead
 
@@ -50,6 +52,7 @@ import { DragPreview } from '@/features/organization/components/drag-overlay'
 import { DndContext } from '@dnd-kit/core'
 import { useDragDrop } from '@/features/organization/hooks/use-drag-drop'
 import { useAppShell } from '@/components/layout/app-shell-context'
+import { useRouter } from 'next/navigation'
 
 interface SidebarNavProps {
   className?: string
@@ -62,58 +65,51 @@ interface SmartCollectionFilter {
 }
 
 export function SidebarNav({ className, user }: SidebarNavProps) {
-  // Organizational state
+  const router = useRouter()
+  
+  // UI Store
   const { 
-    spaces, 
-    setActiveSpace, 
-    createSpace,
-    fetchSpaces 
-  } = useSpaceStore()
+    spaceExpansion, 
+    collectionExpansion,
+    smartCollectionExpansion,
+    smartCollectionLoading,
+    sidebarCollapsed,
+    toggleSpace, 
+    toggleCollection,
+    toggleSmartCollection,
+    setSmartCollectionLoading,
+    setSidebarCollapsed,
+    setActiveContext,
+    isContextActive
+  } = useUIStore()
   
-  const { 
-    collections, 
-    createCollection,
-  } = useCollectionStore()
-  
-  const {
-    setSmartCollections,
-    smartCollections
-  } = useSmartCollectionStore()
-  
+  // Organization stores
+  const { spaces, fetchSpaces, createSpace } = useSpaceStore()
+  const { collections, createCollection } = useCollectionStore()
+  const { smartCollections, setSmartCollections } = useSmartCollectionStore()
   const { 
     notes, 
     chats, 
-    updateNote, 
+    fetchSmartCollectionContent,
+    updateNote,
     updateChat,
     deleteNote,
     deleteChat,
     toggleNoteStar,
-    toggleChatStar,
-    fetchSmartCollectionContent
+    toggleChatStar
   } = useContentStore()
   
-  // Search store
-  const {
-    searchQuery,
-    setSearchQuery,
-    searchResults,
-    isSearching,
-  } = useSearchStore()
+  // Search
+  const [searchQuery, setSearchQuery] = useState('')
+  const { searchResults, isSearching } = useSearchStore()
   
-  // UI store - using unified active context
-  const {
-    activeContext,
-    isContextActive,
-    setActiveContext,
-    spaceExpansion,
-    collectionExpansion,
-    sidebarCollapsed,
-    setSidebarCollapsed,
-    toggleSpace,
-    toggleCollection,
-  } = useUIStore()
-  
+  // App shell
   const { openChat, openNote } = useAppShell()
+  
+  // Smart collection items cache
+  const [smartCollectionItems, setSmartCollectionItems] = useState<
+    Record<string, (Note | Chat)[]>
+  >({})
   
   // Dialog states
   const [createSpaceOpen, setCreateSpaceOpen] = useState(false)
@@ -147,11 +143,43 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
     currentEmoji: ''
   })
   
+  // Change icon dialog state
+  const [changeIconDialog, setChangeIconDialog] = useState<{
+    open: boolean
+    itemId: string
+    itemType: 'collection' | 'smart-collection'
+    itemName: string
+    currentIcon: string
+  }>({
+    open: false,
+    itemId: '',
+    itemType: 'collection',
+    itemName: '',
+    currentIcon: 'folder'
+  })
+  
+  // Move to space dialog state
+  const [moveToSpaceDialog, setMoveToSpaceDialog] = useState<{
+    open: boolean
+    itemId: string
+    itemType: 'collection' | 'note' | 'chat'
+    itemName: string
+    currentSpaceId: string
+  }>({
+    open: false,
+    itemId: '',
+    itemType: 'collection',
+    itemName: '',
+    currentSpaceId: ''
+  })
+  
   // Drag & drop state
   const dragDropHook = useDragDrop()
 
+  // Load data on mount
   useEffect(() => {
     fetchSpaces()
+    // Smart collections are loaded per space, not globally
   }, [fetchSpaces])
 
   // Fetch initial notes and chats
@@ -179,15 +207,16 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
     fetchInitialData()
   }, [])
 
-  // When active space changes, update smart collections
+  // When active context changes, update smart collections
   useEffect(() => {
+    const activeContext = useUIStore.getState().getActiveContext()
     if (activeContext?.type === 'space') {
       const activeSpace = spaces.find(s => s.id === activeContext.id)
       if (activeSpace && activeSpace.smartCollections) {
         setSmartCollections(activeSpace.smartCollections)
       }
     }
-  }, [activeContext, spaces, setSmartCollections])
+  }, [spaces, setSmartCollections])
 
   // Helper function to filter items based on collection type
   const getFilteredItems = useCallback((collection: Collection) => {
@@ -419,12 +448,22 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
         }
         break
       case 'changeIcon':
-        // TODO: Implement change icon dialog
-        console.log('Change collection icon:', collectionId)
+        setChangeIconDialog({
+          open: true,
+          itemId: collectionId,
+          itemType: 'collection',
+          itemName: collection.name,
+          currentIcon: collection.icon || 'folder'
+        })
         break
       case 'moveToSpace':
-        // TODO: Implement move to space dialog
-        console.log('Move collection to space:', collectionId)
+        setMoveToSpaceDialog({
+          open: true,
+          itemId: collectionId,
+          itemType: 'collection',
+          itemName: collection.name,
+          currentSpaceId: collection.spaceId
+        })
         break
     }
   }, [collections])
@@ -446,6 +485,15 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
         if (confirm(`Delete smart collection "${smartCollection.name}"?`)) {
           useSmartCollectionStore.getState().deleteSmartCollection(smartCollectionId)
         }
+        break
+      case 'changeIcon':
+        setChangeIconDialog({
+          open: true,
+          itemId: smartCollectionId,
+          itemType: 'smart-collection',
+          itemName: smartCollection.name,
+          currentIcon: smartCollection.icon || 'filter'
+        })
         break
     }
   }, [smartCollections])
@@ -491,6 +539,29 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
     }
   }, [notes, chats, handleItemClick, toggleNoteStar, toggleChatStar, deleteNote, deleteChat])
 
+  // Fetch smart collection items when expanded
+  const handleSmartCollectionToggle = async (smartCollection: SmartCollection) => {
+    const isExpanded = smartCollectionExpansion[smartCollection.id] ?? false
+    
+    toggleSmartCollection(smartCollection.id)
+    
+    if (!isExpanded) {
+      // Fetch items when expanding
+      setSmartCollectionLoading(smartCollection.id, true)
+      try {
+        const items = await fetchSmartCollectionContent(smartCollection)
+        setSmartCollectionItems(prev => ({
+          ...prev,
+          [smartCollection.id]: items
+        }))
+      } catch (error) {
+        console.error('Failed to fetch smart collection items:', error)
+      } finally {
+        setSmartCollectionLoading(smartCollection.id, false)
+      }
+    }
+  }
+
   // Separate system and user spaces
   const systemSpaces = spaces.filter(s => s.type === 'system')
   const userSpaces = spaces.filter(s => s.type === 'user' || s.type === 'seeded')
@@ -514,7 +585,11 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
                       variant={isContextActive('space', space.id) ? "secondary" : "ghost"}
                       size="sm"
                       className="w-full h-8 p-0 text-base"
-                      onClick={() => setActiveSpace(space.id)}
+                      onClick={() => setActiveContext({
+                        type: 'space',
+                        id: space.id,
+                        spaceId: space.id
+                      })}
                     >
                       {space.emoji}
                     </Button>
@@ -535,7 +610,11 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
                       variant={isContextActive('space', space.id) ? "secondary" : "ghost"}
                       size="sm"
                       className="w-full h-8 p-0 text-base"
-                      onClick={() => setActiveSpace(space.id)}
+                      onClick={() => setActiveContext({
+                        type: 'space',
+                        id: space.id,
+                        spaceId: space.id
+                      })}
                     >
                       {space.emoji}
                     </Button>
@@ -615,23 +694,34 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
                     {(spaceSmartCollections.length > 0 || spaceCollections.length > 0) && (
                       <div className="mt-1 ml-6 space-y-0.5">
                         {/* Smart Collections */}
-                        {spaceSmartCollections.map((smartCollection) => (
-                          <SmartCollectionItem
-                            key={smartCollection.id}
-                            smartCollection={smartCollection}
-                            isActive={isContextActive('smart-collection', smartCollection.id)}
-                            onClick={() => {
-                              setActiveContext({
-                                type: 'smart-collection',
-                                id: smartCollection.id,
-                                spaceId: space.id
-                              })
-                              // Clear regular collection when smart collection is selected
-                              fetchSmartCollectionContent(smartCollection)
-                            }}
-                            onAction={handleSmartCollectionAction}
-                          />
-                        ))}
+                        {spaceSmartCollections.map((smartCollection) => {
+                          const isExpanded = smartCollectionExpansion[smartCollection.id] ?? false
+                          const isLoading = smartCollectionLoading[smartCollection.id] ?? false
+                          const filteredItems = smartCollectionItems[smartCollection.id] || []
+                          
+                          return (
+                            <SmartCollectionItem
+                              key={smartCollection.id}
+                              smartCollection={smartCollection}
+                              isActive={isContextActive('smart-collection', smartCollection.id)}
+                              isExpanded={isExpanded}
+                              isLoading={isLoading}
+                              items={filteredItems}
+                              onToggle={() => handleSmartCollectionToggle(smartCollection)}
+                              onClick={() => {
+                                setActiveContext({
+                                  type: 'smart-collection',
+                                  id: smartCollection.id,
+                                  spaceId: space.id
+                                })
+                                router.push(`/collection/${smartCollection.id}`)
+                              }}
+                              onAction={handleSmartCollectionAction}
+                              onItemClick={handleItemClick}
+                              onItemAction={handleItemAction}
+                            />
+                          )
+                        })}
                         
                         {/* Regular Collections */}
                         {spaceCollections.map((collection) => {
@@ -697,16 +787,21 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
                             key={smartCollection.id}
                             smartCollection={smartCollection}
                             isActive={isContextActive('smart-collection', smartCollection.id)}
+                            isExpanded={smartCollectionExpansion[smartCollection.id] ?? false}
+                            isLoading={smartCollectionLoading[smartCollection.id] ?? false}
+                            items={smartCollectionItems[smartCollection.id] || []}
+                            onToggle={() => handleSmartCollectionToggle(smartCollection)}
                             onClick={() => {
                               setActiveContext({
                                 type: 'smart-collection',
                                 id: smartCollection.id,
                                 spaceId: space.id
                               })
-                              // Clear smart collection when regular collection is selected
-                              fetchSmartCollectionContent(smartCollection)
+                              router.push(`/collection/${smartCollection.id}`)
                             }}
                             onAction={handleSmartCollectionAction}
+                            onItemClick={handleItemClick}
+                            onItemAction={handleItemAction}
                           />
                         ))}
                         
@@ -824,6 +919,51 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
           spaceName={changeEmojiDialog.spaceName}
           onChangeEmoji={async (newEmoji) => {
             await useSpaceStore.getState().updateSpace(changeEmojiDialog.spaceId, { emoji: newEmoji })
+          }}
+        />
+        
+        <ChangeIconDialog
+          open={changeIconDialog.open}
+          onOpenChange={(open: boolean) => setChangeIconDialog(prev => ({ ...prev, open }))}
+          currentIcon={changeIconDialog.currentIcon}
+          itemName={changeIconDialog.itemName}
+          itemType={changeIconDialog.itemType}
+          onChangeIcon={async (newIcon: string) => {
+            if (changeIconDialog.itemType === 'collection') {
+              await useCollectionStore.getState().updateCollection(
+                changeIconDialog.itemId,
+                { icon: newIcon }
+              )
+            } else {
+              await useSmartCollectionStore.getState().updateSmartCollection(
+                changeIconDialog.itemId,
+                { icon: newIcon }
+              )
+            }
+          }}
+        />
+
+        <MoveToSpaceDialog
+          open={moveToSpaceDialog.open}
+          onOpenChange={(open: boolean) => setMoveToSpaceDialog(prev => ({ ...prev, open }))}
+          itemType={moveToSpaceDialog.itemType}
+          itemName={moveToSpaceDialog.itemName}
+          currentSpaceId={moveToSpaceDialog.currentSpaceId}
+          spaces={spaces}
+          onMove={async (targetSpaceId: string) => {
+            if (moveToSpaceDialog.itemType === 'collection') {
+              await useCollectionStore.getState().updateCollection(
+                moveToSpaceDialog.itemId,
+                { spaceId: targetSpaceId }
+              )
+            } else {
+              // For notes/chats, use content store
+              await useContentStore.getState().moveItem(
+                moveToSpaceDialog.itemId,
+                moveToSpaceDialog.itemType,
+                null // Moving to space root, not a collection
+              )
+            }
           }}
         />
       </div>

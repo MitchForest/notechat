@@ -33,7 +33,7 @@ interface HoverActionsProps {
   onOpen?: () => void        // For notes/chats
   isStarred?: boolean        // For star/unstar toggle
   className?: string
-  variant?: 'space' | 'collection' | 'item'
+  variant?: 'space' | 'collection' | 'smart-collection' | 'item'
 }
 
 export function HoverActions({
@@ -56,8 +56,7 @@ export function HoverActions({
           variant="ghost" 
           size="sm"
           className={cn(
-            "h-6 w-6 p-0 opacity-0 group-hover:opacity-100",
-            "transition-opacity duration-200",
+            "h-6 w-6 p-0 hover-actions-trigger",
             "hover:bg-hover-1",
             className
           )}
@@ -161,6 +160,36 @@ export function HoverActions({
               </DropdownMenuItem>
             )}
             
+            {onMove && (
+              <DropdownMenuItem onClick={onMove}>
+                <FolderOpen className="mr-2 h-4 w-4" />
+                Move to Space...
+              </DropdownMenuItem>
+            )}
+            
+            {(onRename || onChangeIcon || onMove) && onDelete && (
+              <DropdownMenuSeparator />
+            )}
+          </>
+        )}
+        
+        {/* Smart Collection actions */}
+        {variant === 'smart-collection' && (
+          <>
+            {onRename && (
+              <DropdownMenuItem onClick={onRename}>
+                <Edit2 className="mr-2 h-4 w-4" />
+                Rename Filter
+              </DropdownMenuItem>
+            )}
+            
+            {onChangeIcon && (
+              <DropdownMenuItem onClick={onChangeIcon}>
+                <Palette className="mr-2 h-4 w-4" />
+                Change Icon
+              </DropdownMenuItem>
+            )}
+            
             {(onRename || onChangeIcon) && onDelete && (
               <DropdownMenuSeparator />
             )}
@@ -174,7 +203,12 @@ export function HoverActions({
             className="text-destructive focus:text-destructive"
           >
             <Trash2 className="mr-2 h-4 w-4" />
-            Delete {variant === 'space' ? 'Space' : variant === 'collection' ? 'Collection' : ''}
+            Delete {
+              variant === 'space' ? 'Space' : 
+              variant === 'collection' ? 'Collection' : 
+              variant === 'smart-collection' ? 'Filter' : 
+              ''
+            }
           </DropdownMenuItem>
         )}
       </DropdownMenuContent>

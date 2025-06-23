@@ -332,19 +332,18 @@
   
   /* NEW: Sidebar active state with left accent border */
   .sidebar-item-active-accent {
-    @apply relative bg-hover-2 rounded-md overflow-hidden;
-    transition: background-color 150ms ease-in-out;
+    position: relative;
+    padding-left: 0.75rem;
   }
   
   .sidebar-item-active-accent::before {
     content: '';
     position: absolute;
     left: 0;
-    top: 2px;
-    bottom: 2px;
+    top: 0;
+    bottom: 0;
     width: 3px;
-    background-color: oklch(var(--primary));
-    border-radius: 0 2px 2px 0;
+    background-color: hsl(var(--primary));
     animation: slideIn 200ms ease-out;
   }
   
@@ -522,4 +521,20 @@
 
 [data-state="open"] .accordion-chevron {
   transform: rotate(180deg);
+}
+
+/* Hover actions transitions */
+.hover-actions-trigger {
+  opacity: 0;
+  transition: opacity 200ms ease-in-out;
+}
+
+.group:hover .hover-actions-trigger,
+.hover-actions-trigger[data-state="open"] {
+  opacity: 1;
+}
+
+/* Ensure hover actions stay visible when dropdown is open */
+[data-state="open"] + .hover-actions-trigger {
+  opacity: 1;
 }

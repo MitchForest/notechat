@@ -7,8 +7,8 @@
 ## Current Work
 - 📋 Epic: Sidebar Navigation Improvements
   - ✅ Sprint 1: Unified Active State Management (COMPLETED)
-  - 🔄 Sprint 2: Smart Collection Expansion (Next)
-  - Sprint 3: Complete Hover Actions
+  - ✅ Sprint 2: Smart Collection Expansion (COMPLETED)
+  - ✅ Sprint 3: Complete Hover Actions (COMPLETED)
   - Sprint 4: Visual Polish & Drag/Drop
   - Sprint 5: Testing & Documentation
 
@@ -36,10 +36,8 @@
 - `modified: features/chat/components/extract-to-note-dialog.tsx` - Updated to use unified context
 
 ## Next Steps
-1. Begin Sprint 2: Smart Collection Expansion
-   - Make smart collections expandable/collapsible
-   - Show filtered items when expanded
-   - Add chevron icons aligned to the right
+1. Sprint 4: Visual polish and drag/drop improvements
+2. Sprint 5: Testing and documentation
 
 ## Previous Work (Epic 11 - Landing Page)
 - ✅ Sprint 1-6: All landing page sprints completed
@@ -64,4 +62,61 @@
 ## Notes
 - Sprint 1 completed successfully
 - No regressions found
-- Ready to proceed with Sprint 2 
+- Ready to proceed with Sprint 4 
+
+# Project Status
+
+**Last Updated:** 2024-12-29
+
+## Current Work
+**Epic:** AI Improvements  
+**Sprint:** Sprint 2 - AI Interface Improvements (IN PROGRESS)  
+**Focus:** Edit Prompt feature and JSON-based block formatting
+
+### Sprint Progress
+- ✅ Phase 1: Edit Prompt Feature - COMPLETE
+- 🚧 Phase 2: AI Output Formatting - IN PROGRESS (80% done)
+- ⏳ Phase 3: UI Layout Improvements - NOT STARTED
+
+### Recent Achievements
+- Fixed ghost text completions (now using widget decorations)
+- Fixed bubble menu positioning (using Tiptap's native component)
+- Implemented Edit Prompt feature with full UI
+- Updated AI to output JSON blocks instead of markdown
+- Created native block insertion logic
+
+## Tech Stack
+- **Framework:** Next.js 15.3.4 (App Router)
+- **UI:** React, Tailwind CSS, shadcn/ui
+- **Editor:** Tiptap with custom extensions
+- **State:** Zustand stores
+- **Database:** PostgreSQL with Drizzle ORM
+- **AI:** OpenAI API with streaming
+- **Auth:** Custom OAuth implementation
+
+## Key Features Implemented
+- ✅ Rich text editor with AI capabilities
+- ✅ Ghost text completions (++ trigger)
+- ✅ Slash commands with AI
+- ✅ Bubble menu with AI transformations
+- ✅ Note organization (spaces, collections)
+- ✅ Smart collections
+- ✅ Chat interface with note context
+- ✅ Drag and drop for organization
+
+## Active Issues
+1. ✅ ~~Ghost completions not showing after `++`~~ - FIXED
+2. 🚧 AI output formatting (code blocks) - IN PROGRESS
+3. ⏳ Bubble menu personalization needed
+4. ⏳ AI learning feedback loops not implemented
+
+## Next Steps
+1. Test JSON block output with various prompts
+2. Complete Phase 3 UI improvements
+3. Start Sprint 3: Personalization System
+4. Implement learning feedback loops
+
+## Notes
+- Using editor-native blocks instead of markdown parsing
+- AI now outputs structured JSON for better control
+- All tests passing, build successful 

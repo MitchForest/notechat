@@ -57,7 +57,7 @@ export function DraggableNoteItem({
           onDuplicate={() => onItemAction('duplicate', item.id)}
           onDelete={() => onItemAction('delete', item.id)}
           isStarred={item.isStarred || false}
-          className="absolute right-0"
+          className="absolute right-1"
         />
       </div>
     </DraggableItem>
