@@ -58,6 +58,18 @@ import { ChatSearch } from './chat-search'
 import { useMessageSearch } from '../hooks/use-message-search'
 import { useAppShell } from '@/components/layout/app-shell-context'
 
+// Helper function to escape HTML
+function escapeHtml(text: string): string {
+  const map: Record<string, string> = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#039;'
+  }
+  return text.replace(/[&<>"']/g, m => map[m])
+}
+
 interface ChatInterfaceProps {
   chatId: string
   className?: string
@@ -675,51 +687,36 @@ export function ChatInterface({ chatId, className, onClose, noteContext, metadat
 
   return (
     <>
+      {/* Main chat container with Card */}
       <Card className={cn('h-full flex flex-col', className)}>
-        <div className="relative">
-          <PanelHeader 
-            title={chatTitle}
-            type="chat"
-            onTitleChange={handleTitleChange}
-            onAction={handleAction}
-            extraActions={
-              <Button
-                size="icon"
-                variant="ghost"
-                onClick={openSearch}
-                className="h-8 w-8"
-                title="Search messages (Cmd/Ctrl+F)"
-              >
-                <Search className="h-4 w-4" />
-              </Button>
-            }
-          />
-          
-          {/* Connection status - positioned absolutely in header area */}
-          {(!isOnline || retryState.isRetrying) && (
-            <div className="absolute top-2 right-16 z-10">
-              <ConnectionStatus 
-                className="text-xs"
-                retryInfo={retryState.isRetrying ? {
-                  attempt: retryState.attempt,
-                  maxAttempts: retryState.maxAttempts,
-                  nextRetryIn: retryState.nextRetryIn
-                } : undefined}
-                onRetry={retry}
-              />
-            </div>
+        <PanelHeader
+          title={chatTitle}
+          onTitleChange={handleTitleChange}
+          onAction={handleAction}
+          type="chat"
+          extraActions={
+            <Button
+              size="icon"
+              variant="ghost"
+              onClick={openSearch}
+              className="h-8 w-8"
+              title="Search messages (Cmd/Ctrl+F)"
+            >
+              <Search className="h-4 w-4" />
+            </Button>
+          }
+        />
+
+        <CardContent className="flex-1 flex flex-col p-0 overflow-hidden">
+          {/* Note context pills */}
+          {contextNotes.length > 0 && (
+            <NoteContextPills
+              notes={contextNotes}
+              onRemove={removeNote}
+              onNoteClick={handleNoteClick}
+            />
           )}
-        </div>
-        
-        <CardContent className="flex-1 flex flex-col p-0 overflow-hidden relative">
-          {/* Search bar */}
-          <ChatSearch
-            isOpen={isSearchOpen}
-            onClose={closeSearch}
-            messages={paginatedMessages}
-            onResultSelect={handleResultSelect}
-          />
-          
+
           {/* Highlight context card */}
           {highlightedText && (
             <HighlightContextCard
@@ -730,139 +727,163 @@ export function ChatInterface({ chatId, className, onClose, noteContext, metadat
               className="mx-4 mt-2"
             />
           )}
-          
-          {/* Multi-note context pills */}
-          {contextNotes.length > 0 && (
-            <NoteContextPills
-              notes={contextNotes}
-              onRemove={removeNote}
-              onNoteClick={handleNoteClick}
+
+          {/* Search interface */}
+          {isSearchOpen && (
+            <ChatSearch
+              isOpen={isSearchOpen}
+              messages={paginatedMessages}
+              onResultSelect={handleResultSelect}
+              onClose={closeSearch}
             />
           )}
-          
-          {/* Legacy single note indicator (will phase out) */}
-          {!contextNotes.length && currentNote && (
-            <div className="chat-context-pills">
-              <div className="flex items-center gap-2">
-                <FileText className="w-4 h-4 text-muted-foreground" />
-                <span className="text-sm text-muted-foreground">
-                  Chatting about: <span className="font-medium text-foreground">{currentNote.title}</span>
-                </span>
-              </div>
-            </div>
-          )}
-          
-          {/* Drop zone for adding notes */}
-          <ChatDropZone
-            isActive={isDraggingNote}
-            isDragOver={isDragOver}
-            onDragEnter={() => setIsDragOver(true)}
-            onDragLeave={() => setIsDragOver(false)}
-            onDrop={handleNoteDrop}
-          />
-          
-          {/* Selection mode toolbar */}
-          {isSelectionMode && (
-            <div className="px-4 py-2 border-b bg-primary/10 flex items-center justify-between">
-              <span className="text-sm font-medium">
-                {selectedMessages.size} message{selectedMessages.size !== 1 ? 's' : ''} selected
-              </span>
-              <div className="flex items-center gap-2">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={exitSelectionMode}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  size="sm"
-                  onClick={handleExtractSelected}
-                  disabled={selectedMessages.size === 0}
-                >
-                  <FileText className="w-4 h-4 mr-1" />
-                  Save as Note
-                </Button>
-              </div>
-            </div>
-          )}
-          
+
+          {/* Messages area */}
           <div 
             ref={scrollRef}
-            className="flex-1 overflow-y-auto chat-scroll-smooth"
-          >
-            <VirtualMessageList
-              messages={paginatedMessages}
-              isLoading={isLoading}
-              isInitialLoading={isInitialLoading}
-              onRegenerate={reload}
-              onSuggestionClick={(suggestion: string) => append({ role: 'user', content: suggestion })}
-              hasNoteContext={hasContext}
-              hasMore={hasMore}
-              isLoadingMore={isLoadingMore}
-              onLoadMore={loadMore}
-              pendingToolCall={pendingToolCall}
-              onToolConfirm={handleToolConfirm}
-              onToolDeny={handleToolDeny}
-              isExecutingTool={isExecutingTool}
-              toolResult={toolResult}
-              userName={undefined}
-              userImage={undefined}
-              searchQuery={searchQuery}
-              currentSearchMatch={currentMatch}
-            />
-            
-            {error && (
-              <div className="mt-4 px-4 max-w-3xl mx-auto">
-                <Card className="border-destructive/50">
-                  <CardContent className="p-4">
-                    <div className="flex items-start gap-3">
-                      <div className="p-2 bg-destructive/10 rounded-full">
-                        <AlertCircle className="w-4 h-4 text-destructive" />
-                      </div>
-                      <div className="flex-1 space-y-2">
-                        <p className="text-sm font-medium">
-                          {error.message.includes('rate limit') 
-                            ? 'Too many requests'
-                            : error.message.includes('network')
-                            ? 'Connection error'
-                            : 'Something went wrong'}
-                        </p>
-                        <p className="text-sm text-muted-foreground">
-                          {error.message.includes('rate limit')
-                            ? 'Please wait a moment before sending another message.'
-                            : error.message.includes('network')
-                            ? 'Check your internet connection and try again.'
-                            : 'An unexpected error occurred. Please try again.'}
-                        </p>
-                        <Button
-                          size="sm"
-                          onClick={() => reload()}
-                          className="mt-2"
-                        >
-                          <RefreshCw className="w-3 h-3 mr-1.5" />
-                          Try again
-                        </Button>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
+            className={cn(
+              'flex-1 overflow-y-auto',
+              'chat-scroll-smooth',
+              isDragOver && 'ring-2 ring-primary ring-offset-2'
             )}
+            onDrop={handleNoteDrop}
+            onDragOver={(e) => {
+              if (isDraggingNote) {
+                e.preventDefault()
+                setIsDragOver(true)
+              }
+            }}
+            onDragLeave={() => setIsDragOver(false)}
+          >
+            <div className="chat-messages-container">
+              {/* Drop zone indicator */}
+              {isDraggingNote && (
+                <ChatDropZone 
+                  isActive={isDraggingNote}
+                  isDragOver={isDragOver}
+                  onDragEnter={() => setIsDragOver(true)}
+                  onDragLeave={() => setIsDragOver(false)}
+                  onDrop={handleNoteDrop}
+                />
+              )}
+
+              {/* Empty state */}
+              {!isInitialLoading && messages.length === 0 && !error && (
+                <ChatEmptyState 
+                  onSuggestionClick={(suggestion: string) => {
+                    handleInputChange({ 
+                      target: { value: suggestion } 
+                    } as React.ChangeEvent<HTMLTextAreaElement>)
+                    // Submit the form
+                    setTimeout(() => {
+                      const form = document.querySelector('form')
+                      if (form) {
+                        form.requestSubmit()
+                      }
+                    }, 100)
+                  }}
+                  hasNoteContext={hasContext || contextNotes.length > 0}
+                />
+              )}
+
+              {/* Loading state */}
+              {isInitialLoading && <ChatSkeleton />}
+
+              {/* Error state */}
+              {error && !isLoading && (
+                <div className="flex items-center justify-center p-8">
+                  <div className="text-center space-y-4">
+                    <AlertCircle className="h-12 w-12 text-destructive mx-auto" />
+                    <div>
+                      <p className="text-lg font-medium">Something went wrong</p>
+                      <p className="text-sm text-muted-foreground mt-1">{error.message}</p>
+                    </div>
+                    <Button onClick={() => reload()} variant="outline" size="sm">
+                      <RefreshCw className="h-4 w-4 mr-2" />
+                      Try again
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* Messages */}
+              {!isInitialLoading && messages.length > 0 && (
+                <>
+                  {/* Load more button */}
+                  {hasMore && (
+                    <div className="flex justify-center pb-4">
+                      <Button
+                        onClick={loadMore}
+                        disabled={isLoadingMore}
+                        variant="ghost"
+                        size="sm"
+                      >
+                        {isLoadingMore ? 'Loading...' : 'Load older messages'}
+                      </Button>
+                    </div>
+                  )}
+
+                  {/* Message list */}
+                  <div className="chat-messages-list pb-4">
+                    {paginatedMessages.map((message, index) => (
+                      <ChatMessage
+                        key={message.id}
+                        message={message}
+                        isStreaming={isLoading && index === messages.length - 1}
+                        onRegenerate={reload}
+                        userName={undefined}
+                        userImage={undefined}
+                        searchQuery={searchQuery}
+                        isCurrentSearchMatch={currentMatch?.messageId === message.id}
+                      />
+                    ))}
+                  </div>
+
+                  {/* Loading indicators */}
+                  {isLoading && (
+                    <div className="pb-4">
+                      {retryState.isRetrying ? (
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground px-4">
+                          <RefreshCw className="h-4 w-4 animate-spin" />
+                          Retrying... (Attempt {retryState.attempt} of {retryState.maxAttempts})
+                        </div>
+                      ) : messages[messages.length - 1]?.role === 'user' ? (
+                        <TypingIndicator />
+                      ) : (
+                        <StreamingIndicator />
+                      )}
+                    </div>
+                  )}
+
+                  {/* Tool execution loading */}
+                  {isExecutingTool && (
+                    <div className="pb-4">
+                      <ToolLoading toolName={pendingToolCall?.toolName || 'tool'} />
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
           </div>
-          
+
+          {/* Input area - integrated with better design */}
           <ChatInput
             input={input}
             onChange={handleInputChange}
             onSubmit={handleCustomSubmit}
             isLoading={isLoading}
             onStop={stop}
-            placeholder={currentNote ? `Ask about "${currentNote.title}"...` : 'Send a message...'}
+            placeholder={
+              contextNotes.length > 0
+                ? `Message with ${contextNotes.length} note${contextNotes.length > 1 ? 's' : ''} in context...`
+                : highlightedText
+                ? 'Ask about the highlighted text...'
+                : 'Send a message...'
+            }
           />
         </CardContent>
       </Card>
 
-      {/* Selection Menu */}
       <SelectionMenu
         position={menuPosition}
         selectedText={selection.text}
@@ -873,7 +894,6 @@ export function ChatInterface({ chatId, className, onClose, noteContext, metadat
         isOpen={showMenu}
       />
 
-      {/* Note Preview Card */}
       <NotePreviewCard
         initialContent={selectedTextForNote}
         onSave={handleSaveNote}
@@ -921,16 +941,4 @@ export function ChatInterface({ chatId, className, onClose, noteContext, metadat
       )}
     </>
   )
-}
-
-// Helper function to escape HTML
-function escapeHtml(text: string): string {
-  const map: Record<string, string> = {
-    '&': '&amp;',
-    '<': '&lt;',
-    '>': '&gt;',
-    '"': '&quot;',
-    "'": '&#039;'
-  }
-  return text.replace(/[&<>"']/g, m => map[m])
 } 

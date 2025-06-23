@@ -9,10 +9,10 @@
  * - Character count for long messages
  * - Stop generation button
  * - @mention support for notes
- * - Primary color send button
+ * - Claude-like integrated send button
  * 
  * Created: December 2024
- * Updated: December 2024 - Added primary color send button
+ * Updated: December 2024 - Redesigned to match Claude.ai style
  */
 
 import { useRef, useEffect, KeyboardEvent, useState, useCallback } from 'react'
@@ -56,7 +56,7 @@ export function ChatInput({
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto'
       const scrollHeight = textareaRef.current.scrollHeight
-      textareaRef.current.style.height = `${Math.min(scrollHeight, 200)}px`
+      textareaRef.current.style.height = `${Math.min(scrollHeight, 300)}px`
     }
   }, [input])
 
@@ -211,63 +211,62 @@ export function ChatInput({
   return (
     <div className="chat-input-container">
       <form onSubmit={onSubmit} className="chat-input-wrapper">
-        <div className="flex items-end gap-3 w-full">
-          <div className="flex-1 relative">
-            <textarea
-              ref={textareaRef}
-              value={input}
-              onChange={handleInputChange}
-              onKeyDown={handleKeyDown}
-              placeholder={placeholder}
-              disabled={isLoading}
-              maxLength={maxLength}
-              rows={1}
-              className={cn(
-                'w-full resize-none rounded-xl border bg-background',
-                'px-4 py-3.5 pr-14',
-                'placeholder:text-muted-foreground',
-                'focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent',
-                'disabled:cursor-not-allowed disabled:opacity-50',
-                'min-h-[56px] max-h-[200px]',
-                'text-[15px] leading-relaxed',
-                'transition-all duration-200',
-                'selection:bg-primary/20'
-              )}
-              style={{
-                scrollbarWidth: 'thin',
-                scrollbarColor: 'var(--border) transparent'
-              }}
-            />
-            
-            {input.length > maxLength * 0.8 && (
-              <div className="absolute bottom-3.5 right-4 text-xs text-muted-foreground pointer-events-none">
-                {input.length}/{maxLength}
-              </div>
+        <div className="relative w-full">
+          <textarea
+            ref={textareaRef}
+            value={input}
+            onChange={handleInputChange}
+            onKeyDown={handleKeyDown}
+            placeholder={placeholder}
+            disabled={isLoading}
+            maxLength={maxLength}
+            rows={3}
+            className={cn(
+              'w-full resize-none rounded-2xl border bg-background',
+              'px-5 py-4 pr-16',
+              'placeholder:text-muted-foreground/70',
+              'focus:outline-none focus:ring-2 focus:ring-ring/30 focus:border-transparent',
+              'disabled:cursor-not-allowed disabled:opacity-50',
+              'min-h-[96px] max-h-[300px]',
+              'text-[15px] leading-relaxed',
+              'transition-all duration-200',
+              'selection:bg-primary/20',
+              'shadow-sm hover:shadow-md focus:shadow-md'
             )}
-          </div>
+            style={{
+              scrollbarWidth: 'thin',
+              scrollbarColor: 'var(--border) transparent'
+            }}
+          />
           
+          {/* Character count - positioned inside textarea */}
+          {input.length > maxLength * 0.8 && (
+            <div className="absolute bottom-4 left-5 text-xs text-muted-foreground pointer-events-none">
+              {input.length}/{maxLength}
+            </div>
+          )}
+          
+          {/* Send button - positioned inside textarea */}
           <Button
             type={isLoading ? 'button' : 'submit'}
             size="icon"
             disabled={!hasInput && !isLoading}
             onClick={isLoading ? onStop : undefined}
             className={cn(
-              'h-[56px] w-[56px] rounded-xl chat-send-button shrink-0',
+              'absolute bottom-3 right-3',
+              'h-10 w-10 rounded-lg',
               'transition-all duration-200',
-              hasInput && !isLoading && 'animate-in'
+              'chat-send-button-integrated',
+              hasInput || isLoading ? 'opacity-100' : 'opacity-40'
             )}
             data-has-input={hasInput}
           >
             {isLoading ? (
-              <Square className="h-5 w-5" />
+              <Square className="h-4 w-4" />
             ) : (
-              <Send className="h-5 w-5" />
+              <Send className="h-4 w-4" />
             )}
           </Button>
-        </div>
-        
-        <div className="pt-2 text-xs text-muted-foreground">
-          {isLoading ? 'Stop generation' : 'Enter to send, Shift + Enter for new line, @ to mention notes'}
         </div>
       </form>
 

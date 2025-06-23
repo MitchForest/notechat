@@ -13,9 +13,6 @@ interface UIState {
   collectionExpansion: Record<string, boolean>
   smartCollectionExpansion: Record<string, boolean>
   
-  // Loading states for smart collections
-  smartCollectionLoading: Record<string, boolean>
-  
   // Active context - single source of truth
   activeContext: ActiveContext | null
   
@@ -35,7 +32,6 @@ interface UIActions {
   setSpaceExpanded: (spaceId: string, expanded: boolean) => void
   setCollectionExpanded: (collectionId: string, expanded: boolean) => void
   setSmartCollectionExpanded: (collectionId: string, expanded: boolean) => void
-  setSmartCollectionLoading: (collectionId: string, loading: boolean) => void
   
   // Active context management
   setActiveContext: (context: ActiveContext | null) => void
@@ -59,7 +55,6 @@ export const useUIStore = create<UIStore>((set, get) => ({
   spaceExpansion: {},
   collectionExpansion: {},
   smartCollectionExpansion: {},
-  smartCollectionLoading: {},
   activeContext: null,
   sidebarCollapsed: false,
   globalLoading: false,
@@ -67,10 +62,11 @@ export const useUIStore = create<UIStore>((set, get) => ({
   
   // Toggle space expansion
   toggleSpace: (spaceId) => {
+    const currentState = get().spaceExpansion[spaceId]
     set(state => ({
       spaceExpansion: {
         ...state.spaceExpansion,
-        [spaceId]: !state.spaceExpansion[spaceId]
+        [spaceId]: currentState === undefined ? true : !currentState
       }
     }))
   },
@@ -81,7 +77,7 @@ export const useUIStore = create<UIStore>((set, get) => ({
     set(state => ({
       collectionExpansion: {
         ...state.collectionExpansion,
-        [collectionId]: currentState === undefined ? false : !currentState
+        [collectionId]: currentState === undefined ? true : !currentState
       }
     }))
   },
@@ -92,7 +88,7 @@ export const useUIStore = create<UIStore>((set, get) => ({
     set(state => ({
       smartCollectionExpansion: {
         ...state.smartCollectionExpansion,
-        [collectionId]: currentState === undefined ? false : !currentState
+        [collectionId]: currentState === undefined ? true : !currentState
       }
     }))
   },
@@ -127,26 +123,9 @@ export const useUIStore = create<UIStore>((set, get) => ({
     }))
   },
   
-  // Set smart collection loading state
-  setSmartCollectionLoading: (collectionId, loading) => {
-    set(state => ({
-      smartCollectionLoading: {
-        ...state.smartCollectionLoading,
-        [collectionId]: loading
-      }
-    }))
-  },
-  
   // Set active context - this is the main method for setting what's active
   setActiveContext: (context) => {
     set({ activeContext: context })
-    
-    // Log for debugging
-    if (context) {
-      console.log(`Active context set to ${context.type}: ${context.id}`)
-    } else {
-      console.log('Active context cleared')
-    }
   },
   
   // Get active context

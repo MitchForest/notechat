@@ -245,30 +245,37 @@ export const ChatMessage = memo(function ChatMessage({
                     {highlightSearchResults(message.content, searchQuery, isCurrentSearchMatch)}
                   </div>
                 ) : (
-                  <ReactMarkdown
-                    components={{
-                      code({ className, children, ...props }: any) {
-                        const inline = props.inline
-                        const match = /language-(\w+)/.exec(className || '')
-                        return !inline && match ? (
-                          <SyntaxHighlighter
-                            style={oneDark}
-                            language={match[1]}
-                            PreTag="div"
-                            {...props as any}
-                          >
-                            {String(children).replace(/\n$/, '')}
-                          </SyntaxHighlighter>
-                        ) : (
-                          <code className={className} {...props}>
-                            {children}
-                          </code>
-                        )
-                      },
-                    }}
-                  >
-                    {message.content}
-                  </ReactMarkdown>
+                  <div className="prose prose-sm dark:prose-invert max-w-none">
+                    <ReactMarkdown
+                      components={{
+                        code({ className, children, ...props }: any) {
+                          const inline = props.inline
+                          const match = /language-(\w+)/.exec(className || '')
+                          return !inline && match ? (
+                            <SyntaxHighlighter
+                              style={oneDark}
+                              language={match[1]}
+                              PreTag="div"
+                              customStyle={{
+                                margin: 0,
+                                padding: '1em',
+                                borderRadius: '6px',
+                              }}
+                              {...props as any}
+                            >
+                              {String(children).replace(/\n$/, '')}
+                            </SyntaxHighlighter>
+                          ) : (
+                            <code className={className} {...props}>
+                              {children}
+                            </code>
+                          )
+                        },
+                      }}
+                    >
+                      {message.content}
+                    </ReactMarkdown>
+                  </div>
                 )}
                 
                 {/* Render tool invocations */}

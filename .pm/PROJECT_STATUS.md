@@ -1,7 +1,7 @@
 # PROJECT STATUS
 
 **Last Updated:** 2024-12-30
-**Current Sprint:** Epic - Sidebar Improvements - Sprint 1 (COMPLETED)
+**Current Sprint:** Epic - Sidebar Improvements - Sprint 4 (IN PROGRESS)
 **Status:** In Progress
 
 ## Current Work
@@ -9,34 +9,47 @@
   - ✅ Sprint 1: Unified Active State Management (COMPLETED)
   - ✅ Sprint 2: Smart Collection Expansion (COMPLETED)
   - ✅ Sprint 3: Complete Hover Actions (COMPLETED)
-  - Sprint 4: Visual Polish & Drag/Drop
+  - 🚧 Sprint 4: Visual Polish & Drag/Drop (IN PROGRESS)
+    - ✅ Drag Handle Migration: Custom implementation complete
   - Sprint 5: Testing & Documentation
 
+## Current Sprint Focus
+### Sprint 4: Editor Drag Handle Migration
+**Goal:** Implement custom drag handle for block editing
+- Create custom block drag handle extension
+- Remove non-functional Tiptap drag handle
+- Implement mouse tracking and dynamic positioning
+- Add drag and drop functionality with visual feedback
+- Clean up old CSS and unused files
+
+**Key Issues to Fix:**
+1. Ensure smooth mouse tracking and dynamic positioning
+2. Implement visual feedback for drag and drop
+3. Clean up old CSS and unused files
+
 ## Completed Today
-### Sprint 1: Unified Active State Management
-- Created unified `ActiveContext` in UI store
-- Removed redundant active state properties from individual stores
-- Updated all components to use unified context
-- Added visual active state styling with left accent border
-- Fixed all TypeScript and linting errors
+### Sprint 4: Editor Drag Handle Migration
+- Created custom block drag handle extension
+- Removed non-functional Tiptap drag handle
+- Implemented mouse tracking and dynamic positioning
+- Added drag and drop functionality with visual feedback
+- Cleaned up old CSS and unused files
 - All tests passing (lint, typecheck, build)
 
 **Files Modified:**
-- `modified: features/organization/stores/ui-store.ts` - Added unified active context
-- `modified: features/organization/stores/space-store.ts` - Removed activeSpaceId
-- `modified: features/organization/stores/collection-store.ts` - Removed activeCollectionId
-- `modified: features/organization/stores/smart-collection-store.ts` - Removed activeSmartCollectionId
-- `modified: app/globals.css` - Added sidebar-item-active-accent styles
-- `modified: components/layout/sidebar-nav.tsx` - Updated to use unified context
-- `modified: features/organization/components/space-section.tsx` - Added active styling
-- `modified: features/organization/components/sidebar-collection-item.tsx` - Added active styling
-- `modified: features/organization/components/smart-collection-item.tsx` - Added active styling
-- `modified: components/layout/canvas-view.tsx` - Updated to use unified context
-- `modified: features/chat/components/chat-interface.tsx` - Updated to use unified context
-- `modified: features/chat/components/extract-to-note-dialog.tsx` - Updated to use unified context
+- `created: features/editor/extensions/block-drag-handle.ts` - Custom drag handle implementation
+- `modified: features/editor/config/extensions.ts` - Switched to custom extension
+- `modified: features/editor/styles/drag-handle.css` - Updated styles for new handle
+- `deleted: features/editor/extensions/custom-drag-handle.ts` - Removed unused file
+- `deleted: features/editor/styles/novel-drag-handle.css` - Removed unused styles
+
+### Sprint 1-3: Sidebar Improvements
+- ✅ Unified active state management
+- ✅ Smart collection expansion without loading states
+- ✅ Complete hover actions for all items
 
 ## Next Steps
-1. Sprint 4: Visual polish and drag/drop improvements
+1. Complete remaining Sprint 4 tasks (spacing, loading skeletons)
 2. Sprint 5: Testing and documentation
 
 ## Previous Work (Epic 11 - Landing Page)
@@ -44,25 +57,28 @@
 
 ## Sidebar Issues Progress
 1. ✅ **Active State**: Unified active context implemented
-2. 🔄 **Smart Collections**: Not expandable (Sprint 2)
-3. **Hover Actions**: Incomplete (Sprint 3)
-4. **Empty States**: Inconsistent (Sprint 2/4)
-5. **Item Display**: Smart collections don't show items (Sprint 2)
+2. ✅ **Smart Collections**: Expandable without loading states
+3. ✅ **Hover Actions**: Complete for all items
+4. ✅ **Empty States**: Fixed
+5. ✅ **Item Display**: Smart collections show filtered items
+6. ✅ **Editor Drag Handle**: Custom implementation working
 
 ## Key Decisions Made
-- Unified active context in UI store is working well
-- Visual indicator (left accent border) provides clear feedback
-- Backward compatible - no breaking changes
+- Custom drag handle implementation instead of third-party solutions
+- Direct DOM manipulation for positioning
+- Mouse tracking with throttling for performance
+- Native HTML5 drag and drop with ProseMirror integration
 
 ## Active Files
 - `.pm/epics/epic-improve-sidebar/` - Sprint documentation
-- All organization store files
-- Sidebar navigation components
+- Editor extension files
+- Drag handle implementation
 
 ## Notes
-- Sprint 1 completed successfully
-- No regressions found
-- Ready to proceed with Sprint 4 
+- Custom drag handle working properly
+- Follows mouse movement between blocks
+- Clean implementation without external dependencies
+- Ready to complete remaining Sprint 4 tasks
 
 # Project Status
 

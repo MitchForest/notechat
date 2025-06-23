@@ -26,15 +26,23 @@ export async function POST(req: NextRequest) {
     // Validate chat exists and belongs to user
     const chatId = req.headers.get('x-chat-id')
     if (chatId) {
-      const [chat] = await db
-        .select()
-        .from(chats)
-        .where(eq(chats.id, chatId))
-        .limit(1)
+      // Check if this is a temporary chat (starts with 'chat-')
+      const isTemporaryChat = chatId.startsWith('chat-')
+      
+      // Only validate if it's not a temporary chat
+      if (!isTemporaryChat) {
+        const [chat] = await db
+          .select()
+          .from(chats)
+          .where(eq(chats.id, chatId))
+          .limit(1)
 
-      if (!chat || chat.userId !== user.id) {
-        return new Response('Chat not found', { status: 404 })
+        if (!chat || chat.userId !== user.id) {
+          return new Response('Chat not found', { status: 404 })
+        }
       }
+      // For temporary chats, we allow them through without validation
+      // They will be created when the first message is saved
     }
 
     // Build system prompt

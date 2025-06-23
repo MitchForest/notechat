@@ -16,8 +16,8 @@ import { InlineAI } from '@/features/ai/extensions/inline-ai';
 import { GhostText } from '@/features/ai/extensions/ghost-text'
 import { BlockId } from '../extensions/block-id'
 
-// Import official Tiptap drag handle and bubble menu
-import { DragHandle } from '@tiptap/extension-drag-handle'
+// Import our custom block drag handle instead of Tiptap's
+import { BlockDragHandle } from '../extensions/block-drag-handle'
 import { Dropcursor } from '@tiptap/extension-dropcursor'
 import { BubbleMenu } from '@tiptap/extension-bubble-menu'
 
@@ -140,80 +140,12 @@ export const getEditorExtensions = (
       width: 2,
     }),
     
-    // Add drag handle - using official Tiptap extension
-    DragHandle.configure({
-      render: () => {
-        const handle = document.createElement('div')
-        handle.className = 'tiptap-drag-handle'
-        handle.draggable = true
-        handle.innerHTML = `
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-            <circle cx="4" cy="4" r="1.5"/>
-            <circle cx="4" cy="8" r="1.5"/>
-            <circle cx="4" cy="12" r="1.5"/>
-            <circle cx="12" cy="4" r="1.5"/>
-            <circle cx="12" cy="8" r="1.5"/>
-            <circle cx="12" cy="12" r="1.5"/>
-          </svg>
-        `
-        return handle
-      },
-      tippyOptions: {
-        duration: 0,
-        placement: 'left-start',  // Position at top-left of block
-        offset: [-45, 0],  // Adjust to be in the left padding area
-        hideOnClick: false,
-        animation: 'shift-away',
-        interactive: true,  // Allow mouse to move to the handle
-        interactiveBorder: 30, // Invisible border to help transition
-        appendTo: () => document.body, // Ensures proper z-index stacking
-        theme: 'drag-handle', // Apply our custom theme
-        getReferenceClientRect: null, // Let Tippy figure out the reference
-        popperOptions: {
-          modifiers: [
-            {
-              name: 'flip',
-              enabled: false, // Disable flipping to keep handle on left
-            },
-          ],
-        },
-        onShow: (instance: any) => {
-          console.log('[DragHandle] Tippy onShow:', instance)
-          // Debug: Log the actual position
-          const reference = instance.reference.getBoundingClientRect()
-          const popper = instance.popper.getBoundingClientRect()
-          console.log('[DragHandle] Positions:', {
-            reference: { left: reference.left, top: reference.top },
-            popper: { left: popper.left, top: popper.top },
-            offset: { x: popper.left - reference.left, y: popper.top - reference.top }
-          })
-          
-          // Check if the drag handle element is actually in the popper
-          const dragHandle = instance.popper.querySelector('.tiptap-drag-handle')
-          console.log('[DragHandle] Drag handle in popper:', !!dragHandle)
-          if (dragHandle) {
-            console.log('[DragHandle] Drag handle styles:', window.getComputedStyle(dragHandle))
-          }
-        },
-        onHide: (instance: any) => {
-          console.log('[DragHandle] Tippy onHide')
-        },
-        onMount: (instance: any) => {
-          console.log('[DragHandle] Tippy onMount:', instance)
-        },
-        onDestroy: (instance: any) => {
-          console.log('[DragHandle] Tippy onDestroy - THIS SHOULD NOT HAPPEN!')
-          console.trace('[DragHandle] Tippy destroy stack trace')
-        },
-      },
-      onNodeChange: (data: any) => {
-        console.log('[DragHandle] onNodeChange:', {
-          node: data.node?.type?.name,
-          editor: !!data.editor,
-          hasPos: 'pos' in data,
-          data,
-        })
-      },
+    // Add our custom block drag handle
+    BlockDragHandle.configure({
+      handleWidth: 20,
+      horizontalOffset: 30,
+      hideDelay: 100,
+      throttleDelay: 16,
     }),
   ]
 

@@ -10,6 +10,7 @@ Current visual issues:
 - Unclear drag/drop rules for smart collections
 - Inconsistent spacing and alignment
 - No smooth transitions
+- **Editor drag handle not working**
 
 ## Implementation Tasks
 
@@ -54,6 +55,26 @@ Current visual issues:
 - ✅ Applied to all expandable sections
 - ✅ 200ms duration for smooth feel
 
+### Task 4.5: Editor Drag Handle Migration (3 hours) ✅
+**Files**: Editor extensions and styles
+
+- ✅ Created custom `BlockDragHandle` extension
+- ✅ Removed non-functional Tiptap drag handle
+- ✅ Implemented mouse tracking with throttling
+- ✅ Dynamic positioning that follows cursor
+- ✅ Drag and drop with visual feedback
+- ✅ Drop indicator showing where block will land
+- ✅ Cleaned up old CSS and unused files
+- ✅ All tests passing
+
+**Technical Details:**
+- Uses direct DOM manipulation instead of Tippy.js
+- Single drag handle element that moves around
+- Mouse tracking with 16ms throttle (~60fps)
+- Hover zones with 100ms hide delay
+- Native HTML5 drag with ProseMirror integration
+- Fixed positioning to avoid scroll issues
+
 ### Task 5: Fix Spacing and Alignment (1 hour) ⏳
 - ⏳ Define CSS custom properties
 - ⏳ Apply consistent spacing
@@ -71,6 +92,7 @@ Current visual issues:
 - Dramatically improved active state styling with stronger visual indicators
 - Added comprehensive drag/drop visual feedback
 - Implemented smooth expand/collapse animations with framer-motion
+- **Implemented custom editor drag handle that properly follows mouse**
 - All animations respect user's motion preferences
 - Fixed TypeScript and linting issues
 
@@ -82,6 +104,11 @@ Current visual issues:
 - `modified: features/organization/components/space-section.tsx` - Use AnimatedCollapse
 - `modified: features/organization/components/sidebar-collection-item.tsx` - Use AnimatedCollapse
 - `modified: features/organization/components/smart-collection-item.tsx` - Use AnimatedCollapse
+- `created: features/editor/extensions/block-drag-handle.ts` - Custom drag handle
+- `modified: features/editor/config/extensions.ts` - Use custom extension
+- `modified: features/editor/styles/drag-handle.css` - Updated styles
+- `deleted: features/editor/extensions/custom-drag-handle.ts` - Removed unused
+- `deleted: features/editor/styles/novel-drag-handle.css` - Removed unused
 
 **Visual Improvements:**
 - Active items now have:
@@ -95,6 +122,7 @@ Current visual issues:
   - Red background for invalid drops
   - Tooltip explaining smart collections
 - Smooth 200ms animations for expand/collapse
+- **Editor drag handle that follows the cursor**
 
 **Remaining:**
 - Task 5: Define consistent spacing variables
@@ -103,3 +131,5 @@ Current visual issues:
 ## Notes
 
 Sprint 4 is making excellent progress! The sidebar now has professional polish with smooth animations, clear visual feedback, and strong active state indicators. The drag/drop experience is much clearer with visual cues for valid/invalid drops. 
+
+**Most importantly**, we've successfully implemented a custom drag handle for the editor that properly tracks mouse movement and allows dragging blocks around - solving the long-standing issue with the stationary handle. 

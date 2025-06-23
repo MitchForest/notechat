@@ -22,12 +22,6 @@ interface ContentState {
   // Cache management
   lastFetchedCollection: string | null
   isCacheValid: boolean
-  
-  // Smart collection cache
-  smartCollectionCache: Record<string, {
-    items: (Note | Chat)[]
-    timestamp: number
-  }>
 }
 
 interface ContentActions {
@@ -35,9 +29,6 @@ interface ContentActions {
   setNotes: (notes: Note[]) => void
   setChats: (chats: Chat[]) => void
   clearContent: () => void
-  
-  // Fetch content based on smart collection filters
-  fetchSmartCollectionContent: (smartCollection: SmartCollection) => Promise<(Note | Chat)[]>
   
   // CRUD operations
   createNote: (title: string, spaceId: string | null, collectionId: string | null, id?: string) => Promise<Note | null>
@@ -67,182 +58,15 @@ export const useContentStore = create<ContentStore>((set, get) => ({
   chats: [],
   lastFetchedCollection: null,
   isCacheValid: false,
-  smartCollectionCache: {},
   
   // Setters
   setNotes: (notes) => {
-    console.log('ContentStore: Setting notes:', notes.length)
     set({ notes })
   },
   setChats: (chats) => {
-    console.log('ContentStore: Setting chats:', chats.length)
     set({ chats })
   },
   clearContent: () => set({ notes: [], chats: [], lastFetchedCollection: null, isCacheValid: false }),
-  
-  // Fetch content based on smart collection filters
-  fetchSmartCollectionContent: async (smartCollection) => {
-    console.log('fetchSmartCollectionContent called with:', smartCollection)
-    
-    // Check cache first (5 minute TTL)
-    const cached = get().smartCollectionCache[smartCollection.id]
-    if (cached && Date.now() - cached.timestamp < 5 * 60 * 1000) {
-      console.log('Returning cached smart collection items')
-      return cached.items
-    }
-    
-    const filterConfig = smartCollection.filterConfig as FilterConfig
-    
-    // Build query parameters from filter config
-    const params = new URLSearchParams()
-    
-    // Type filter
-    if (filterConfig.type) {
-      params.append('type', filterConfig.type)
-    }
-    
-    // Time range filter
-    if (filterConfig.timeRange) {
-      const date = new Date()
-      const { unit, value } = filterConfig.timeRange
-      
-      switch (unit) {
-        case 'days':
-          date.setDate(date.getDate() - value)
-          break
-        case 'weeks':
-          date.setDate(date.getDate() - (value * 7))
-          break
-        case 'months':
-          date.setMonth(date.getMonth() - value)
-          break
-      }
-      
-      params.append('since', date.toISOString())
-    }
-    
-    // Starred filter
-    if (filterConfig.isStarred !== undefined) {
-      params.append('starred', String(filterConfig.isStarred))
-    }
-    
-    // Sorting
-    if (filterConfig.orderBy) {
-      params.append('orderBy', filterConfig.orderBy)
-    }
-    if (filterConfig.orderDirection) {
-      params.append('order', filterConfig.orderDirection)
-    }
-    
-    // Space filter
-    if (smartCollection.spaceId) {
-      params.append('spaceId', smartCollection.spaceId)
-    }
-    
-    try {
-      // Fetch based on type
-      let notesData: Note[] = []
-      let chatsData: Chat[] = []
-      
-      if (!filterConfig.type || filterConfig.type === 'all' || filterConfig.type === 'note') {
-        const notesResponse = await fetch(`/api/notes?${params}`)
-        console.log('Notes API request:', `/api/notes?${params}`)
-        console.log('Notes API response status:', notesResponse.status)
-        if (!notesResponse.ok) {
-          const errorText = await notesResponse.text()
-          console.error('Notes API error:', errorText)
-          throw new Error(`Failed to fetch notes: ${notesResponse.status} - ${errorText}`)
-        }
-        notesData = await notesResponse.json()
-        console.log('Notes data from API:', notesData)
-      }
-      
-      if (!filterConfig.type || filterConfig.type === 'all' || filterConfig.type === 'chat') {
-        const chatsResponse = await fetch(`/api/chats?${params}`)
-        console.log('Chats API request:', `/api/chats?${params}`)
-        console.log('Chats API response status:', chatsResponse.status)
-        if (!chatsResponse.ok) {
-          const errorText = await chatsResponse.text()
-          console.error('Chats API error:', errorText)
-          throw new Error(`Failed to fetch chats: ${chatsResponse.status} - ${errorText}`)
-        }
-        chatsData = await chatsResponse.json()
-        
-        // Filter out soft-deleted chats
-        chatsData = chatsData.filter((chat: Chat) => !chat.deletedAt)
-      }
-      
-      // Combine and sort if needed
-      let combinedItems: (Note | Chat)[] = []
-      
-      if (filterConfig.type === 'all' || !filterConfig.type) {
-        // Combine and sort by the specified field
-        combinedItems = [...notesData, ...chatsData]
-        const orderBy = filterConfig.orderBy || 'updatedAt'
-        const orderDirection = filterConfig.orderDirection || 'desc'
-        
-        combinedItems.sort((a, b) => {
-          let aValue: any
-          let bValue: any
-          
-          if (orderBy === 'title') {
-            aValue = a.title
-            bValue = b.title
-          } else if (orderBy === 'createdAt') {
-            aValue = new Date(a.createdAt).getTime()
-            bValue = new Date(b.createdAt).getTime()
-          } else {
-            // updatedAt
-            aValue = new Date(a.updatedAt).getTime()
-            bValue = new Date(b.updatedAt).getTime()
-          }
-          
-          if (orderDirection === 'asc') {
-            return aValue > bValue ? 1 : -1
-          } else {
-            return aValue < bValue ? 1 : -1
-          }
-        })
-      } else if (filterConfig.type === 'note') {
-        combinedItems = notesData
-      } else if (filterConfig.type === 'chat') {
-        combinedItems = chatsData
-      }
-      
-      // Update cache
-      set(state => ({
-        smartCollectionCache: {
-          ...state.smartCollectionCache,
-          [smartCollection.id]: {
-            items: combinedItems,
-            timestamp: Date.now()
-          }
-        }
-      }))
-      
-      // Also update the main notes/chats arrays if this is a full fetch
-      if (!filterConfig.type || filterConfig.type === 'all') {
-        console.log('Updating main arrays with combined items:', combinedItems)
-        console.log('Items with note IDs:', combinedItems.filter(item => isNoteId(item.id)))
-        console.log('Items with chat IDs:', combinedItems.filter(item => isChatId(item.id)))
-        set({
-          notes: combinedItems.filter(item => isNoteId(item.id)) as Note[],
-          chats: combinedItems.filter(item => isChatId(item.id)) as Chat[],
-          lastFetchedCollection: smartCollection.id,
-          isCacheValid: true
-        })
-      }
-      
-      console.log('Combined items before return:', combinedItems)
-      console.log('Combined items length:', combinedItems.length)
-      
-      return combinedItems
-    } catch (error) {
-      console.error('Failed to fetch smart collection content:', error)
-      toast.error('Failed to load collection items')
-      return []
-    }
-  },
   
   // Create note
   createNote: async (title, spaceId, collectionId, id) => {

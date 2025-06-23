@@ -1,7 +1,7 @@
 'use client'
 
 import React from 'react'
-import { ChevronDown, ChevronRight, LucideIcon, Loader2 } from 'lucide-react'
+import { ChevronDown, ChevronRight, LucideIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { SmartCollection, Note, Chat } from '@/lib/db/schema'
 import { getCollectionIcon } from '@/features/organization/lib/collection-icons'
@@ -9,12 +9,12 @@ import { HoverActions } from './hover-actions'
 import { DraggableNoteItem } from './draggable-note-item'
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip'
 import { AnimatedCollapse } from './animated-collapse'
+import { isChatId } from '@/lib/utils/id-generator'
 
 interface SmartCollectionItemProps {
   smartCollection: SmartCollection
   isActive: boolean
   isExpanded: boolean
-  isLoading?: boolean
   items: (Note | Chat)[]
   onToggle: () => void
   onClick: () => void
@@ -27,7 +27,6 @@ export function SmartCollectionItem({
   smartCollection, 
   isActive, 
   isExpanded,
-  isLoading = false,
   items,
   onToggle,
   onClick,
@@ -40,10 +39,8 @@ export function SmartCollectionItem({
   
   // Helper to determine if an item is a chat or note
   const getItemType = (item: Note | Chat): 'note' | 'chat' => {
-    return 'messages' in item || item.id.startsWith('chat-') ? 'chat' : 'note'
+    return isChatId(item.id) ? 'chat' : 'note'
   }
-  
-  console.log(`SmartCollection ${smartCollection.name}: isExpanded=${isExpanded}, isLoading=${isLoading}, items.length=${items.length}`)
   
   const content = (
     <div 
@@ -65,8 +62,14 @@ export function SmartCollectionItem({
           )}
           onClick={(e) => {
             e.stopPropagation()
-            onClick()
+            // Only toggle expansion when clicking the button
             onToggle()
+          }}
+          onMouseDown={(e) => {
+            // Set active on mousedown to separate from toggle
+            if (e.button === 0) { // Left click only
+              onClick()
+            }
           }}
         >
           <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -75,9 +78,7 @@ export function SmartCollectionItem({
               {smartCollection.name} <span className="text-xs text-muted-foreground">({items.length})</span>
             </span>
           </div>
-          {isLoading ? (
-            <Loader2 className="h-3 w-3 animate-spin flex-shrink-0 ml-2" />
-          ) : isExpanded ? (
+          {isExpanded ? (
             <ChevronDown className="h-3 w-3 flex-shrink-0 ml-2" />
           ) : (
             <ChevronRight className="h-3 w-3 flex-shrink-0 ml-2" />
@@ -97,7 +98,7 @@ export function SmartCollectionItem({
       </div>
       
       {/* Expanded content - animated */}
-      <AnimatedCollapse isOpen={isExpanded && !isLoading} className="mt-0.5 ml-5">
+      <AnimatedCollapse isOpen={isExpanded} className="mt-0.5 ml-5">
         <div className="space-y-0.5">
           {items.length === 0 ? (
             <div className="text-xs text-muted-foreground px-2 py-1">

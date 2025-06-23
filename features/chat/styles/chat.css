@@ -200,19 +200,45 @@
   cursor: not-allowed;
 }
 
+/* Integrated Send Button Styles */
+.chat-send-button-integrated {
+  background: transparent;
+  color: var(--muted-foreground);
+  border: 1px solid var(--border);
+  transition: all 0.15s ease-out;
+}
+
+.chat-send-button-integrated:not(:disabled):hover {
+  background: var(--primary);
+  color: var(--primary-foreground);
+  border-color: var(--primary);
+  transform: scale(1.05);
+}
+
+.chat-send-button-integrated:not(:disabled)[data-has-input="true"] {
+  background: var(--primary);
+  color: var(--primary-foreground);
+  border-color: var(--primary);
+}
+
+.chat-send-button-integrated:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 /* Input Container */
 .chat-input-container {
-  border-top: 1px solid var(--border);
   background: var(--background);
   position: sticky;
   bottom: 0;
   z-index: 50;
+  padding-top: 0.5rem;
 }
 
 .chat-input-wrapper {
   max-width: 48rem;
   margin: 0 auto;
-  padding: 1.5rem 2rem 1rem;
+  padding: 1rem 2rem 1.5rem;
 }
 
 @media (max-width: 640px) {
@@ -300,9 +326,24 @@
 
 /* Code Block Styles */
 .chat-message-content pre {
-  margin: 0.5em 0;
+  margin: 0.5em -16px;
+  padding: 1em 16px;
   border-radius: 6px;
   overflow-x: auto;
+  background: var(--muted);
+}
+
+/* Prose-wrapped code blocks need different handling */
+.chat-message-content .prose pre {
+  margin-left: -16px;
+  margin-right: -16px;
+  padding: 1em 16px;
+}
+
+/* Adjust for user messages which have different padding */
+.chat-message-bubble.user .chat-message-content pre {
+  margin: 0.5em -16px;
+  padding: 1em 16px;
 }
 
 .chat-message-content code {

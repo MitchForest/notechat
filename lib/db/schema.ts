@@ -209,7 +209,7 @@ export const smartCollectionsRelations = relations(smartCollections, ({ one }) =
 
 export const userPreferences = pgTable('user_preferences', {
     id: text('id').primaryKey(),
-    userId: text('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+    userId: text('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull().unique(),
     preferences: jsonb('preferences').notNull().default({}),
     createdAt: timestamp('created_at').defaultNow().notNull(),
     updatedAt: timestamp('updated_at').defaultNow().notNull(),
