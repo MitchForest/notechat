@@ -5,6 +5,7 @@ import { spaces, smartCollections } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 import { seedUserAccount } from '@/lib/db/seed-user'
 import { DEFAULT_SMART_COLLECTIONS } from '@/features/organization/lib/collection-icons'
+import { generateId } from '@/lib/utils/id-generator'
 
 export async function GET() {
   const user = await getCurrentUser()
@@ -105,6 +106,7 @@ export async function POST(request: Request) {
     const [newSpace] = await db
       .insert(spaces)
       .values({
+        id: generateId('space'),
         userId: user.id,
         name,
         emoji: emoji || '📁',
@@ -114,6 +116,7 @@ export async function POST(request: Request) {
       
     // Create default smart collections for the new space
     const smartCollectionValues = DEFAULT_SMART_COLLECTIONS.map(col => ({
+      id: generateId('smartCollection'),
       userId: user.id,
       spaceId: newSpace.id,
       name: col.name,

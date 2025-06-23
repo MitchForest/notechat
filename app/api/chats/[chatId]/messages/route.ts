@@ -3,14 +3,9 @@ import { db } from '@/lib/db'
 import { messages } from '@/lib/db/schema'
 import { eq, desc, and, lt } from 'drizzle-orm'
 import { getCurrentUser } from '@/lib/auth/session'
+import { generateId, isChatId, isValidId } from '@/lib/utils/id-generator'
 
 const MESSAGES_PER_PAGE = 50
-
-// Simple UUID v4 validation
-function isValidUUID(uuid: string): boolean {
-  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
-  return uuidRegex.test(uuid)
-}
 
 export async function GET(
   request: NextRequest,
@@ -24,8 +19,8 @@ export async function GET(
 
     const { chatId } = await params
     
-    // If chatId is not a valid UUID (temporary chat), return empty messages
-    if (!isValidUUID(chatId)) {
+    // If chatId is not a valid chat ID (temporary chat), return empty messages
+    if (!isChatId(chatId) || !isValidId(chatId)) {
       return NextResponse.json({
         messages: [],
         hasMore: false,
@@ -94,7 +89,7 @@ export async function POST(
     const { chatId } = await params
     
     // Don't save messages for temporary chats
-    if (!isValidUUID(chatId)) {
+    if (!isChatId(chatId) || !isValidId(chatId)) {
       return NextResponse.json({
         id: `temp-${Date.now()}`,
         chatId: chatId,
@@ -119,6 +114,7 @@ export async function POST(
     const [savedMessage] = await db
       .insert(messages)
       .values({
+        id: generateId('message'),
         chatId: chatId,
         role: message.role,
         content: message.content,

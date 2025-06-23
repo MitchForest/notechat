@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, uuid, pgEnum, boolean, jsonb } from 'drizzle-orm/pg-core'
+import { pgTable, text, timestamp, pgEnum, boolean, jsonb } from 'drizzle-orm/pg-core'
 import { relations } from 'drizzle-orm'
 
 // --- Enums ---
@@ -8,7 +8,7 @@ export const entityTypeEnum = pgEnum('entity_type', ['static', 'seeded', 'user',
 // --- Tables ---
 
 export const users = pgTable('users', {
-  id: uuid('id').defaultRandom().primaryKey(),
+  id: text('id').primaryKey(),
   email: text('email').notNull().unique(),
   name: text('name'),
   avatarUrl: text('avatar_url'),
@@ -27,8 +27,8 @@ export const usersRelations = relations(users, ({ many, one }) => ({
 }))
 
 export const accounts = pgTable('accounts', {
-  id: uuid('id').defaultRandom().primaryKey(),
-  userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+  id: text('id').primaryKey(),
+  userId: text('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
   provider: text('provider').notNull(), // 'github' or 'google'
   providerAccountId: text('provider_account_id').notNull(),
   accessToken: text('access_token').notNull(),
@@ -46,8 +46,8 @@ export const accountsRelations = relations(accounts, ({ one }) => ({
 }))
 
 export const sessions = pgTable('sessions', {
-  id: uuid('id').defaultRandom().primaryKey(),
-  userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+  id: text('id').primaryKey(),
+  userId: text('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
   token: text('token').notNull().unique(),
   expiresAt: timestamp('expires_at').notNull(),
   ipAddress: text('ip_address'),
@@ -63,8 +63,8 @@ export const sessionsRelations = relations(sessions, ({ one }) => ({
 }))
 
 export const spaces = pgTable('spaces', {
-    id: uuid('id').defaultRandom().primaryKey(),
-    userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+    id: text('id').primaryKey(),
+    userId: text('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
     name: text('name').notNull(),
     emoji: text('emoji'),
     type: entityTypeEnum('type').notNull(),
@@ -83,9 +83,9 @@ export const spacesRelations = relations(spaces, ({ one, many }) => ({
 }))
 
 export const collections = pgTable('collections', {
-    id: uuid('id').defaultRandom().primaryKey(),
-    userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
-    spaceId: uuid('space_id').references(() => spaces.id, { onDelete: 'cascade' }).notNull(),
+    id: text('id').primaryKey(),
+    userId: text('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+    spaceId: text('space_id').references(() => spaces.id, { onDelete: 'cascade' }).notNull(),
     name: text('name').notNull(),
     icon: text('icon').default('folder'),
     type: entityTypeEnum('type').notNull(),
@@ -107,10 +107,10 @@ export const collectionsRelations = relations(collections, ({ one, many }) => ({
 }))
 
 export const notes = pgTable('notes', {
-    id: uuid('id').defaultRandom().primaryKey(),
-    userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
-    spaceId: uuid('space_id').references(() => spaces.id, { onDelete: 'set null' }),
-    collectionId: uuid('collection_id').references(() => collections.id, { onDelete: 'set null' }),
+    id: text('id').primaryKey(),
+    userId: text('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+    spaceId: text('space_id').references(() => spaces.id, { onDelete: 'set null' }),
+    collectionId: text('collection_id').references(() => collections.id, { onDelete: 'set null' }),
     title: text('title').default('Untitled Note').notNull(),
     content: jsonb('content'),
     isStarred: boolean('is_starred').default(false),
@@ -134,10 +134,10 @@ export const notesRelations = relations(notes, ({ one }) => ({
 }))
 
 export const chats = pgTable('chats', {
-    id: uuid('id').defaultRandom().primaryKey(),
-    userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
-    spaceId: uuid('space_id').references(() => spaces.id, { onDelete: 'set null' }),
-    collectionId: uuid('collection_id').references(() => collections.id, { onDelete: 'set null' }),
+    id: text('id').primaryKey(),
+    userId: text('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+    spaceId: text('space_id').references(() => spaces.id, { onDelete: 'set null' }),
+    collectionId: text('collection_id').references(() => collections.id, { onDelete: 'set null' }),
     title: text('title').default('Untitled Chat').notNull(),
     content: jsonb('content'),
     isStarred: boolean('is_starred').default(false),
@@ -165,8 +165,8 @@ export const chatsRelations = relations(chats, ({ one, many }) => ({
 // --- Messages Table ---
 
 export const messages = pgTable('messages', {
-    id: uuid('id').defaultRandom().primaryKey(),
-    chatId: uuid('chat_id').references(() => chats.id, { onDelete: 'cascade' }).notNull(),
+    id: text('id').primaryKey(),
+    chatId: text('chat_id').references(() => chats.id, { onDelete: 'cascade' }).notNull(),
     role: text('role').notNull(),
     content: text('content').notNull(),
     metadata: jsonb('metadata'),
@@ -183,9 +183,9 @@ export const messagesRelations = relations(messages, ({ one }) => ({
 // --- Smart Collections ---
 
 export const smartCollections = pgTable('smart_collections', {
-    id: uuid('id').defaultRandom().primaryKey(),
-    userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
-    spaceId: uuid('space_id').references(() => spaces.id, { onDelete: 'cascade' }).notNull(),
+    id: text('id').primaryKey(),
+    userId: text('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+    spaceId: text('space_id').references(() => spaces.id, { onDelete: 'cascade' }).notNull(),
     name: text('name').notNull(),
     icon: text('icon').notNull(),
     filterConfig: jsonb('filter_config').notNull(),
@@ -208,8 +208,8 @@ export const smartCollectionsRelations = relations(smartCollections, ({ one }) =
 // --- User Preferences ---
 
 export const userPreferences = pgTable('user_preferences', {
-    id: uuid('id').defaultRandom().primaryKey(),
-    userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+    id: text('id').primaryKey(),
+    userId: text('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
     preferences: jsonb('preferences').notNull().default({}),
     createdAt: timestamp('created_at').defaultNow().notNull(),
     updatedAt: timestamp('updated_at').defaultNow().notNull(),
@@ -238,8 +238,8 @@ export interface AIPreferences {
 // --- AI Feedback ---
 
 export const aiFeedback = pgTable('ai_feedback', {
-    id: uuid('id').defaultRandom().primaryKey(),
-    userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+    id: text('id').primaryKey(),
+    userId: text('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
     operation: text('operation').notNull(), // 'transform', 'completion', 'ghost-text'
     action: text('action').notNull(), // 'accepted', 'ignored', 'edited'
     prompt: text('prompt'),

@@ -16,10 +16,11 @@ import { db } from '@/lib/db'
 import { chats } from '@/lib/db/schema'
 import { and, eq, desc, asc, gte, SQL, isNull, ilike, or } from 'drizzle-orm'
 import { z } from 'zod'
+import { generateId } from '@/lib/utils/id-generator'
 
 const getChatsSchema = z.object({
   // Regular collection filter
-  collectionId: z.string().uuid().optional(),
+  collectionId: z.string().optional(),
   
   // Smart collection filters
   type: z.enum(['note', 'chat', 'all']).optional(),
@@ -27,7 +28,7 @@ const getChatsSchema = z.object({
   starred: z.enum(['true', 'false']).optional(),
   orderBy: z.enum(['updatedAt', 'createdAt', 'title']).optional(),
   order: z.enum(['asc', 'desc']).optional(),
-  spaceId: z.string().uuid().optional(),
+  spaceId: z.string().optional(),
   
   // Legacy filters (for backward compatibility)
   filter: z.enum(['all', 'all_starred', 'all_recent', 'uncategorized']).optional(),
@@ -154,21 +155,17 @@ export async function POST(request: Request) {
     const { title, collectionId, spaceId, id } = await request.json()
 
     const values: {
+      id: string
       userId: string
       spaceId: string | null
       collectionId: string | null
       title: string
-      id?: string
     } = {
+      id: id && !id.startsWith('chat-') ? id : generateId('chat'),
       userId: user.id,
       spaceId: spaceId || null,
       collectionId: collectionId || null,
       title: title || 'Untitled Chat',
-    }
-    
-    // Only include ID if it's a valid UUID (not a temporary ID)
-    if (id && !id.startsWith('chat-') && !id.startsWith('note-')) {
-      values.id = id
     }
 
     const [newChat] = await db

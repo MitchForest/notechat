@@ -3,6 +3,7 @@ import { getCurrentUser } from '@/lib/auth/session'
 import { db } from '@/lib/db'
 import { userPreferences, type AIPreferences } from '@/lib/db/schema'
 import { eq, sql } from 'drizzle-orm'
+import { nanoid } from 'nanoid'
 
 export async function GET() {
   try {
@@ -37,9 +38,10 @@ export async function PUT(req: NextRequest) {
     }
 
     // Use raw SQL for upsert since Drizzle's onConflictDoUpdate might have issues with the index
+    const id = nanoid()
     await db.execute(sql`
-      INSERT INTO user_preferences (user_id, preferences, created_at, updated_at)
-      VALUES (${user.id}, ${JSON.stringify(updates)}::jsonb, NOW(), NOW())
+      INSERT INTO user_preferences (id, user_id, preferences, created_at, updated_at)
+      VALUES (${id}, ${user.id}, ${JSON.stringify(updates)}::jsonb, NOW(), NOW())
       ON CONFLICT (user_id) 
       DO UPDATE SET 
         preferences = ${JSON.stringify(updates)}::jsonb,

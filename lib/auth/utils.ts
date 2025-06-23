@@ -2,6 +2,8 @@ import { db } from '@/lib/db'
 import { users, accounts } from '@/lib/db/schema'
 import type { User } from '@/lib/db/schema'
 import { eq, and } from 'drizzle-orm'
+import { generateId } from '@/lib/utils/id-generator'
+import { seedUserAccount } from '@/lib/db/seed-user'
 
 interface OAuthUserInfo {
   id: string
@@ -55,6 +57,7 @@ export async function findOrCreateUser(
   if (existingUser) {
     // Link new provider to existing user
     await db.insert(accounts).values({
+      id: generateId('account'),
       userId: existingUser.id,
       provider,
       providerAccountId: userInfo.id,
@@ -65,9 +68,11 @@ export async function findOrCreateUser(
   }
 
   // Create new user and account
+  const userId = generateId('user')
   const [newUser] = await db
     .insert(users)
     .values({
+      id: userId,
       email: userInfo.email,
       name: userInfo.name,
       avatarUrl: userInfo.avatarUrl,
@@ -75,11 +80,15 @@ export async function findOrCreateUser(
     .returning()
 
   await db.insert(accounts).values({
+    id: generateId('account'),
     userId: newUser.id,
     provider,
     providerAccountId: userInfo.id,
     ...tokenData,
   })
+
+  // Seed the new user account with default spaces and collections
+  await seedUserAccount(newUser.id)
 
   return newUser
 }

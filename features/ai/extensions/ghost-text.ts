@@ -13,6 +13,7 @@ declare module '@tiptap/core' {
 }
 
 const ghostTextKey = new PluginKey('ghostText')
+const GHOST_TEXT_META_KEY = 'ghostTextUpdate'
 
 export const GhostText = Extension.create({
   name: 'ghostText',
@@ -45,22 +46,20 @@ export const GhostText = Extension.create({
 
           apply(tr, value, oldState, newState) {
             const storage = extension.storage as GhostTextStorage
-            const meta = tr.getMeta('ghostTextUpdate')
+            const meta = tr.getMeta(GHOST_TEXT_META_KEY)
             
-            console.log('[GhostText Plugin] apply called:', {
-              meta,
-              isActive: storage.isActive,
-              ghostText: storage.ghostText,
-              position: storage.position,
-              docChanged: tr.docChanged
-            })
+            // Only log when there's an actual change
+            if (meta || tr.docChanged) {
+              console.log('[GhostText Plugin] apply:', {
+                meta: !!meta,
+                docChanged: tr.docChanged
+              })
+            }
 
             // Handle explicit updates
             if (meta === true) {
               if (storage.isActive && storage.ghostText && storage.position !== null) {
                 try {
-                  console.log('[GhostText] Creating widget decoration at position:', storage.position, 'with text:', storage.ghostText)
-                  
                   // Validate position
                   if (storage.position < 0 || storage.position > newState.doc.content.size) {
                     console.error('[GhostText] Invalid position:', storage.position, 'doc size:', newState.doc.content.size)
@@ -76,7 +75,6 @@ export const GhostText = Extension.create({
                   const decoration = Decoration.widget(
                     storage.position,
                     () => {
-                      console.log('[GhostText] Creating widget DOM element')
                       const span = document.createElement('span')
                       span.className = 'ghost-text-widget'
                       span.textContent = storage.ghostText
@@ -84,7 +82,6 @@ export const GhostText = Extension.create({
                       span.setAttribute('data-ghost-text-content', storage.ghostText)
                       // Add debug styling
                       span.style.cssText = 'color: rgba(156, 163, 175, 0.8) !important; background: rgba(156, 163, 175, 0.1) !important; padding: 0 4px !important; border-radius: 3px !important; display: inline-block !important;'
-                      console.log('[GhostText] Widget DOM element created:', span)
                       return span
                     },
                     { 
@@ -95,15 +92,8 @@ export const GhostText = Extension.create({
                   )
                   
                   const decorations = DecorationSet.create(newState.doc, [decoration])
-                  console.log('[GhostText] Decorations created successfully, set size:', decorations.find().length)
                   
-                  // Force a view update
-                  setTimeout(() => {
-                    if (extension.editor && extension.editor.view) {
-                      console.log('[GhostText] Forcing view update')
-                      extension.editor.view.updateState(extension.editor.view.state)
-                    }
-                  }, 0)
+                  // Remove force update - it's causing performance issues
                   
                   return { 
                     decorations,
@@ -121,7 +111,6 @@ export const GhostText = Extension.create({
                   }
                 }
               } else {
-                console.log('[GhostText] Clearing decorations - isActive:', storage.isActive, 'ghostText:', storage.ghostText, 'position:', storage.position)
                 return { 
                   decorations: DecorationSet.empty,
                   isVisible: false,
@@ -181,7 +170,7 @@ export const GhostText = Extension.create({
         props: {
           decorations(state) {
             const pluginState = ghostTextKey.getState(state)
-            console.log('[GhostText] decorations() called, plugin state:', pluginState)
+            // Remove logging here - it's called too frequently
             return pluginState?.decorations || DecorationSet.empty
           },
 
@@ -194,7 +183,6 @@ export const GhostText = Extension.create({
 
             // If ghost text is active and user types any character, reject it
             if (storage.isActive) {
-              console.log('[GhostText] User typed while ghost text active, rejecting')
               ;(extension.editor as any).emit('ghostTextReject')
               return false // Let the character be typed
             }
@@ -203,7 +191,7 @@ export const GhostText = Extension.create({
               const before = state.doc.textBetween(Math.max(0, from - 1), from)
 
               if (before === '+') {
-                console.log('[GhostText] Detected ++ trigger at position:', from)
+                console.log('[GhostText] ++ trigger detected')
                 
                 // Clear any existing timeout
                 if (storage.triggerTimeout) {
@@ -223,9 +211,6 @@ export const GhostText = Extension.create({
                   
                   // Get context from current paragraph only (up to the trigger position)
                   const context = paragraph.textBetween(0, Math.min(positionInParagraph, paragraph.content.size))
-                  
-                  console.log('[GhostText] Triggering with paragraph context:', context)
-                  console.log('[GhostText] Paragraph start:', paragraphStart, 'Position in paragraph:', positionInParagraph)
                   
                   ;(extension.editor as any).emit('ghostTextTrigger', {
                     position: from - 1,
@@ -248,7 +233,6 @@ export const GhostText = Extension.create({
             // Tab accepts
             if (event.key === 'Tab') {
               event.preventDefault()
-              console.log('[GhostText] Tab pressed, accepting')
               ;(extension.editor as any).emit('ghostTextAccept', storage.ghostText)
               return true
             }
@@ -256,7 +240,6 @@ export const GhostText = Extension.create({
             // Escape or Enter rejects
             if (event.key === 'Escape' || event.key === 'Enter') {
               event.preventDefault()
-              console.log('[GhostText] Escape/Enter pressed, rejecting')
               ;(extension.editor as any).emit('ghostTextReject')
               return true
             }
@@ -264,7 +247,6 @@ export const GhostText = Extension.create({
             // Any other character input rejects (except modifiers and special keys)
             if (!event.ctrlKey && !event.metaKey && !event.altKey && 
                 event.key.length === 1 && !event.key.startsWith('Arrow')) {
-              console.log('[GhostText] Character key pressed, rejecting')
               ;(extension.editor as any).emit('ghostTextReject')
               return false // Let the character be typed
             }
@@ -280,23 +262,24 @@ export const GhostText = Extension.create({
     return {
       setGhostText:
         (text: string, position: number) =>
-        ({ editor, dispatch }) => {
+        ({ editor, tr, dispatch }) => {
           const storage = this.storage as GhostTextStorage
           
-          console.log('[GhostText] Command setGhostText called:', { text, position, dispatch: !!dispatch })
-          console.log('[GhostText] Storage before update:', { ...storage })
+          // Only log significant changes
+          if (storage.ghostText !== text) {
+            console.log('[GhostText] setGhostText:', { text: text.substring(0, 20) + '...', position })
+          }
           
           storage.ghostText = text
           storage.position = position
           storage.isActive = true
 
-          console.log('[GhostText] Storage after update:', { ...storage })
-
-          // Always dispatch the transaction
-          if (dispatch) {
-            const tr = editor.state.tr.setMeta('ghostTextUpdate', true)
-            console.log('[GhostText] Dispatching transaction with ghostTextUpdate meta')
-            dispatch(tr)
+          // Set meta on the existing transaction if available, otherwise create new one
+          if (tr) {
+            tr.setMeta(GHOST_TEXT_META_KEY, true)
+          } else if (dispatch) {
+            const newTr = editor.state.tr.setMeta(GHOST_TEXT_META_KEY, true)
+            dispatch(newTr)
           }
 
           return true
@@ -304,11 +287,9 @@ export const GhostText = Extension.create({
 
       clearGhostText:
         () =>
-        ({ editor, dispatch }) => {
+        ({ editor, tr, dispatch }) => {
           const storage = this.storage as GhostTextStorage
           const wasActive = storage.isActive
-          
-          console.log('[GhostText] Command clearGhostText called')
           
           storage.ghostText = ''
           storage.isActive = false
@@ -321,9 +302,13 @@ export const GhostText = Extension.create({
           }
 
           // Only dispatch if we were actually active
-          if (dispatch && wasActive) {
-            const tr = editor.state.tr.setMeta('ghostTextUpdate', true)
-            dispatch(tr)
+          if (wasActive) {
+            if (tr) {
+              tr.setMeta(GHOST_TEXT_META_KEY, true)
+            } else if (dispatch) {
+              const newTr = editor.state.tr.setMeta(GHOST_TEXT_META_KEY, true)
+              dispatch(newTr)
+            }
           }
 
           return true

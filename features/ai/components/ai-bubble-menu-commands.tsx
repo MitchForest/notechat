@@ -73,7 +73,7 @@ export function AIBubbleMenuCommands({ editor, onBack }: AIBubbleMenuCommandsPro
 
   if (isLoading) {
     return (
-      <div className="p-2 flex items-center gap-2 w-72">
+      <div className="p-2 flex items-center gap-2 min-w-[200px]">
         <Loader2 className="h-4 w-4 animate-spin" />
         <span className="text-sm">AI is thinking...</span>
       </div>
@@ -82,7 +82,7 @@ export function AIBubbleMenuCommands({ editor, onBack }: AIBubbleMenuCommandsPro
 
   if (view === 'custom') {
     return (
-      <div className="p-2 w-72">
+      <div className="p-2 min-w-[280px] max-w-[320px]">
         <div className="flex items-center gap-2 mb-2">
           <Button variant="ghost" size="icon" onClick={() => setView('commands')} className="h-7 w-7">
             <ArrowLeft className="h-4 w-4" />
@@ -116,36 +116,38 @@ export function AIBubbleMenuCommands({ editor, onBack }: AIBubbleMenuCommandsPro
   }
 
   return (
-    <div className="p-1 w-72">
+    <div className="p-1 min-w-[280px] max-w-[400px]">
       <div className="flex items-center gap-2 mb-1 px-2">
         <Button variant="ghost" size="icon" onClick={onBack} className="h-7 w-7">
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <span className="text-sm font-medium">AI Commands</span>
       </div>
-      <div className="grid grid-cols-2 gap-1 max-h-[300px] overflow-y-auto">
-        {commands.map(cmd => {
-          const Icon = getIcon(cmd.icon)
-          return (
-            <button
-              key={cmd.id}
-              onClick={() => handleCommand(cmd)}
-              className="flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-md transition-colors text-left"
-              title={cmd.prompt}
-            >
-              <Icon className="h-4 w-4 shrink-0" />
-              <span className="truncate">{cmd.label}</span>
-            </button>
-          )
-        })}
-        {/* Always show custom option at the end */}
-        <button
-          onClick={() => handleCommand('custom')}
-          className="flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-md transition-colors text-left"
-        >
-          <Zap className="h-4 w-4 shrink-0" />
-          <span>Custom edit...</span>
-        </button>
+      <div className="max-h-[240px] overflow-y-auto">
+        <div className="grid grid-cols-2 gap-1">
+          {commands.map(cmd => {
+            const Icon = getIcon(cmd.icon)
+            return (
+              <button
+                key={cmd.id}
+                onClick={() => handleCommand(cmd)}
+                className="flex items-center gap-2 px-3 py-2 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-md transition-colors text-left"
+                title={cmd.prompt}
+              >
+                <Icon className="h-4 w-4 shrink-0" />
+                <span className="truncate">{cmd.label}</span>
+              </button>
+            )
+          })}
+          {/* Always show custom option at the end */}
+          <button
+            onClick={() => handleCommand('custom')}
+            className="flex items-center gap-2 px-3 py-2 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-md transition-colors text-left"
+          >
+            <Zap className="h-4 w-4 shrink-0" />
+            <span>Custom edit...</span>
+          </button>
+        </div>
       </div>
     </div>
   )

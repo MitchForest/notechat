@@ -3,6 +3,7 @@ import { getCurrentUser } from '@/lib/auth/session'
 import { db } from '@/lib/db'
 import { smartCollections } from '@/lib/db/schema'
 import { eq, and } from 'drizzle-orm'
+import { generateId } from '@/lib/utils/id-generator'
 
 export async function GET(request: Request) {
   const user = await getCurrentUser()
@@ -54,6 +55,7 @@ export async function POST(request: Request) {
     const [newCollection] = await db
       .insert(smartCollections)
       .values({
+        id: generateId('smartCollection'),
         userId: user.id,
         spaceId,
         name,

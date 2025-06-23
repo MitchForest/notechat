@@ -78,7 +78,25 @@ export function CustomBubbleMenu({ editor }: CustomBubbleMenuProps) {
       editor={editor}
       tippyOptions={{
         duration: 100,
-        placement: 'top-start',
+        placement: 'top',
+        offset: [0, 10],
+        popperOptions: {
+          modifiers: [
+            {
+              name: 'flip',
+              options: {
+                fallbackPlacements: ['bottom', 'right', 'left'],
+              },
+            },
+            {
+              name: 'preventOverflow',
+              options: {
+                boundary: 'viewport',
+                padding: 8,
+              },
+            },
+          ],
+        },
       }}
       shouldShow={({ editor, from, to }) => {
         // Only show if there's a selection

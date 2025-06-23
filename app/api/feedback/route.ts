@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentUser } from '@/lib/auth/session'
 import { db } from '@/lib/db'
 import { aiFeedback } from '@/lib/db/schema'
+import { generateId } from '@/lib/utils/id-generator'
 
 export async function POST(req: NextRequest) {
   try {
@@ -14,6 +15,7 @@ export async function POST(req: NextRequest) {
     const { operation, action, prompt, input, output, finalText, metadata } = body
 
     await db.insert(aiFeedback).values({
+      id: generateId('feedback'),
       userId: user.id,
       operation,
       action,

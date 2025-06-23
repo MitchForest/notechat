@@ -77,6 +77,9 @@ export function useChatWithRetry({
     id: chatId,
     api: '/api/chat',
     initialMessages,
+    headers: {
+      'x-chat-id': chatId
+    },
     onError: (error) => {
       console.error('Chat error:', error)
       setRetryState(prev => ({

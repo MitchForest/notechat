@@ -4,10 +4,12 @@ import { db } from '@/lib/db'
 import { collections, spaces } from '@/lib/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { z } from 'zod'
+import { generateId } from '@/lib/utils/id-generator'
 
 const createCollectionSchema = z.object({
   name: z.string().min(1).max(50),
-  spaceId: z.string().uuid(),
+  spaceId: z.string(),
+  icon: z.string().optional(),
 })
 
 export async function GET(request: Request) {
@@ -51,7 +53,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: validation.error.errors }, { status: 400 })
     }
     
-    const { name, spaceId } = validation.data
+    const { name, spaceId, icon } = validation.data
 
     // Verify the space exists and belongs to the user
     const space = await db.query.spaces.findFirst({
@@ -69,9 +71,11 @@ export async function POST(request: Request) {
     const [newCollection] = await db
       .insert(collections)
       .values({
+        id: generateId('collection'),
         userId: user.id,
         spaceId,
         name,
+        icon: icon || 'folder',
         type: 'user',
       })
       .returning()

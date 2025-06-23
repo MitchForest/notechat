@@ -14,7 +14,14 @@ export async function POST(req: NextRequest) {
       return new Response('Unauthorized', { status: 401 })
     }
 
-    const { messages, noteContext } = await req.json()
+    const body = await req.json()
+    const { messages, noteContext } = body
+    
+    console.log('[CHAT API] Request received:', {
+      messageCount: messages?.length,
+      hasNoteContext: !!noteContext,
+      userId: user.id
+    })
 
     // Validate chat exists and belongs to user
     const chatId = req.headers.get('x-chat-id')
@@ -60,10 +67,12 @@ export async function POST(req: NextRequest) {
 
     // Convert messages to core messages format
     const coreMessages = convertToCoreMessages(messages)
+    
+    console.log('[CHAT API] Streaming with model:', 'gpt-4o-mini')
 
     // Stream the response with tools
     const result = await streamText({
-      model: openai('gpt-4-turbo'),
+      model: openai('gpt-4o-mini'), // Use gpt-4o-mini instead of gpt-4-turbo
       messages: [
         { role: 'system', content: systemPrompt },
         ...coreMessages,
@@ -81,15 +90,24 @@ export async function POST(req: NextRequest) {
       },
     })
   } catch (error) {
-    console.error('Chat API error:', error)
+    console.error('[CHAT API] Error:', error)
     
-    // Handle specific errors
+    // Log more details about the error
     if (error instanceof Error) {
+      console.error('[CHAT API] Error details:', {
+        message: error.message,
+        stack: error.stack,
+        name: error.name
+      })
+      
       if (error.message.includes('rate limit')) {
         return new Response('Rate limit exceeded. Please try again later.', { status: 429 })
       }
       if (error.message.includes('context length')) {
         return new Response('Message too long. Please shorten your input.', { status: 400 })
+      }
+      if (error.message.includes('API key')) {
+        return new Response('AI service configuration error. Please contact support.', { status: 500 })
       }
     }
 

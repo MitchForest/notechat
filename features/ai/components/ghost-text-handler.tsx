@@ -9,7 +9,7 @@
  * Created: 2024-12-20
  */
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, memo } from 'react'
 import { Editor } from '@tiptap/core'
 import { useGhostText } from '../hooks/use-ghost-text'
 import { cn } from '@/lib/utils'
@@ -19,11 +19,9 @@ interface GhostTextHandlerProps {
   editor: Editor
 }
 
-export function GhostTextHandler({ editor }: GhostTextHandlerProps) {
+export const GhostTextHandler = memo(function GhostTextHandler({ editor }: GhostTextHandlerProps) {
   const { isLoading, ghostText } = useGhostText(editor)
   const [isVisible, setIsVisible] = useState(false)
-
-  console.log('[GhostTextHandler] Render:', { isLoading, ghostText, isVisible })
 
   // Handle visibility based on loading state OR ghost text presence
   useEffect(() => {
@@ -57,4 +55,4 @@ export function GhostTextHandler({ editor }: GhostTextHandlerProps) {
       </span>
     </div>
   )
-} 
+}) 

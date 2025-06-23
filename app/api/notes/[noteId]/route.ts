@@ -9,8 +9,8 @@ const updateNoteSchema = z.object({
   title: z.string().min(1).max(255).optional(),
   content: z.any().optional(),
   isStarred: z.boolean().optional(),
-  collectionId: z.string().uuid().nullable().optional(),
-  spaceId: z.string().uuid().nullable().optional(),
+  collectionId: z.string().nullable().optional(),
+  spaceId: z.string().nullable().optional(),
 })
 
 export async function GET(

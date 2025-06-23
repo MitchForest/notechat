@@ -5,6 +5,7 @@ import { Editor } from '@tiptap/core'
 import { useCompletion } from 'ai/react'
 import { handleAIError } from '../lib/ai-errors'
 import { useFeedbackTracker } from './use-feedback-tracker'
+import { debounce } from 'lodash'
 
 export function useGhostText(editor: Editor | null) {
   const [ghostText, setGhostText] = useState('')
@@ -26,7 +27,7 @@ export function useGhostText(editor: Editor | null) {
     }
   }, [])
 
-  const { complete, completion, isLoading: aiLoading, stop } = useCompletion({
+  const { complete, completion, isLoading: aiLoading, stop, setCompletion } = useCompletion({
     api: '/api/ai/completion',
     onError: error => {
       console.error('[useGhostText] AI completion error:', error)
@@ -38,10 +39,11 @@ export function useGhostText(editor: Editor | null) {
       }
     },
     onFinish: (prompt, completion) => {
-      console.log('[useGhostText] Completion finished:', { prompt, completion })
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[useGhostText] Completion finished')
+      }
     },
     onResponse: (response) => {
-      console.log('[useGhostText] Got response:', response.status)
     }
   })
 
@@ -50,6 +52,19 @@ export function useGhostText(editor: Editor | null) {
     completeRef.current = complete
     stopRef.current = stop
   }, [complete, stop])
+
+  // Debounced function to update ghost text in editor
+  const debouncedSetGhostText = useRef(
+    debounce((editor: Editor, text: string, pos: number) => {
+      if (!editor || !isMountedRef.current) return
+      
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[useGhostText] Debounced update')
+      }
+      
+      editor.commands.setGhostText(text, pos)
+    }, 100) // Increase to 100ms for better performance
+  ).current
 
   // Update ghost text when completion changes
   useEffect(() => {
@@ -62,56 +77,49 @@ export function useGhostText(editor: Editor | null) {
       return
     }
     
-    console.log('[useGhostText] Setting ghost text:', { 
-      completion, 
-      position: positionRef.current
-    })
-    
-    // Update local state
+    // Update local state immediately
     setGhostText(completion)
     setPosition(positionRef.current)
     lastCompletionRef.current = completion
     
-    // Update editor immediately
-    editor.commands.setGhostText(completion, positionRef.current)
-  }, [completion, editor])
+    // Update editor with debounce
+    debouncedSetGhostText(editor, completion, positionRef.current)
+  }, [completion, editor, debouncedSetGhostText])
 
   // Set up event handlers only once per editor instance
   useEffect(() => {
     if (!editor) return
 
     const handleTrigger = (props: { position: number; context: string }) => {
-      console.log('[useGhostText] Ghost text triggered:', props)
+      console.log('[useGhostText] Ghost text triggered at position:', props.position)
       positionRef.current = props.position
 
       // Only trigger if we have enough context
       if (props.context.length >= 10) {
-        console.log('[useGhostText] Context is long enough, calling complete')
         if (completeRef.current) {
           completeRef.current(props.context, { body: { mode: 'ghost-text' } })
         }
-      } else {
-        console.log('[useGhostText] Context too short:', props.context.length, 'chars')
       }
     }
 
     const handleAccept = (text: string) => {
-      console.log('[useGhostText] Accepting ghost text:', text)
       if (positionRef.current !== null) {
-        editor.chain().focus().insertContentAt(positionRef.current, text).run()
+        // Add a space before the ghost text
+        editor.chain().focus().insertContentAt(positionRef.current, ' ' + text).run()
       }
 
       editor.commands.clearGhostText()
       positionRef.current = null
+      setCompletion('') // Clear the completion state
       if (stopRef.current) {
         stopRef.current()
       }
     }
 
     const handleReject = () => {
-      console.log('[useGhostText] Rejecting ghost text')
       editor.commands.clearGhostText()
       positionRef.current = null
+      setCompletion('') // Clear the completion state
       if (stopRef.current) {
         stopRef.current()
       }
@@ -146,13 +154,14 @@ export function useGhostText(editor: Editor | null) {
     setGhostText('')
     setPosition(null)
     positionRef.current = null
+    setCompletion('')
     
     if (editor) {
       const tr = editor.state.tr
       tr.setMeta('ghostText', { text: '', position: null })
       editor.view.dispatch(tr)
     }
-  }, [editor, ghostText, position, lastInput, startTime, trackFeedback])
+  }, [editor, ghostText, position, lastInput, startTime, trackFeedback, setCompletion])
 
   const acceptGhostText = useCallback(() => {
     if (!editor || !ghostText || position === null) return
@@ -171,7 +180,7 @@ export function useGhostText(editor: Editor | null) {
     
     editor.chain()
       .focus()
-      .insertContentAt(position, ghostText)
+      .insertContentAt(position, ' ' + ghostText)
       .run()
     
     clearGhostText()

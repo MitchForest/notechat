@@ -43,6 +43,8 @@ export function SmartCollectionItem({
     return 'messages' in item || item.id.startsWith('chat-') ? 'chat' : 'note'
   }
   
+  console.log(`SmartCollection ${smartCollection.name}: isExpanded=${isExpanded}, isLoading=${isLoading}, items.length=${items.length}`)
+  
   const content = (
     <div 
       className={cn(

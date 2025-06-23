@@ -12,6 +12,7 @@
 import { db } from '@/lib/db'
 import { spaces, smartCollections } from '@/lib/db/schema'
 import { DEFAULT_SMART_COLLECTIONS } from '@/features/organization/lib/collection-icons'
+import { generateId } from '@/lib/utils/id-generator'
 
 /**
  * Seeds a new user account with default spaces and smart collections
@@ -26,6 +27,7 @@ export async function seedUserAccount(userId: string) {
       const [inbox] = await tx
         .insert(spaces)
         .values({
+          id: generateId('space'),
           userId,
           name: 'Inbox',
           emoji: '📥',
@@ -35,6 +37,7 @@ export async function seedUserAccount(userId: string) {
       
       // Create smart collections for Inbox
       const inboxCollections = DEFAULT_SMART_COLLECTIONS.map(col => ({
+        id: generateId('smartCollection'),
         userId,
         spaceId: inbox.id,
         name: col.name,
@@ -49,6 +52,7 @@ export async function seedUserAccount(userId: string) {
       const [personal] = await tx
         .insert(spaces)
         .values({
+          id: generateId('space'),
           userId,
           name: 'Personal',
           emoji: '🏠',
@@ -58,6 +62,7 @@ export async function seedUserAccount(userId: string) {
       
       // Create smart collections for Personal
       const personalCollections = DEFAULT_SMART_COLLECTIONS.map(col => ({
+        id: generateId('smartCollection'),
         userId,
         spaceId: personal.id,
         name: col.name,
@@ -72,6 +77,7 @@ export async function seedUserAccount(userId: string) {
       const [work] = await tx
         .insert(spaces)
         .values({
+          id: generateId('space'),
           userId,
           name: 'Work',
           emoji: '💼',
@@ -81,6 +87,7 @@ export async function seedUserAccount(userId: string) {
       
       // Create smart collections for Work
       const workCollections = DEFAULT_SMART_COLLECTIONS.map(col => ({
+        id: generateId('smartCollection'),
         userId,
         spaceId: work.id,
         name: col.name,

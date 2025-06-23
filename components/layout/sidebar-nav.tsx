@@ -53,6 +53,8 @@ import { DndContext } from '@dnd-kit/core'
 import { useDragDrop } from '@/features/organization/hooks/use-drag-drop'
 import { useAppShell } from '@/components/layout/app-shell-context'
 
+import { isNoteId, isChatId, generateId } from '@/lib/utils/id-generator'
+
 interface SidebarNavProps {
   className?: string
   user: UserType
@@ -113,11 +115,6 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
   
   // App shell
   const { openChat, openNote } = useAppShell()
-  
-  // Smart collection items cache
-  const [smartCollectionItems, setSmartCollectionItems] = useState<
-    Record<string, (Note | Chat)[]>
-  >({})
   
   // Dialog states
   const [createSpaceOpen, setCreateSpaceOpen] = useState(false)
@@ -198,6 +195,8 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
         const notesResponse = await fetch('/api/notes?filter=all')
         if (notesResponse.ok) {
           const notesData = await notesResponse.json()
+          console.log('Initial notes fetched:', notesData)
+          console.log('Note spaceIds:', notesData.map((n: Note) => ({ id: n.id, spaceId: n.spaceId, title: n.title })))
           useContentStore.getState().setNotes(notesData)
         }
         
@@ -205,6 +204,7 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
         const chatsResponse = await fetch('/api/chats?filter=all')
         if (chatsResponse.ok) {
           const chatsData = await chatsResponse.json()
+          console.log('Initial chats fetched:', chatsData)
           useContentStore.getState().setChats(chatsData)
         }
       } catch (error) {
@@ -228,9 +228,6 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
 
   // Helper function to filter items based on collection type
   const getFilteredItems = useCallback((collection: Collection) => {
-    const now = new Date()
-    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
-
     // Check if this is actually a smart collection
     const allSmartCollections = spaces.flatMap(s => s.smartCollections || [])
     const smartCollection = allSmartCollections.find(sc => sc.id === collection.id)
@@ -253,7 +250,22 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
       
       // Apply time range filter
       if (filterConfig.timeRange) {
-        filteredItems = filteredItems.filter(item => new Date(item.updatedAt) > sevenDaysAgo)
+        const cutoffDate = new Date()
+        const { unit, value } = filterConfig.timeRange
+        
+        switch (unit) {
+          case 'days':
+            cutoffDate.setDate(cutoffDate.getDate() - value)
+            break
+          case 'weeks':
+            cutoffDate.setDate(cutoffDate.getDate() - (value * 7))
+            break
+          case 'months':
+            cutoffDate.setMonth(cutoffDate.getMonth() - value)
+            break
+        }
+        
+        filteredItems = filteredItems.filter(item => new Date(item.updatedAt) > cutoffDate)
       }
       
       // Apply starred filter
@@ -414,15 +426,16 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
         // Create smart collection
         const { createSmartCollection } = useSmartCollectionStore.getState()
         await createSmartCollection({
+          id: generateId('smartCollection'),
           name: data.name,
           icon: data.icon,
           spaceId: createCollectionSpaceId,
-          userId: 'current-user', // This will be replaced by the API
+          userId: user.id,
           filterConfig: data.filterConfig || {}
         })
       }
     }
-  }, [createCollection, createCollectionSpaceId])
+  }, [createCollection, createCollectionSpaceId, user.id])
 
   // Context menu action handlers
   const handleSpaceAction = useCallback((action: string, spaceId: string) => {
@@ -566,30 +579,87 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
 
   // Fetch smart collection items when expanded
   const handleSmartCollectionToggle = async (smartCollection: SmartCollection) => {
-    const isExpanded = smartCollectionExpansion[smartCollection.id] ?? false
-    
+    // Just toggle - no loading, no API calls
+    // The items are already calculated by getSmartCollectionItems
     toggleSmartCollection(smartCollection.id)
-    
-    if (!isExpanded) {
-      // Fetch items when expanding
-      setSmartCollectionLoading(smartCollection.id, true)
-      try {
-        const items = await fetchSmartCollectionContent(smartCollection)
-        setSmartCollectionItems(prev => ({
-          ...prev,
-          [smartCollection.id]: items
-        }))
-      } catch (error) {
-        console.error('Failed to fetch smart collection items:', error)
-      } finally {
-        setSmartCollectionLoading(smartCollection.id, false)
-      }
-    }
   }
 
   // Separate system and user spaces
   const systemSpaces = spaces.filter(s => s.type === 'system')
   const userSpaces = spaces.filter(s => s.type === 'user' || s.type === 'seeded')
+
+  // Helper function to get smart collection items from existing data
+  const getSmartCollectionItems = useCallback((smartCollection: SmartCollection): (Note | Chat)[] => {
+    // If we have cached items and the collection is expanded, use those
+    if (smartCollectionItems[smartCollection.id] && smartCollectionExpansion[smartCollection.id]) {
+      return smartCollectionItems[smartCollection.id]
+    }
+    
+    // Otherwise, calculate from existing notes/chats
+    const spaceItems = [...notes, ...chats].filter(item => item.spaceId === smartCollection.spaceId)
+    const filterConfig = smartCollection.filterConfig as FilterConfig
+    let filteredItems: (Note | Chat)[] = []
+    
+    // Apply filters based on filterConfig
+    if (filterConfig.type === 'all' || !filterConfig.type) {
+      filteredItems = spaceItems
+    } else if (filterConfig.type === 'note') {
+      filteredItems = spaceItems.filter(item => isNoteId(item.id))
+    } else if (filterConfig.type === 'chat') {
+      filteredItems = spaceItems.filter(item => isChatId(item.id))
+    }
+    
+    // Apply time range filter
+    if (filterConfig.timeRange) {
+      const cutoffDate = new Date()
+      const { unit, value } = filterConfig.timeRange
+      
+      switch (unit) {
+        case 'days':
+          cutoffDate.setDate(cutoffDate.getDate() - value)
+          break
+        case 'weeks':
+          cutoffDate.setDate(cutoffDate.getDate() - (value * 7))
+          break
+        case 'months':
+          cutoffDate.setMonth(cutoffDate.getMonth() - value)
+          break
+      }
+      
+      filteredItems = filteredItems.filter(item => new Date(item.updatedAt) > cutoffDate)
+    }
+    
+    // Apply starred filter
+    if (filterConfig.isStarred) {
+      filteredItems = filteredItems.filter(item => item.isStarred)
+    }
+    
+    // Sort
+    const orderBy = filterConfig.orderBy || 'updatedAt'
+    const orderDirection = filterConfig.orderDirection || 'desc'
+    
+    return filteredItems.sort((a, b) => {
+      let aValue: string | number
+      let bValue: string | number
+      
+      if (orderBy === 'title') {
+        aValue = a.title
+        bValue = b.title
+      } else if (orderBy === 'createdAt') {
+        aValue = new Date(a.createdAt).getTime()
+        bValue = new Date(b.createdAt).getTime()
+      } else {
+        aValue = new Date(a.updatedAt).getTime()
+        bValue = new Date(b.updatedAt).getTime()
+      }
+      
+      if (orderDirection === 'asc') {
+        return aValue > bValue ? 1 : -1
+      } else {
+        return aValue < bValue ? 1 : -1
+      }
+    })
+  }, [notes, chats, smartCollectionItems, smartCollectionExpansion])
 
   if (sidebarCollapsed) {
     // Collapsed sidebar - icon only view
@@ -722,7 +792,8 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
                         {spaceSmartCollections.map((smartCollection) => {
                           const isExpanded = smartCollectionExpansion[smartCollection.id] ?? false
                           const isLoading = smartCollectionLoading[smartCollection.id] ?? false
-                          const filteredItems = smartCollectionItems[smartCollection.id] || []
+                          const filteredItems = getSmartCollectionItems(smartCollection)
+                          console.log('Rendering smart collection:', smartCollection.name, 'with items:', filteredItems)
                           
                           return (
                             <SmartCollectionItem
@@ -813,7 +884,7 @@ export function SidebarNav({ className, user }: SidebarNavProps) {
                             isActive={isContextActive('smart-collection', smartCollection.id)}
                             isExpanded={smartCollectionExpansion[smartCollection.id] ?? false}
                             isLoading={smartCollectionLoading[smartCollection.id] ?? false}
-                            items={smartCollectionItems[smartCollection.id] || []}
+                            items={getSmartCollectionItems(smartCollection)}
                             onToggle={() => handleSmartCollectionToggle(smartCollection)}
                             onClick={() => {
                               setActiveContext({

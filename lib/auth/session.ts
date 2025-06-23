@@ -4,6 +4,7 @@ import { eq, and, gt } from 'drizzle-orm'
 import { cookies } from 'next/headers'
 import { cache } from 'react'
 import crypto from 'crypto'
+import { generateId } from '@/lib/utils/id-generator'
 
 const SESSION_COOKIE_NAME = 'session'
 const SESSION_MAX_AGE = 60 * 60 * 24 * 30 // 30 days
@@ -17,6 +18,7 @@ export async function createSession(userId: string, userAgent?: string, ipAddres
   const expiresAt = new Date(Date.now() + SESSION_MAX_AGE * 1000)
 
   await db.insert(sessions).values({
+    id: generateId('session'),
     userId,
     token,
     expiresAt,

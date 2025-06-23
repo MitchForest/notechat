@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { Note, Chat, SmartCollection } from '@/lib/db/schema'
 import { toast } from 'sonner'
+import { isNoteId, isChatId } from '@/lib/utils/id-generator'
 
 interface FilterConfig {
   type?: 'all' | 'note' | 'chat'
@@ -153,6 +154,7 @@ export const useContentStore = create<ContentStore>((set, get) => ({
           throw new Error(`Failed to fetch notes: ${notesResponse.status} - ${errorText}`)
         }
         notesData = await notesResponse.json()
+        console.log('Notes data from API:', notesData)
       }
       
       if (!filterConfig.type || filterConfig.type === 'all' || filterConfig.type === 'chat') {
@@ -220,13 +222,19 @@ export const useContentStore = create<ContentStore>((set, get) => ({
       
       // Also update the main notes/chats arrays if this is a full fetch
       if (!filterConfig.type || filterConfig.type === 'all') {
+        console.log('Updating main arrays with combined items:', combinedItems)
+        console.log('Items with note IDs:', combinedItems.filter(item => isNoteId(item.id)))
+        console.log('Items with chat IDs:', combinedItems.filter(item => isChatId(item.id)))
         set({
-          notes: combinedItems.filter(item => 'content' in item && !('messages' in item)) as Note[],
-          chats: combinedItems.filter(item => 'messages' in item || ('content' in item && item.id.startsWith('chat-'))) as Chat[],
+          notes: combinedItems.filter(item => isNoteId(item.id)) as Note[],
+          chats: combinedItems.filter(item => isChatId(item.id)) as Chat[],
           lastFetchedCollection: smartCollection.id,
           isCacheValid: true
         })
       }
+      
+      console.log('Combined items before return:', combinedItems)
+      console.log('Combined items length:', combinedItems.length)
       
       return combinedItems
     } catch (error) {
