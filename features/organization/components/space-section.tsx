@@ -33,7 +33,7 @@ export const SpaceSection = React.memo(({
       "mb-2 group",
       isActive && "sidebar-item-active-accent"
     )}>
-      <div className="relative flex items-center">
+      <div className="flex items-center gap-1">
         <button
           className={cn(
             "flex-1 flex items-center justify-between rounded-md px-2 py-1.5 text-sm font-medium",
@@ -56,15 +56,16 @@ export const SpaceSection = React.memo(({
           }
         </button>
         
-        {/* Hover actions for non-system spaces */}
+        {/* Hover actions for non-system spaces - outside button */}
         {!isSystemSpace && onAction && (
-          <HoverActions
-            variant="space"
-            onRename={() => onAction('rename', space.id)}
-            onChangeEmoji={() => onAction('changeEmoji', space.id)}
-            onDelete={() => onAction('delete', space.id)}
-            className="absolute right-1"
-          />
+          <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+            <HoverActions
+              variant="space"
+              onRename={() => onAction('rename', space.id)}
+              onChangeEmoji={() => onAction('changeEmoji', space.id)}
+              onDelete={() => onAction('delete', space.id)}
+            />
+          </div>
         )}
       </div>
       

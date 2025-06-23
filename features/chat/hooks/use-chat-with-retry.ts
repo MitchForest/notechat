@@ -82,13 +82,41 @@ export function useChatWithRetry({
     },
     onError: (error) => {
       console.error('Chat error:', error)
+      console.error('Chat error details:', {
+        message: error.message,
+        stack: error.stack,
+        name: error.name,
+        cause: error.cause
+      })
+      
+      // Check if it's a specific error type
+      if (error.message.includes('An error occurred')) {
+        console.error('Generic streaming error - check server logs for details')
+      }
+      
       setRetryState(prev => ({
         ...prev,
         lastError: error
       }))
+      
+      // Show user-friendly error message
+      if (error.message.includes('rate limit')) {
+        toast.error('Too many requests. Please wait a moment and try again.')
+      } else if (error.message.includes('API key')) {
+        toast.error('AI service is not configured properly. Please contact support.')
+      } else {
+        toast.error('Failed to send message. Please try again.')
+      }
     },
     onFinish,
-    onResponse,
+    onResponse: (response) => {
+      console.log('[Chat Hook] Response received:', {
+        status: response.status,
+        statusText: response.statusText,
+        headers: Object.fromEntries(response.headers.entries())
+      })
+      onResponse?.(response)
+    },
     body
   })
   

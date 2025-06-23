@@ -76,7 +76,7 @@ export function ExtractToNoteDialog({
 
     setIsSaving(true)
     try {
-      const noteId = `note-${Date.now()}`
+      const noteId = `note_${Date.now()}`
       
       const createdNote = await createNote(
         extracted.title,

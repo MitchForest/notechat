@@ -161,7 +161,7 @@ export async function POST(request: Request) {
       collectionId: string | null
       title: string
     } = {
-      id: id && !id.startsWith('chat-') ? id : generateId('chat'),
+      id: id && !id.startsWith('chat_') ? id : generateId('chat'),
       userId: user.id,
       spaceId: spaceId || null,
       collectionId: collectionId || null,

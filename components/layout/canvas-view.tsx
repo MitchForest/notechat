@@ -296,7 +296,7 @@ function EmptyState() {
     const collectionId = context?.type === 'collection' ? context.id : null
     
     openChat({
-      id: `chat-${Date.now()}`,
+      id: `chat_${Date.now()}`,
       type: 'chat',
       title: 'New Chat',
       metadata: { spaceId, collectionId }
@@ -311,7 +311,7 @@ function EmptyState() {
     const collectionId = context?.type === 'collection' ? context.id : null
     
     openNote({
-      id: `note-${Date.now()}`,
+      id: `note_${Date.now()}`,
       type: 'note',
       title: 'New Note',
       metadata: { spaceId, collectionId }
@@ -361,6 +361,13 @@ function EmptyState() {
 export default function CanvasView() {
   const { viewConfig, activeChat, activeNote, closeChat, closeNote } = useAppShell()
 
+  // Debug logging
+  console.log('CanvasView render:', {
+    viewConfig,
+    activeChat,
+    activeNote
+  })
+
   // Empty state
   if (viewConfig.primary === 'empty') {
     return <EmptyState />
@@ -370,6 +377,7 @@ export default function CanvasView() {
   if (!viewConfig.secondary) {
     if (viewConfig.primary === 'chat' && (viewConfig.primaryItem || activeChat)) {
       const chat = viewConfig.primaryItem || activeChat
+      console.log('Rendering chat:', chat)
       return (
         <div className="h-full p-4">
           <ChatComponent 
@@ -382,6 +390,7 @@ export default function CanvasView() {
     }
     if (viewConfig.primary === 'note' && (viewConfig.primaryItem || activeNote)) {
       const note = viewConfig.primaryItem || activeNote
+      console.log('Rendering note:', note)
       return (
         <div className="h-full p-4">
           <NoteComponent 

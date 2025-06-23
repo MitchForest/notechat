@@ -65,6 +65,14 @@ class BlockDragHandleView {
     this.view = view
     this.options = options
     
+    // Bind event handlers FIRST - before creating elements
+    this.handleMouseMove = this.handleMouseMove.bind(this)
+    this.handleMouseLeave = this.handleMouseLeave.bind(this)
+    this.handleDragStart = this.handleDragStart.bind(this)
+    this.handleDragEnd = this.handleDragEnd.bind(this)
+    this.handleDragOver = this.handleDragOver.bind(this)
+    this.handleDrop = this.handleDrop.bind(this)
+    
     // Create drag handle element
     this.handle = this.createHandle()
     
@@ -75,15 +83,24 @@ class BlockDragHandleView {
     document.body.appendChild(this.handle)
     document.body.appendChild(this.dropIndicator)
     
-    // Bind event handlers
-    this.handleMouseMove = this.handleMouseMove.bind(this)
-    this.handleMouseLeave = this.handleMouseLeave.bind(this)
-    this.handleDragStart = this.handleDragStart.bind(this)
-    this.handleDragEnd = this.handleDragEnd.bind(this)
-    this.handleDragOver = this.handleDragOver.bind(this)
-    this.handleDrop = this.handleDrop.bind(this)
+    // Add handle event listeners AFTER binding
+    this.handle.addEventListener('mouseenter', () => {
+      this.isOverHandle = true
+      if (this.hideTimeout) {
+        clearTimeout(this.hideTimeout)
+        this.hideTimeout = null
+      }
+    })
     
-    // Add event listeners
+    this.handle.addEventListener('mouseleave', () => {
+      this.isOverHandle = false
+      this.scheduleHide()
+    })
+    
+    this.handle.addEventListener('dragstart', this.handleDragStart)
+    this.handle.addEventListener('dragend', this.handleDragEnd)
+    
+    // Add editor event listeners
     this.view.dom.addEventListener('mousemove', this.handleMouseMove)
     this.view.dom.addEventListener('mouseleave', this.handleMouseLeave)
     this.view.dom.addEventListener('dragover', this.handleDragOver)
@@ -100,7 +117,7 @@ class BlockDragHandleView {
     
     // Drag handle icon (6 dots)
     handle.innerHTML = `
-      <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+      <svg width="16" height="16" viewBox="0 0 16 16">
         <circle cx="5" cy="4" r="1.5"/>
         <circle cx="5" cy="8" r="1.5"/>
         <circle cx="5" cy="12" r="1.5"/>
@@ -122,23 +139,6 @@ class BlockDragHandleView {
       padding: 4px;
       margin: -4px;
     `
-    
-    // Handle events
-    handle.addEventListener('mouseenter', () => {
-      this.isOverHandle = true
-      if (this.hideTimeout) {
-        clearTimeout(this.hideTimeout)
-        this.hideTimeout = null
-      }
-    })
-    
-    handle.addEventListener('mouseleave', () => {
-      this.isOverHandle = false
-      this.scheduleHide()
-    })
-    
-    handle.addEventListener('dragstart', this.handleDragStart)
-    handle.addEventListener('dragend', this.handleDragEnd)
     
     return handle
   }
@@ -231,15 +231,24 @@ class BlockDragHandleView {
     if (blockNode instanceof HTMLElement) {
       const blockRect = blockNode.getBoundingClientRect()
       
-      // Position handle just to the left of the block content
-      // The block has padding-left: 120px, so we position at blockRect.left + some offset
-      this.handle.style.left = `${blockRect.left + 60}px` // Position in the margin area
-      this.handle.style.top = `${coords.top}px`
+      // Position handle in the center of the left margin
+      this.handle.style.left = `${blockRect.left + 90}px`
+      
+      // Center the handle on the first line of text
+      const handleHeight = this.options.handleWidth || 20
+      
+      // For most text, the first line center is roughly 0.5em to 0.75em from the top
+      // Using a fixed offset that works well for typical text sizes
+      // This positions the handle at the visual center of the first line
+      const firstLineOffset = 10 // Slightly more than half of typical line height to center on text
+      
+      this.handle.style.top = `${coords.top + firstLineOffset - (handleHeight / 2)}px`
+      
       this.handle.style.display = 'flex'
       this.handle.classList.add('visible')
     } else {
       // Fallback to editor-relative positioning
-      this.handle.style.left = `${editorRect.left + 60}px`
+      this.handle.style.left = `${editorRect.left + 90}px`
       this.handle.style.top = `${coords.top}px`
       this.handle.style.display = 'flex'
       this.handle.classList.add('visible')

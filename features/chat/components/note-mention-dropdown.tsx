@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { Command, CommandInput, CommandList, CommandItem, CommandGroup, CommandSeparator } from '@/components/ui/command'
 import { Badge } from '@/components/ui/badge'
 import { useNoteContextStore } from '@/features/chat/stores/note-context-store'
@@ -31,6 +32,13 @@ export function NoteMentionDropdown({
   const { currentNote, recentNotes } = useNoteContextStore()
   const { notes } = useContentStore()
   const [showAll, setShowAll] = useState(false)
+  const [mounted, setMounted] = useState(false)
+
+  // Ensure we're mounted before rendering portal
+  useEffect(() => {
+    setMounted(true)
+    return () => setMounted(false)
+  }, [])
 
   // Progressive search implementation
   const getFilteredNotes = useCallback((): FilteredNote[] => {
@@ -94,10 +102,27 @@ export function NoteMentionDropdown({
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [onClose])
 
-  return (
+  // Click outside to close
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement
+      if (!target.closest('.note-mention-dropdown')) {
+        onClose()
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [onClose])
+
+  const dropdownContent = (
     <div 
-      className="absolute z-50 w-80 bg-popover border rounded-lg shadow-lg overflow-hidden"
-      style={{ top: position.top, left: position.left }}
+      className="note-mention-dropdown fixed z-[100] w-80 bg-popover border rounded-lg shadow-lg overflow-hidden"
+      style={{ 
+        top: `${position.top}px`, 
+        left: `${position.left}px`,
+        maxHeight: '384px'
+      }}
     >
       <Command className="max-h-96">
         <CommandInput 
@@ -160,4 +185,9 @@ export function NoteMentionDropdown({
       </Command>
     </div>
   )
+
+  // Use portal to render dropdown outside of the input container
+  if (!mounted) return null
+  
+  return createPortal(dropdownContent, document.body)
 } 

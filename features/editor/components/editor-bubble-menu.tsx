@@ -55,7 +55,7 @@ export function EditorBubbleMenu({ editor, noteId, noteTitle }: EditorBubbleMenu
       
       // Open new chat
       openChat({
-        id: `chat-${Date.now()}`,
+        id: `chat_${Date.now()}`,
         type: 'chat',
         title: 'AI Chat'
       })

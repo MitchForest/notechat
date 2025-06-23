@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { persist, createJSONStorage } from 'zustand/middleware'
 
 interface ActiveContext {
   type: 'space' | 'collection' | 'smart-collection'
@@ -13,7 +14,7 @@ interface UIState {
   collectionExpansion: Record<string, boolean>
   smartCollectionExpansion: Record<string, boolean>
   
-  // Active context - single source of truth
+  // Active context - kept for other components that need it
   activeContext: ActiveContext | null
   
   // Sidebar state
@@ -33,7 +34,7 @@ interface UIActions {
   setCollectionExpanded: (collectionId: string, expanded: boolean) => void
   setSmartCollectionExpanded: (collectionId: string, expanded: boolean) => void
   
-  // Active context management
+  // Active context management - kept for other components
   setActiveContext: (context: ActiveContext | null) => void
   getActiveContext: () => ActiveContext | null
   clearActiveContext: () => void
@@ -50,7 +51,9 @@ interface UIActions {
 
 type UIStore = UIState & UIActions
 
-export const useUIStore = create<UIStore>((set, get) => ({
+export const useUIStore = create<UIStore>()(
+  persist(
+    (set, get) => ({
   // Initial state
   spaceExpansion: {},
   collectionExpansion: {},
@@ -123,7 +126,7 @@ export const useUIStore = create<UIStore>((set, get) => ({
     }))
   },
   
-  // Set active context - this is the main method for setting what's active
+  // Set active context
   setActiveContext: (context) => {
     set({ activeContext: context })
   },
@@ -163,4 +166,16 @@ export const useUIStore = create<UIStore>((set, get) => ({
   setGlobalError: (error) => {
     set({ globalError: error })
   },
-})) 
+    }),
+    {
+      name: 'sidebar-ui-state',
+      storage: createJSONStorage(() => localStorage),
+      partialize: (state) => ({
+        spaceExpansion: state.spaceExpansion,
+        collectionExpansion: state.collectionExpansion,
+        smartCollectionExpansion: state.smartCollectionExpansion,
+        activeContext: state.activeContext
+      })
+    }
+  )
+) 

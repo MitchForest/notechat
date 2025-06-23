@@ -11,6 +11,7 @@ import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { useDragDrop } from '../hooks/use-drag-drop'
 import { HoverActions } from './hover-actions'
 import { AnimatedCollapse } from './animated-collapse'
+import { isChatId } from '@/lib/utils/id-generator'
 
 interface SidebarCollectionItemProps {
   collection: Collection
@@ -45,7 +46,7 @@ export const SidebarCollectionItem = React.memo(({
   
   // Helper to determine if an item is a chat or note
   const getItemType = (item: Note | Chat): 'note' | 'chat' => {
-    return chats.some(chat => chat.id === item.id) ? 'chat' : 'note'
+    return isChatId(item.id) ? 'chat' : 'note'
   }
   
   const filteredItems = useMemo(
@@ -74,7 +75,7 @@ export const SidebarCollectionItem = React.memo(({
       dropIndicator={dragDropHook.dropIndicator}
     >
       <div className={cn(
-        "group relative flex items-center",
+        "group flex items-center gap-1",
         isActive && "sidebar-item-active-accent"
       )}>
         <button
@@ -85,8 +86,8 @@ export const SidebarCollectionItem = React.memo(({
           )}
           onClick={(event) => {
             event.stopPropagation()
-            onToggle(collection.id)
             onCollectionClick?.(collection.id)
+            onToggle(collection.id)
           }}
         >
           <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -102,21 +103,22 @@ export const SidebarCollectionItem = React.memo(({
           }
         </button>
         
-        {/* Hover actions - positioned absolutely to avoid button nesting */}
+        {/* Hover actions - outside button to avoid nesting */}
         {onCollectionAction && (
-          <HoverActions
-            variant="collection"
-            onRename={() => onCollectionAction('rename', collection.id)}
-            onDelete={() => onCollectionAction('delete', collection.id)}
-            onChangeIcon={() => onCollectionAction('changeIcon', collection.id)}
-            onMove={() => onCollectionAction('moveToSpace', collection.id)}
-            className="absolute right-1"
-          />
+          <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+            <HoverActions
+              variant="collection"
+              onRename={() => onCollectionAction('rename', collection.id)}
+              onDelete={() => onCollectionAction('delete', collection.id)}
+              onChangeIcon={() => onCollectionAction('changeIcon', collection.id)}
+              onMove={() => onCollectionAction('moveToSpace', collection.id)}
+            />
+          </div>
         )}
       </div>
       
       {/* Items under collection - animated */}
-      <AnimatedCollapse isOpen={isExpanded} className="mt-0.5 ml-5">
+      <AnimatedCollapse isOpen={isExpanded} className="mt-0.5 ml-4">
         <div className="space-y-0.5">
           {itemCount === 0 ? (
             <div className="text-xs text-muted-foreground px-2 py-1">

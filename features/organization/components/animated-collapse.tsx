@@ -20,9 +20,10 @@ export function AnimatedCollapse({ isOpen, children, className }: AnimatedCollap
   }
   
   return (
-    <AnimatePresence initial={false} mode="wait">
+    <AnimatePresence initial={false}>
       {isOpen && (
         <motion.div
+          key="content"
           initial={{ height: 0, opacity: 0 }}
           animate={{ 
             height: 'auto', 

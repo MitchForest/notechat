@@ -88,42 +88,42 @@ export function ChatInput({
     if (!textareaRef.current || mentionStartIndex === -1) return
 
     const textarea = textareaRef.current
-    const textBeforeMention = input.substring(0, mentionStartIndex)
-    
-    // Create a temporary element to measure text dimensions
-    const measureEl = document.createElement('div')
-    measureEl.style.cssText = window.getComputedStyle(textarea).cssText
-    measureEl.style.position = 'absolute'
-    measureEl.style.visibility = 'hidden'
-    measureEl.style.whiteSpace = 'pre-wrap'
-    measureEl.style.width = `${textarea.clientWidth}px`
-    measureEl.textContent = textBeforeMention
-    document.body.appendChild(measureEl)
-    
-    const lineHeight = parseInt(window.getComputedStyle(textarea).lineHeight)
     const rect = textarea.getBoundingClientRect()
-    const textHeight = measureEl.offsetHeight
     
-    document.body.removeChild(measureEl)
+    // Calculate position relative to viewport
+    const dropdownHeight = 384 // max height from the dropdown component
+    const dropdownWidth = 320 // w-80 = 20rem = 320px
+    const padding = 16
     
-    // Position dropdown above or below based on space
-    const spaceBelow = window.innerHeight - rect.bottom
-    const spaceAbove = rect.top
+    // Calculate vertical position
+    let top = rect.bottom + 8
+    const spaceBelow = window.innerHeight - rect.bottom - padding
+    const spaceAbove = rect.top - padding
     
-    if (spaceBelow > 300 || spaceBelow > spaceAbove) {
-      // Show below
-      setMentionPosition({
-        top: rect.top + textHeight + lineHeight + 5,
-        left: rect.left + 16 // Account for padding
-      })
-    } else {
-      // Show above
-      setMentionPosition({
-        top: rect.top - 300,
-        left: rect.left + 16
-      })
+    // If not enough space below, show above
+    if (spaceBelow < dropdownHeight && spaceAbove > spaceBelow) {
+      top = rect.top - dropdownHeight - 8
     }
-  }, [input, mentionStartIndex])
+    
+    // Calculate horizontal position
+    let left = rect.left
+    const spaceRight = window.innerWidth - rect.left - padding
+    
+    // If dropdown would go off right edge, align it to the right edge of textarea
+    if (spaceRight < dropdownWidth) {
+      left = rect.right - dropdownWidth
+    }
+    
+    // Ensure it doesn't go off left edge
+    if (left < padding) {
+      left = padding
+    }
+    
+    setMentionPosition({
+      top: Math.max(padding, Math.min(top, window.innerHeight - dropdownHeight - padding)),
+      left: Math.max(padding, Math.min(left, window.innerWidth - dropdownWidth - padding))
+    })
+  }, [mentionStartIndex])
 
   // Handle input changes
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {

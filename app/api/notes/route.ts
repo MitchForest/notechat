@@ -158,7 +158,7 @@ export async function POST(request: Request) {
       title: string
       isStarred: boolean
     } = {
-      id: id && !id.startsWith('note-') ? id : generateId('note'),
+      id: id && !id.startsWith('note_') ? id : generateId('note'),
       userId: user.id,
       spaceId: spaceId || null,
       collectionId: collectionId || null,

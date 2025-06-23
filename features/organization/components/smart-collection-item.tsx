@@ -25,7 +25,7 @@ interface SmartCollectionItemProps {
 
 export function SmartCollectionItem({ 
   smartCollection, 
-  isActive, 
+  isActive,
   isExpanded,
   items,
   onToggle,
@@ -52,7 +52,7 @@ export function SmartCollectionItem({
       onDragLeave={() => setIsDragOver(false)}
       onDrop={() => setIsDragOver(false)}
     >
-      <div className="flex items-center">
+      <div className="flex items-center gap-1">
         <button
           className={cn(
             "flex-1 flex items-center justify-between rounded-md px-2 py-1.5 text-sm",
@@ -62,18 +62,12 @@ export function SmartCollectionItem({
           )}
           onClick={(e) => {
             e.stopPropagation()
-            // Only toggle expansion when clicking the button
+            onClick()
             onToggle()
-          }}
-          onMouseDown={(e) => {
-            // Set active on mousedown to separate from toggle
-            if (e.button === 0) { // Left click only
-              onClick()
-            }
           }}
         >
           <div className="flex items-center gap-2 flex-1 min-w-0">
-            <Icon className="h-4 w-4 flex-shrink-0" />
+            <Icon className="h-3.5 w-3.5 flex-shrink-0" />
             <span className="flex-1 text-left truncate">
               {smartCollection.name} <span className="text-xs text-muted-foreground">({items.length})</span>
             </span>
@@ -85,20 +79,21 @@ export function SmartCollectionItem({
           )}
         </button>
         
-        {/* Hover actions for non-protected smart collections */}
+        {/* Hover actions for non-protected smart collections - outside button */}
         {!smartCollection.isProtected && onAction && (
-          <HoverActions
-            variant="smart-collection"
-            onRename={() => onAction('rename', smartCollection.id)}
-            onDelete={() => onAction('delete', smartCollection.id)}
-            onChangeIcon={() => onAction('changeIcon', smartCollection.id)}
-            className="absolute right-1"
-          />
+          <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+            <HoverActions
+              variant="smart-collection"
+              onRename={() => onAction('rename', smartCollection.id)}
+              onDelete={() => onAction('delete', smartCollection.id)}
+              onChangeIcon={() => onAction('changeIcon', smartCollection.id)}
+            />
+          </div>
         )}
       </div>
       
       {/* Expanded content - animated */}
-      <AnimatedCollapse isOpen={isExpanded} className="mt-0.5 ml-5">
+      <AnimatedCollapse isOpen={isExpanded} className="mt-0.5 ml-4">
         <div className="space-y-0.5">
           {items.length === 0 ? (
             <div className="text-xs text-muted-foreground px-2 py-1">

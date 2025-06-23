@@ -41,6 +41,15 @@ export const noteTools: Record<string, CoreTool> = {
       },
       required: ['title', 'content'],
     },
+    execute: async ({ title, content, content_type, collection_id }) => {
+      // This is a placeholder - the actual implementation will be handled client-side
+      // The tool call will be intercepted and processed by the chat interface
+      return {
+        success: true,
+        message: `Tool call: create_note with title "${title}"`,
+        requiresConfirmation: true,
+      }
+    },
   },
 
   update_note: {
@@ -74,6 +83,14 @@ export const noteTools: Record<string, CoreTool> = {
         },
       },
       required: ['note_id'],
+    },
+    execute: async ({ note_id, title, content, content_type, update_type }) => {
+      // Placeholder - actual implementation handled client-side
+      return {
+        success: true,
+        message: `Tool call: update_note for note ${note_id}`,
+        requiresConfirmation: true,
+      }
     },
   },
 
@@ -113,6 +130,14 @@ export const noteTools: Record<string, CoreTool> = {
       },
       required: ['note_id', 'original_text', 'new_text'],
     },
+    execute: async ({ note_id, original_text, new_text, output_format, code_language, edit_type }) => {
+      // Placeholder - actual implementation handled client-side
+      return {
+        success: true,
+        message: `Tool call: edit_selection in note ${note_id}`,
+        requiresConfirmation: true,
+      }
+    },
   },
 
   search_notes: {
@@ -139,6 +164,14 @@ export const noteTools: Record<string, CoreTool> = {
         },
       },
       required: ['query'],
+    },
+    execute: async ({ query, limit = 5, search_type = 'both' }) => {
+      // Placeholder - actual search will be implemented client-side
+      return {
+        success: true,
+        message: `Tool call: search_notes for "${query}"`,
+        results: [],
+      }
     },
   },
 }

@@ -498,16 +498,18 @@
   transition: opacity 150ms ease-out !important;
 }
 
-.transition-transform {
-  transition: transform 200ms ease-out !important;
+/* Hover actions specific transitions */
+.hover-actions {
+  transition: opacity 200ms ease-out !important;
 }
 
-.transition-all {
-  transition: all 200ms ease-out !important;
+.group:hover .hover-actions {
+  opacity: 1 !important;
 }
 
-.transition-shadow {
-  transition: box-shadow 200ms ease-out !important;
+/* Ensure hover actions work */
+.group:hover .opacity-0.group-hover\:opacity-100 {
+  opacity: 1 !important;
 }
 
 /* Accordion animations */
@@ -566,7 +568,8 @@
   z-index: 10;
 }
 
-/* Show hover actions when hovering the parent group div */
+/* Show hover actions only when hovering the direct parent group */
+.group:hover > .relative > .hover-actions-trigger,
 .group:hover > .hover-actions-trigger,
 .hover-actions-trigger[data-state="open"] {
   opacity: 1;
@@ -585,3 +588,6 @@
 .sidebar-chevron-rotated {
   transform: rotate(90deg);
 }
+
+/* Import new sidebar styles */
+@import '../features/sidebar/styles/sidebar.css';

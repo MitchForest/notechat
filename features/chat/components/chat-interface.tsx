@@ -21,7 +21,7 @@ import '../styles/chat.css'
 import '../styles/chat-selection.css'
 import { useChat } from 'ai/react'
 import { useChatWithRetry } from '../hooks/use-chat-with-retry'
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import { cn } from '@/lib/utils'
 import { Card, CardContent } from '@/components/ui/card'
 import { PanelHeader } from '@/components/shared/panel-header'
@@ -145,15 +145,13 @@ export function ChatInterface({ chatId, className, onClose, noteContext, metadat
   const [isExecutingTool, setIsExecutingTool] = useState(false)
   const [toolResult, setToolResult] = useState<{ success: boolean; message?: string; data?: any } | undefined>(undefined)
 
-  // Message search
-  const {
-    isSearchOpen,
-    searchQuery,
-    currentMatch,
-    openSearch,
-    closeSearch,
-    handleResultSelect,
-  } = useMessageSearch({ messages: paginatedMessages })
+  // Message search - temporarily disabled
+  let isSearchOpen = false
+  let searchQuery = ''
+  let currentMatch: any = null
+  let openSearch = () => {}
+  let closeSearch = () => {}
+  let handleResultSelect = () => {}
   
   // Check if this chat exists in the store (i.e., has been persisted)
   useEffect(() => {
@@ -264,7 +262,7 @@ export function ChatInterface({ chatId, className, onClose, noteContext, metadat
 
   const handleSaveNote = async (title: string, content: string, collectionId: string | null) => {
     try {
-      const noteId = `note-${Date.now()}`
+      const noteId = `note_${Date.now()}`
       const context = useUIStore.getState().getActiveContext()
       const spaceId = context?.spaceId || null
       const createdNote = await createNote(title, spaceId, collectionId, noteId)
@@ -366,7 +364,6 @@ export function ChatInterface({ chatId, className, onClose, noteContext, metadat
     isOnline
   } = useChatWithRetry({
     chatId,
-    initialMessages: paginatedMessages,
     body: {
       // Include all context: multi-note, highlight, and legacy
       noteContext: contextNotes.length > 0 
@@ -388,11 +385,11 @@ export function ChatInterface({ chatId, className, onClose, noteContext, metadat
       }
     },
     onFinish: (message) => {
-      // Persist message to database
-      saveMessage(message)
-      
-      // Add to paginated messages
-      addMessage(message)
+      // Defer message persistence to avoid state updates during streaming
+      setTimeout(() => {
+        // Persist message to database
+        saveMessage(message)
+      }, 0)
       
       // Check if AI referenced any notes
       if (message.role === 'assistant' && contextNotes.length > 0) {
@@ -442,23 +439,6 @@ export function ChatInterface({ chatId, className, onClose, noteContext, metadat
       setIsInitialLoading(false)
     }
   }, [messages, error])
-
-  // Update paginated messages when AI messages change
-  useEffect(() => {
-    // Only update if we have new messages not in paginated list
-    const lastMessage = messages[messages.length - 1]
-    const lastPaginatedMessage = paginatedMessages[paginatedMessages.length - 1]
-    
-    if (lastMessage && (!lastPaginatedMessage || lastMessage.id !== lastPaginatedMessage.id)) {
-      // Check if it's a temporary message that needs updating
-      const tempMessage = paginatedMessages.find(m => m.content === lastMessage.content && m.role === lastMessage.role)
-      if (tempMessage && tempMessage.id !== lastMessage.id) {
-        updateMessage(tempMessage.id, lastMessage)
-      } else if (!paginatedMessages.find(m => m.id === lastMessage.id)) {
-        addMessage(lastMessage)
-      }
-    }
-  }, [messages, paginatedMessages, addMessage, updateMessage])
 
   const handleTitleChange = async (newTitle: string) => {
     setChatTitle(newTitle)
@@ -547,7 +527,7 @@ export function ChatInterface({ chatId, className, onClose, noteContext, metadat
       const { toolName, args } = pendingToolCall
       
       if (toolName === 'create_note') {
-        const noteId = `note-${Date.now()}`
+        const noteId = `note_${Date.now()}`
         const context = useUIStore.getState().getActiveContext()
         const spaceId = context?.spaceId || null
         const createdNote = await createNote(args.title, spaceId, args.collection_id || null, noteId)
@@ -732,7 +712,7 @@ export function ChatInterface({ chatId, className, onClose, noteContext, metadat
           {isSearchOpen && (
             <ChatSearch
               isOpen={isSearchOpen}
-              messages={paginatedMessages}
+              messages={messages}
               onResultSelect={handleResultSelect}
               onClose={closeSearch}
             />
@@ -809,8 +789,8 @@ export function ChatInterface({ chatId, className, onClose, noteContext, metadat
               {/* Messages */}
               {!isInitialLoading && messages.length > 0 && (
                 <>
-                  {/* Load more button */}
-                  {hasMore && (
+                  {/* Load more button - hide for now since we're not using pagination */}
+                  {false && hasMore && (
                     <div className="flex justify-center pb-4">
                       <Button
                         onClick={loadMore}
@@ -825,9 +805,9 @@ export function ChatInterface({ chatId, className, onClose, noteContext, metadat
 
                   {/* Message list */}
                   <div className="chat-messages-list pb-4">
-                    {paginatedMessages.map((message, index) => (
+                    {messages.map((message, index) => (
                       <ChatMessage
-                        key={message.id}
+                        key={`${message.id}-${index}`}
                         message={message}
                         isStreaming={isLoading && index === messages.length - 1}
                         onRegenerate={reload}

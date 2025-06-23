@@ -1,0 +1,305 @@
+/* CSS Custom Properties for consistent spacing */
+:root {
+  --sidebar-width: 16rem; /* 256px */
+  --sidebar-collapsed-width: 4rem; /* 64px */
+  --sidebar-item-height: 2rem;
+  --sidebar-item-padding-x: 0.5rem;
+  --sidebar-item-padding-y: 0.375rem;
+  --sidebar-indent: 1.25rem;
+  --sidebar-icon-size: 1rem;
+  --sidebar-transition: 200ms cubic-bezier(0.4, 0, 0.2, 1);
+  --sidebar-chevron-size: 0.75rem;
+  --sidebar-gap: 0.5rem;
+  --sidebar-section-gap: 0.75rem;
+  --sidebar-border-radius: 0.375rem;
+}
+
+/* Modern Grid-based collapse */
+.collapsible-content {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 200ms ease-out;
+}
+
+.collapsible-content[data-expanded="true"] {
+  grid-template-rows: 1fr;
+}
+
+.collapsible-inner {
+  overflow: hidden;
+}
+
+/* Collapsible trigger styling */
+.sidebar-collapsible-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  text-align: left;
+  font-size: 0.875rem;
+  transition: background-color var(--sidebar-transition);
+}
+
+/* Strong active state */
+.sidebar-item {
+  position: relative;
+  transition: all var(--sidebar-transition);
+}
+
+.sidebar-item[data-active="true"] {
+  background-color: hsl(var(--muted));
+}
+
+.sidebar-item[data-active="true"]::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background-color: hsl(var(--primary));
+  border-radius: 0 2px 2px 0;
+}
+
+/* Hover states */
+.sidebar-item:not([data-active="true"]):hover {
+  background-color: hsl(var(--muted) / 0.5);
+}
+
+/* Smooth icon rotation */
+.sidebar-chevron {
+  transition: transform var(--sidebar-transition);
+}
+
+.sidebar-chevron[data-expanded="true"] {
+  transform: rotate(90deg);
+}
+
+/* Loading skeleton animations */
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.sidebar-skeleton {
+  background: linear-gradient(
+    90deg,
+    oklch(var(--muted) / 0.5) 25%,
+    oklch(var(--muted) / 0.7) 50%,
+    oklch(var(--muted) / 0.5) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 0.375rem;
+}
+
+/* Additional refinements */
+.sidebar-item-active-accent {
+  position: relative;
+  background-color: hsl(var(--muted));
+  border-radius: var(--sidebar-border-radius);
+}
+
+.sidebar-item-active-accent::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background-color: hsl(var(--primary));
+  border-radius: 0 2px 2px 0;
+  animation: slideIn 200ms ease-out;
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(-3px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+/* Hover actions opacity */
+.hover-actions {
+  opacity: 0;
+  transition: opacity 150ms ease-out;
+}
+
+.group:hover .hover-actions {
+  opacity: 1;
+}
+
+/* Smooth transitions for all interactive elements */
+.sidebar-item,
+.sidebar-collapsible-trigger {
+  transition: background-color 150ms ease-out;
+}
+
+/* Empty state styling */
+.sidebar-empty-state {
+  padding: 0.5rem 0.75rem;
+  font-size: 0.75rem;
+  color: oklch(var(--muted-foreground));
+  font-style: italic;
+}
+
+/* New collection/space button styling */
+.sidebar-new-button {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.375rem 0.5rem;
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+  color: oklch(var(--muted-foreground));
+  transition: all 150ms ease-out;
+}
+
+.sidebar-new-button:hover {
+  background-color: oklch(var(--hover-1));
+  color: oklch(var(--foreground));
+}
+
+/* Icon styling */
+.sidebar-icon {
+  width: var(--sidebar-icon-size);
+  height: var(--sidebar-icon-size);
+  flex-shrink: 0;
+}
+
+/* Ensure consistent text truncation */
+.sidebar-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Space between sections */
+.sidebar-space-section {
+  margin-bottom: var(--sidebar-section-gap);
+}
+
+/* Nested item indentation */
+.sidebar-nested-item {
+  margin-left: var(--sidebar-indent);
+}
+
+/* Sidebar border styling */
+.sidebar-border-right {
+  border-right: 1px solid hsl(var(--sidebar-border));
+}
+
+/* User profile section */
+.sidebar-user-section {
+  padding: 0.75rem;
+  border-top: 1px solid hsl(var(--sidebar-border));
+}
+
+/* Search input styling */
+.sidebar-search {
+  padding: 0 0.5rem 0.5rem;
+}
+
+.sidebar-search input {
+  height: 2rem;
+  font-size: 0.875rem;
+}
+
+/* Sidebar styles */
+
+/* Ensure hover actions work with explicit CSS */
+.group .hover-actions-wrapper {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 200ms ease-in-out;
+}
+
+.group:hover .hover-actions-wrapper {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Force visibility on hover - more specific selectors */
+.group:hover .hover-actions {
+  opacity: 1 !important;
+}
+
+/* Target the specific structure */
+.group:hover > .hover-actions {
+  opacity: 1 !important;
+}
+
+/* Target nested structure */
+.group:hover .relative .hover-actions {
+  opacity: 1 !important;
+}
+
+/* Target flex container structure */
+.group.flex:hover .hover-actions {
+  opacity: 1 !important;
+}
+
+/* Sidebar item styles */
+.sidebar-item-active {
+  position: relative;
+  background-color: oklch(var(--hover-2));
+  border-radius: 0.375rem;
+}
+
+.sidebar-item-active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background-color: oklch(var(--primary));
+  border-radius: 3px 0 0 3px;
+}
+
+/* Search results highlighting */
+.search-highlight {
+  background-color: oklch(var(--primary) / 0.2);
+  padding: 0 2px;
+  border-radius: 2px;
+}
+
+/* Drag and drop styles */
+.drag-over {
+  background-color: oklch(var(--primary) / 0.1);
+  outline: 2px dashed oklch(var(--primary) / 0.5);
+  outline-offset: -2px;
+}
+
+.dragging {
+  opacity: 0.5;
+  cursor: grabbing;
+}
+
+/* Smooth height transitions for expanding/collapsing */
+.sidebar-section {
+  overflow: hidden;
+  transition: max-height 200ms ease-out;
+}
+
+.sidebar-section[data-collapsed="true"] {
+  max-height: 0;
+}
+
+.sidebar-section[data-collapsed="false"] {
+  max-height: 2000px; /* Large enough for content */
+}
+
+/* Smooth transitions for all interactive elements */
+.sidebar-item,
+.sidebar-collapsible-trigger {
+  transition: background-color 150ms ease-out;
+} 
