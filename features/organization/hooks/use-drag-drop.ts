@@ -218,4 +218,25 @@ export function useDropZone(collectionId: string, dropIndicator: DropIndicator) 
       'data-is-over': isOver,
     },
   }
+}
+
+// Get visual styles for drag over states
+export function getDragOverStyles(isOver: boolean, canDrop: boolean) {
+  if (!isOver) return {}
+  
+  if (canDrop) {
+    return {
+      backgroundColor: 'oklch(var(--primary) / 0.1)',
+      borderColor: 'oklch(var(--primary))',
+      borderStyle: 'dashed' as const,
+      borderWidth: '2px',
+      transition: 'all 150ms ease-out',
+    }
+  } else {
+    return {
+      backgroundColor: 'oklch(var(--destructive) / 0.1)',
+      cursor: 'not-allowed',
+      transition: 'all 150ms ease-out',
+    }
+  }
 } 

@@ -6,6 +6,7 @@ import { Wand2, X, CornerDownLeft, RefreshCw, ArrowDown, Check, Edit2 } from 'lu
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { useAICompletion } from '../hooks/use-ai-completion'
+import { useFeedbackTracker } from '../hooks/use-feedback-tracker'
 
 const SUGGESTIONS = [
   'Write a JavaScript function',
@@ -33,8 +34,10 @@ export function AIInlineInterface({ editor, node, getPos }: NodeViewProps) {
   const [originalPrompt, setOriginalPrompt] = useState('')
   const [isEditing, setIsEditing] = useState(false)
   const [showSuggestions, setShowSuggestions] = useState(true)
+  const [startTime, setStartTime] = useState<number>(0)
 
   const { completion, triggerCompletion, isLoading, stop } = useAICompletion()
+  const { trackFeedback } = useFeedbackTracker()
 
   const position = typeof getPos === 'function' ? getPos() : 0
 
@@ -51,6 +54,7 @@ export function AIInlineInterface({ editor, node, getPos }: NodeViewProps) {
     e.preventDefault()
     if (input.trim()) {
       setOriginalPrompt(input)
+      setStartTime(Date.now())
       triggerCompletion(input)
     }
   }
@@ -77,8 +81,20 @@ export function AIInlineInterface({ editor, node, getPos }: NodeViewProps) {
   }
 
   const handleClose = useCallback(() => {
+    // Track as ignored if there was a completion
+    if (completion) {
+      trackFeedback({
+        operation: 'completion',
+        action: 'ignored',
+        prompt: originalPrompt,
+        output: completion,
+        metadata: {
+          duration: Date.now() - startTime
+        }
+      })
+    }
     editor.chain().focus().deleteRange({ from: position, to: position + node.nodeSize }).run()
-  }, [editor, position, node.nodeSize])
+  }, [editor, position, node.nodeSize, completion, originalPrompt, startTime, trackFeedback])
 
   const insertBlocks = useCallback((blocks: AIBlock[]) => {
     blocks.forEach((block, index) => {
@@ -165,6 +181,17 @@ export function AIInlineInterface({ editor, node, getPos }: NodeViewProps) {
   }, [editor])
 
   const handleAccept = useCallback(() => {
+    // Track as accepted
+    trackFeedback({
+      operation: 'completion',
+      action: 'accepted',
+      prompt: originalPrompt,
+      output: completion,
+      metadata: {
+        duration: Date.now() - startTime
+      }
+    })
+    
     // Delete the inline AI node first
     editor.chain().focus().deleteRange({ from: position, to: position + node.nodeSize }).run()
     
@@ -184,7 +211,7 @@ export function AIInlineInterface({ editor, node, getPos }: NodeViewProps) {
         content: [{ type: 'text', text: completion }]
       }).run()
     }
-  }, [editor, position, node.nodeSize, completion, insertBlocks])
+  }, [editor, position, node.nodeSize, completion, insertBlocks, originalPrompt, startTime, trackFeedback])
 
   const handleInsertBelow = useCallback(() => {
     const endPos = position + node.nodeSize

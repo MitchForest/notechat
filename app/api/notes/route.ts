@@ -164,8 +164,8 @@ export async function POST(request: Request) {
       isStarred: false, // Ensure default value
     }
     
-    // Allow specifying an ID for temporary notes
-    if (id) {
+    // Only include ID if it's a valid UUID (not a temporary ID)
+    if (id && !id.startsWith('chat-') && !id.startsWith('note-')) {
       values.id = id
     }
 

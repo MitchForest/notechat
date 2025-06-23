@@ -10,6 +10,7 @@ import { DraggableNoteItem } from './draggable-note-item'
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { useDragDrop } from '../hooks/use-drag-drop'
 import { HoverActions } from './hover-actions'
+import { AnimatedCollapse } from './animated-collapse'
 
 interface SidebarCollectionItemProps {
   collection: Collection
@@ -103,7 +104,7 @@ export const SidebarCollectionItem = React.memo(({
           </div>
         </button>
         
-        {/* Hover actions */}
+        {/* Hover actions - positioned absolutely to avoid button nesting */}
         {onCollectionAction && (
           <HoverActions
             variant="collection"
@@ -116,9 +117,9 @@ export const SidebarCollectionItem = React.memo(({
         )}
       </div>
       
-      {/* Items under collection */}
-      {isExpanded && (
-        <div className="mt-0.5 ml-5 space-y-0.5">
+      {/* Items under collection - animated */}
+      <AnimatedCollapse isOpen={isExpanded} className="mt-0.5 ml-5">
+        <div className="space-y-0.5">
           {itemCount === 0 ? (
             <div className="text-xs text-muted-foreground px-2 py-1">
               No items in this collection
@@ -153,7 +154,7 @@ export const SidebarCollectionItem = React.memo(({
             </SortableContext>
           )}
         </div>
-      )}
+      </AnimatedCollapse>
     </DroppableCollection>
   )
 })

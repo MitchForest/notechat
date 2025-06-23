@@ -12,42 +12,51 @@ import {
   MessageCircle,
   Zap,
   Loader2,
-  ArrowLeft
+  ArrowLeft,
+  Wand2
 } from 'lucide-react'
+import * as Icons from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { AIOperation } from '@/features/ai/types'
 import { useAITransform } from '../hooks/use-ai-transform'
+import { usePreferencesStore, type Command } from '@/features/ai/stores/preferences-store'
 
 interface AIBubbleMenuCommandsProps {
   editor: Editor
   onBack: () => void
 }
 
-const COMMANDS = [
-  { id: 'improve', label: 'Improve writing', icon: Edit2 },
-  { id: 'shorter', label: 'Make shorter', icon: Minimize2 },
-  { id: 'longer', label: 'Make longer', icon: Maximize2 },
-  { id: 'fix', label: 'Fix grammar', icon: CheckCircle },
-  { id: 'simplify', label: 'Simplify', icon: BookOpen },
-  { id: 'formal', label: 'Make formal', icon: Briefcase },
-  { id: 'casual', label: 'Make casual', icon: MessageCircle },
-  { id: 'custom', label: 'Custom edit...', icon: Zap }
-] as const
-
 export function AIBubbleMenuCommands({ editor, onBack }: AIBubbleMenuCommandsProps) {
   const [view, setView] = useState<'commands' | 'custom'>('commands')
   const [customPrompt, setCustomPrompt] = useState('')
   const { transform, isLoading, isFinished } = useAITransform(editor)
+  const { loadPreferences, getCommands } = usePreferencesStore()
 
-  const handleCommand = (operation: AIOperation, prompt?: string) => {
-    if (operation === 'custom' && view === 'commands') {
+  useEffect(() => {
+    loadPreferences()
+  }, [loadPreferences])
+
+  const commands = getCommands()
+
+  const handleCommand = (command: Command | 'custom', prompt?: string) => {
+    if (command === 'custom' && view === 'commands') {
       setView('custom')
       return
     }
+    
     const { from, to } = editor.state.selection
     const selectedText = editor.state.doc.textBetween(from, to, ' ')
-    transform(selectedText, operation, prompt)
+    
+    if (command === 'custom') {
+      transform(selectedText, 'custom', prompt)
+    } else if (command.isCustom) {
+      // Use the custom prompt directly
+      transform(selectedText, 'custom', command.prompt)
+    } else {
+      // Use built-in operation
+      transform(selectedText, command.id as AIOperation)
+    }
   }
 
   useEffect(() => {
@@ -55,6 +64,12 @@ export function AIBubbleMenuCommands({ editor, onBack }: AIBubbleMenuCommandsPro
       onBack()
     }
   }, [isFinished, onBack])
+
+  // Get icon component
+  const getIcon = (iconName: string) => {
+    const IconComponent = Icons[iconName as keyof typeof Icons] as any
+    return IconComponent || Wand2
+  }
 
   if (isLoading) {
     return (
@@ -108,17 +123,29 @@ export function AIBubbleMenuCommands({ editor, onBack }: AIBubbleMenuCommandsPro
         </Button>
         <span className="text-sm font-medium">AI Commands</span>
       </div>
-      <div className="grid grid-cols-2 gap-1">
-        {COMMANDS.map(cmd => (
-          <button
-            key={cmd.id}
-            onClick={() => handleCommand(cmd.id as AIOperation)}
-            className="flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-md transition-colors text-left"
-          >
-            <cmd.icon className="h-4 w-4 shrink-0" />
-            <span>{cmd.label}</span>
-          </button>
-        ))}
+      <div className="grid grid-cols-2 gap-1 max-h-[300px] overflow-y-auto">
+        {commands.map(cmd => {
+          const Icon = getIcon(cmd.icon)
+          return (
+            <button
+              key={cmd.id}
+              onClick={() => handleCommand(cmd)}
+              className="flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-md transition-colors text-left"
+              title={cmd.prompt}
+            >
+              <Icon className="h-4 w-4 shrink-0" />
+              <span className="truncate">{cmd.label}</span>
+            </button>
+          )
+        })}
+        {/* Always show custom option at the end */}
+        <button
+          onClick={() => handleCommand('custom')}
+          className="flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-md transition-colors text-left"
+        >
+          <Zap className="h-4 w-4 shrink-0" />
+          <span>Custom edit...</span>
+        </button>
       </div>
     </div>
   )

@@ -3,7 +3,8 @@ import { AI_MAX_TOKENS, AI_MODELS, AI_SYSTEM_PROMPTS, AI_TEMPERATURES } from '@/
 import { NextRequest } from 'next/server'
 import { openai } from '@ai-sdk/openai'
 
-export const runtime = 'edge'
+// Remove edge runtime to avoid conflicts with Node.js modules
+// export const runtime = 'edge'
 
 export async function POST(req: NextRequest) {
   try {

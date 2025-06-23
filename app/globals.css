@@ -67,6 +67,15 @@
   /* Light theme - Claude-inspired minimal aesthetic */
   --radius: 0.625rem;
   
+  /* Sidebar spacing variables */
+  --sidebar-item-height: 2rem;
+  --sidebar-item-padding-x: 0.5rem;
+  --sidebar-item-padding-y: 0.375rem;
+  --sidebar-nested-indent: 1.25rem;
+  --sidebar-icon-size: 1rem;
+  --sidebar-chevron-size: 0.75rem;
+  --sidebar-item-gap: 0.5rem;
+  
   /* Font families */
   --font-family-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
   --font-family-mono: 'JetBrains Mono', 'SF Mono', 'Consolas', 'Monaco', monospace;
@@ -334,6 +343,8 @@
   .sidebar-item-active-accent {
     position: relative;
     padding-left: 0.75rem;
+    background-color: oklch(var(--hover-2));
+    border-radius: 0.375rem;
   }
   
   .sidebar-item-active-accent::before {
@@ -342,14 +353,16 @@
     left: 0;
     top: 0;
     bottom: 0;
-    width: 3px;
-    background-color: hsl(var(--primary));
+    width: 4px;
+    background-color: oklch(var(--primary));
+    border-radius: 4px 0 0 4px;
     animation: slideIn 200ms ease-out;
+    box-shadow: 0 0 8px oklch(var(--primary) / 0.3);
   }
   
   @keyframes slideIn {
     from {
-      transform: translateX(-3px);
+      transform: translateX(-4px);
       opacity: 0;
     }
     to {
@@ -358,10 +371,32 @@
     }
   }
   
+  /* Add subtle scale animation on activation */
+  @keyframes activateItem {
+    0% {
+      transform: scale(1);
+    }
+    50% {
+      transform: scale(1.02);
+    }
+    100% {
+      transform: scale(1);
+    }
+  }
+  
+  .sidebar-item-active-accent {
+    animation: activateItem 200ms ease-out;
+  }
+  
   /* Adjust padding for active items to account for border */
   .sidebar-item-active-accent > button,
   .sidebar-item-active-accent > div > button {
-    padding-left: calc(0.5rem - 3px);
+    padding-left: calc(0.5rem - 4px);
+  }
+  
+  /* Active items don't change on hover */
+  .sidebar-item-active-accent button {
+    background-color: transparent !important;
   }
   
   /* Hover state for non-active sidebar items */
@@ -529,7 +564,8 @@
   transition: opacity 200ms ease-in-out;
 }
 
-.group:hover .hover-actions-trigger,
+/* Show hover actions when hovering the parent group div */
+.group:hover > .hover-actions-trigger,
 .hover-actions-trigger[data-state="open"] {
   opacity: 1;
 }
@@ -537,4 +573,13 @@
 /* Ensure hover actions stay visible when dropdown is open */
 [data-state="open"] + .hover-actions-trigger {
   opacity: 1;
+}
+
+/* Chevron rotation animation */
+.sidebar-chevron {
+  transition: transform 200ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.sidebar-chevron-rotated {
+  transform: rotate(90deg);
 }

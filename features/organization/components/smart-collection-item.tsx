@@ -1,12 +1,14 @@
 'use client'
 
 import React from 'react'
-import { ChevronDown, ChevronRight, Lock, LucideIcon, Loader2 } from 'lucide-react'
+import { ChevronDown, ChevronRight, LucideIcon, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { SmartCollection, Note, Chat } from '@/lib/db/schema'
 import { getCollectionIcon } from '@/features/organization/lib/collection-icons'
 import { HoverActions } from './hover-actions'
 import { DraggableNoteItem } from './draggable-note-item'
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip'
+import { AnimatedCollapse } from './animated-collapse'
 
 interface SmartCollectionItemProps {
   smartCollection: SmartCollection
@@ -34,23 +36,30 @@ export function SmartCollectionItem({
   onItemAction
 }: SmartCollectionItemProps) {
   const Icon = getCollectionIcon(smartCollection.icon) as LucideIcon
+  const [isDragOver, setIsDragOver] = React.useState(false)
   
   // Helper to determine if an item is a chat or note
   const getItemType = (item: Note | Chat): 'note' | 'chat' => {
     return 'messages' in item || item.id.startsWith('chat-') ? 'chat' : 'note'
   }
   
-  return (
-    <div className={cn(
-      "group relative",
-      isActive && "sidebar-item-active-accent"
-    )}>
+  const content = (
+    <div 
+      className={cn(
+        "group relative",
+        isActive && "sidebar-item-active-accent"
+      )}
+      onDragEnter={() => setIsDragOver(true)}
+      onDragLeave={() => setIsDragOver(false)}
+      onDrop={() => setIsDragOver(false)}
+    >
       <div className="flex items-center">
         <button
           className={cn(
             "flex-1 flex items-center justify-between rounded-md px-2 py-1.5 text-sm",
             "transition-colors duration-150",
-            !isActive && "hover:bg-hover-1"
+            !isActive && "hover:bg-hover-1",
+            isDragOver && "bg-destructive/10 cursor-not-allowed"
           )}
           onClick={(e) => {
             e.stopPropagation()
@@ -64,9 +73,6 @@ export function SmartCollectionItem({
             <span className="text-xs text-muted-foreground">
               ({items.length})
             </span>
-            {smartCollection.isProtected && (
-              <Lock className="h-3 w-3 text-muted-foreground flex-shrink-0" />
-            )}
           </div>
           <div className="flex items-center gap-1 ml-2">
             {isLoading ? (
@@ -91,9 +97,9 @@ export function SmartCollectionItem({
         )}
       </div>
       
-      {/* Expanded content */}
-      {isExpanded && !isLoading && (
-        <div className="mt-0.5 ml-5 space-y-0.5">
+      {/* Expanded content - animated */}
+      <AnimatedCollapse isOpen={isExpanded && !isLoading} className="mt-0.5 ml-5">
+        <div className="space-y-0.5">
           {items.length === 0 ? (
             <div className="text-xs text-muted-foreground px-2 py-1">
               No items match this filter
@@ -121,7 +127,24 @@ export function SmartCollectionItem({
             })
           )}
         </div>
-      )}
+      </AnimatedCollapse>
     </div>
   )
+  
+  if (isDragOver) {
+    return (
+      <TooltipProvider>
+        <Tooltip open={true}>
+          <TooltipTrigger asChild>
+            {content}
+          </TooltipTrigger>
+          <TooltipContent side="right">
+            <p>Smart collections are filters and cannot accept items</p>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    )
+  }
+  
+  return content
 } 

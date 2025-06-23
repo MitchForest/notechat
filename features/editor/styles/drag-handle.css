@@ -14,6 +14,11 @@
   padding: 0 !important;
 }
 
+/* Temporarily hide drag handle until functionality is fixed */
+.tiptap-drag-handle {
+  display: none !important;
+}
+
 /* Main drag handle */
 .tiptap-drag-handle {
   width: 20px;

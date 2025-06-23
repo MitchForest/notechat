@@ -5,6 +5,7 @@ import { ChevronDown, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Space } from '@/lib/db/schema'
 import { HoverActions } from './hover-actions'
+import { AnimatedCollapse } from './animated-collapse'
 
 interface SpaceSectionProps {
   space: Space
@@ -69,7 +70,10 @@ export const SpaceSection = React.memo(({
         )}
       </div>
       
-      {isExpanded && children}
+      {/* Animated expand/collapse for children */}
+      <AnimatedCollapse isOpen={isExpanded}>
+        {children}
+      </AnimatedCollapse>
     </div>
   )
 }, (prevProps, nextProps) => {

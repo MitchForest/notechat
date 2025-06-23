@@ -1,13 +1,20 @@
-import { useEffect, useRef, useCallback } from 'react'
+import { useEffect, useRef, useCallback, useState } from 'react'
 import { Editor } from '@tiptap/core'
 import { useCompletion } from 'ai/react'
 import { handleAIError } from '../lib/ai-errors'
+import { useFeedbackTracker } from './use-feedback-tracker'
 
 export function useGhostText(editor: Editor | null) {
+  const [ghostText, setGhostText] = useState('')
+  const [position, setPosition] = useState<number | null>(null)
+  const [isLoading, setIsLoading] = useState(false)
+  const [startTime, setStartTime] = useState<number>(0)
+  const [lastInput, setLastInput] = useState('')
   const positionRef = useRef<number | null>(null)
   const isMountedRef = useRef(false)
   const completeRef = useRef<any>(null)
   const stopRef = useRef<any>(null)
+  const { trackFeedback } = useFeedbackTracker()
 
   useEffect(() => {
     isMountedRef.current = true
@@ -16,7 +23,7 @@ export function useGhostText(editor: Editor | null) {
     }
   }, [])
 
-  const { complete, completion, isLoading, stop } = useCompletion({
+  const { complete, completion, isLoading: aiLoading, stop } = useCompletion({
     api: '/api/ai/completion',
     onError: error => {
       console.error('[useGhostText] AI completion error:', error)
@@ -107,6 +114,65 @@ export function useGhostText(editor: Editor | null) {
       ;(editor as any).off('ghostTextReject', handleReject)
     }
   }, [editor]) // Only depend on editor, not on complete/stop
+
+  const clearGhostText = useCallback(() => {
+    // Track as ignored if there was ghost text
+    if (ghostText && position !== null) {
+      trackFeedback({
+        operation: 'ghost-text',
+        action: 'ignored',
+        input: lastInput,
+        output: ghostText,
+        metadata: {
+          duration: Date.now() - startTime,
+          position
+        }
+      })
+    }
+    
+    setGhostText('')
+    setPosition(null)
+    positionRef.current = null
+    
+    if (editor) {
+      const tr = editor.state.tr
+      tr.setMeta('ghostText', { text: '', position: null })
+      editor.view.dispatch(tr)
+    }
+  }, [editor, ghostText, position, lastInput, startTime, trackFeedback])
+
+  const acceptGhostText = useCallback(() => {
+    if (!editor || !ghostText || position === null) return
+    
+    // Track as accepted
+    trackFeedback({
+      operation: 'ghost-text',
+      action: 'accepted',
+      input: lastInput,
+      output: ghostText,
+      metadata: {
+        duration: Date.now() - startTime,
+        position
+      }
+    })
+    
+    editor.chain()
+      .focus()
+      .insertContentAt(position, ghostText)
+      .run()
+    
+    clearGhostText()
+  }, [editor, ghostText, position, clearGhostText, lastInput, startTime, trackFeedback])
+
+  const triggerGhostText = useCallback(async (text: string, pos: number) => {
+    if (!editor || isLoading) return
+    
+    setIsLoading(true)
+    setStartTime(Date.now())
+    setLastInput(text)
+    
+    // ... rest of the function remains the same ...
+  }, [editor, isLoading])
 
   return {
     isLoading,

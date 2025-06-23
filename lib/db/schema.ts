@@ -235,6 +235,28 @@ export interface AIPreferences {
     commandOrder?: string[]
 }
 
+// --- AI Feedback ---
+
+export const aiFeedback = pgTable('ai_feedback', {
+    id: uuid('id').defaultRandom().primaryKey(),
+    userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+    operation: text('operation').notNull(), // 'transform', 'completion', 'ghost-text'
+    action: text('action').notNull(), // 'accepted', 'ignored', 'edited'
+    prompt: text('prompt'),
+    input: text('input'),
+    output: text('output'),
+    finalText: text('final_text'), // What was actually inserted (if edited)
+    metadata: jsonb('metadata'), // Additional context like duration, position, etc
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+})
+
+export const aiFeedbackRelations = relations(aiFeedback, ({ one }) => ({
+    user: one(users, {
+        fields: [aiFeedback.userId],
+        references: [users.id],
+    }),
+}))
+
 // Type exports
 export type User = typeof users.$inferSelect
 export type NewUser = typeof users.$inferInsert
@@ -256,4 +278,6 @@ export type NewMessage = typeof messages.$inferInsert
 export type SmartCollection = typeof smartCollections.$inferSelect
 export type NewSmartCollection = typeof smartCollections.$inferInsert
 export type UserPreferences = typeof userPreferences.$inferSelect
-export type NewUserPreferences = typeof userPreferences.$inferInsert 
+export type NewUserPreferences = typeof userPreferences.$inferInsert
+export type AIFeedback = typeof aiFeedback.$inferSelect
+export type NewAIFeedback = typeof aiFeedback.$inferInsert 

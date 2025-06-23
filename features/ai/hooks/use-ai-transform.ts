@@ -1,78 +1,66 @@
 'use client'
 
-import { useCompletion } from 'ai/react'
-import { useCallback, useMemo, useRef } from 'react'
 import { Editor } from '@tiptap/core'
-import { toast } from 'sonner'
+import { useCompletion } from 'ai/react'
+import { useCallback, useState } from 'react'
 import { AIOperation } from '../types'
-import { handleAIError } from '@/features/ai/lib/ai-errors'
-import { SmartInsert } from '../utils/smart-insert'
+import { handleAIError } from '../lib/ai-errors'
+import { useFeedbackTracker } from './use-feedback-tracker'
 
-export function useAITransform(editor: Editor | null) {
-  const smartInsert = useMemo(() => 
-    editor ? new SmartInsert(editor) : null, 
-    [editor]
-  )
+export function useAITransform(editor: Editor) {
+  const [isFinished, setIsFinished] = useState(false)
+  const [startTime, setStartTime] = useState<number>(0)
+  const [originalText, setOriginalText] = useState('')
+  const [operation, setOperation] = useState<AIOperation>('improve')
+  const { trackFeedback } = useFeedbackTracker()
   
-  // Store the current operation and prompt for use in onFinish
-  const contextRef = useRef<{ operation: AIOperation; customPrompt?: string } | undefined>(undefined)
-
-  const { complete, completion, isLoading, error } = useCompletion({
+  const { complete, completion, isLoading } = useCompletion({
     api: '/api/ai/transform',
-    onFinish: async (_prompt, completion) => {
-      if (!editor || !smartInsert) return
-
-      const { from, to } = editor.state.selection
-      editor.chain().focus().deleteRange({ from, to }).run()
+    onFinish: (prompt, completion) => {
+      if (!editor) return
       
-      // Use smart insert for intelligent block creation
-      const context = contextRef.current
-      await smartInsert.insertContent(completion, {
-        userPrompt: context?.customPrompt || context?.operation || _prompt,
-        operation: context?.operation,
-        selection: { from, to }
+      const { from, to } = editor.state.selection
+      
+      // Track as accepted (since it auto-replaces)
+      trackFeedback({
+        operation: 'transform',
+        action: 'accepted',
+        prompt: operation === 'custom' ? prompt : operation,
+        input: originalText,
+        output: completion,
+        metadata: {
+          duration: Date.now() - startTime,
+          operation,
+          from,
+          to
+        }
       })
-
-      toast.success('Text transformed!')
+      
+      editor.chain()
+        .focus()
+        .deleteRange({ from, to })
+        .insertContentAt(from, completion)
+        .run()
+      
+      setIsFinished(true)
+      setTimeout(() => setIsFinished(false), 100)
     },
     onError: error => {
       handleAIError(error)
+      setIsFinished(true)
+      setTimeout(() => setIsFinished(false), 100)
     }
   })
 
-  const transform = useCallback(
-    async (text: string, operation: AIOperation, customPrompt?: string) => {
-      if (!text.trim()) {
-        toast.error('Please select some text first')
-        return
-      }
+  const transform = useCallback(async (text: string, operation: AIOperation, customPrompt?: string) => {
+    setStartTime(Date.now())
+    setOriginalText(text)
+    setOperation(operation)
+    
+    await complete(text, {
+      body: { operation, customPrompt }
+    })
+  }, [complete])
 
-      if (text.length > 4000) {
-        toast.error('Selected text is too long. Please select less text.')
-        return
-      }
-
-      // Store context for use in onFinish
-      contextRef.current = { operation, customPrompt }
-
-      try {
-        await complete(text, {
-          body: {
-            operation,
-            customPrompt
-          }
-        })
-      } catch (e) {
-        handleAIError(e)
-      }
-    },
-    [complete]
-  )
-
-  return {
-    transform,
-    isLoading,
-    isFinished: !isLoading && completion !== '',
-    result: completion
-  }
+  return { transform, isLoading, isFinished }
 } 

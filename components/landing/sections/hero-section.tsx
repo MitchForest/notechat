@@ -43,6 +43,7 @@ export function HeroSection({ onGetStarted, onLearnMore }: HeroSectionProps) {
             >
               <Button 
                 size="lg" 
+                variant="default"
                 onClick={onGetStarted}
                 className="shadow-sm hover:shadow-md transition-shadow"
               >

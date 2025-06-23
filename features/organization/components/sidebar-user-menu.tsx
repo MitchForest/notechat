@@ -1,8 +1,8 @@
 'use client'
 
-import React from 'react'
+import React, { useState } from 'react'
 import Image from 'next/image'
-import { User, Settings, LogOut, Sun, Moon } from 'lucide-react'
+import { User, Settings, LogOut, Sun, Moon, Sparkles } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import { Button } from '@/components/ui/button'
 import {
@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import type { User as UserType } from '@/lib/db/schema'
 import { getInitials } from '@/features/organization/utils/sidebar-helpers'
+import { AISettingsDialog } from '@/features/ai/components/ai-settings-dialog'
 
 interface SidebarUserMenuProps {
   user: UserType
@@ -23,6 +24,7 @@ interface SidebarUserMenuProps {
 
 export function SidebarUserMenu({ user, collapsed = false, onSignOut }: SidebarUserMenuProps) {
   const { theme, setTheme } = useTheme()
+  const [showAISettings, setShowAISettings] = useState(false)
 
   const trigger = (
     <Button variant="ghost" size={collapsed ? "sm" : "default"} className={collapsed ? "w-full p-0" : "w-full justify-start text-left"}>
@@ -69,39 +71,47 @@ export function SidebarUserMenu({ user, collapsed = false, onSignOut }: SidebarU
   )
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        {trigger}
-      </DropdownMenuTrigger>
-      <DropdownMenuContent className="w-56" align="end" forceMount>
-        <DropdownMenuItem>
-          <User className="mr-2 h-4 w-4" />
-          Profile
-        </DropdownMenuItem>
-        <DropdownMenuItem>
-          <Settings className="mr-2 h-4 w-4" />
-          Settings
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>
-          {theme === 'dark' ? (
-            <>
-              <Sun className="mr-2 h-4 w-4" />
-              Light Mode
-            </>
-          ) : (
-            <>
-              <Moon className="mr-2 h-4 w-4" />
-              Dark Mode
-            </>
-          )}
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={onSignOut}>
-          <LogOut className="mr-2 h-4 w-4" />
-          <span>Log out</span>
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          {trigger}
+        </DropdownMenuTrigger>
+        <DropdownMenuContent className="w-56" align="end" forceMount>
+          <DropdownMenuItem>
+            <User className="mr-2 h-4 w-4" />
+            Profile
+          </DropdownMenuItem>
+          <DropdownMenuItem>
+            <Settings className="mr-2 h-4 w-4" />
+            Settings
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => setShowAISettings(true)}>
+            <Sparkles className="mr-2 h-4 w-4" />
+            AI Commands
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>
+            {theme === 'dark' ? (
+              <>
+                <Sun className="mr-2 h-4 w-4" />
+                Light Mode
+              </>
+            ) : (
+              <>
+                <Moon className="mr-2 h-4 w-4" />
+                Dark Mode
+              </>
+            )}
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={onSignOut}>
+            <LogOut className="mr-2 h-4 w-4" />
+            <span>Log out</span>
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      
+      <AISettingsDialog open={showAISettings} onOpenChange={setShowAISettings} />
+    </>
   )
 } 

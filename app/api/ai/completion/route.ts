@@ -7,8 +7,11 @@ import {
   AI_SYSTEM_PROMPTS,
   AI_TEMPERATURES
 } from '@/features/ai/lib/ai-config'
+import { getCurrentUser } from '@/lib/auth/session'
+import { LearningService } from '@/features/ai/services/learning-service'
 
-export const runtime = 'edge'
+// Remove edge runtime since we're using Node.js modules
+// export const runtime = 'edge'
 
 export async function POST(req: NextRequest) {
   const {
@@ -17,7 +20,7 @@ export async function POST(req: NextRequest) {
     mode = 'completion'
   }: { prompt?: string; context?: string; mode?: 'completion' | 'ghost-text' | 'inline-ai' } = await req.json()
 
-  const systemPrompt = AI_SYSTEM_PROMPTS[mode as keyof typeof AI_SYSTEM_PROMPTS]
+  const baseSystemPrompt = AI_SYSTEM_PROMPTS[mode as keyof typeof AI_SYSTEM_PROMPTS] as string
   const fullPrompt = context ? `${context}\n\n${prompt}` : prompt
 
   if (!fullPrompt) {
@@ -25,9 +28,21 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    // Get personalized prompt if user is authenticated
+    let systemPrompt = baseSystemPrompt
+    const user = await getCurrentUser()
+    if (user) {
+      try {
+        systemPrompt = await LearningService.getPersonalizedPrompt(user.id, baseSystemPrompt)
+      } catch (e) {
+        // Fallback to base prompt if learning fails
+        console.error('Failed to get personalized prompt:', e)
+      }
+    }
+
     const result = await streamText({
       model: openai(AI_MODELS[mode as keyof typeof AI_MODELS]),
-      system: systemPrompt as string,
+      system: systemPrompt,
       prompt: fullPrompt,
       temperature: AI_TEMPERATURES[mode as keyof typeof AI_TEMPERATURES],
       maxTokens: AI_MAX_TOKENS[mode as keyof typeof AI_MAX_TOKENS]
